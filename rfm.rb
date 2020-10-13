@@ -35,7 +35,7 @@ def open_selected()
   if File.directory?(@selected) # Rescue for permission error
     begin
       Dir.chdir(@selected)
-      @index = 0
+      @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
     rescue
     end
   else
@@ -54,6 +54,9 @@ def open_selected()
     end
   end
 end
+
+# Initialize the directory hash
+@directory = {}
 
 # Set chosen item to first
 @index = 0
@@ -176,8 +179,13 @@ begin
         case $stdin.getc
         when 'A' then @index = @index <= min_index ? max_index : @index - 1
         when 'B' then @index = @index >= max_index ? min_index : @index + 1
-        when 'C' then open_selected()
-        when 'D' then Dir.chdir("..") ; @index = 0
+        when 'C' 
+          @directory[Dir.pwd] = @index
+          open_selected()
+        when 'D' 
+          @directory[Dir.pwd] = @index
+          Dir.chdir("..")
+          @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
         end
       end
     when ':' # Enter "command mode" in the bottom window - tries to execute the given command
