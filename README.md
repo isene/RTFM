@@ -5,7 +5,7 @@ manager to have color consistency between the terminal ls experience and a
 file manager like e.g. [ranger](https://github.com/ranger/ranger).
 
 The idea came to mind as I was working on [a complete
-LS_COLORS](https://github.com/isene/LS_COLORS) setup with a corresponding
+LS_COLORS setup](https://github.com/isene/LS_COLORS) with a corresponding
 ranger theme. But making a separate theme for ranger to mimic a massive
 LS_COLOR setup is rather stupid. File managers should parse LS_COLORS as
 default rather than implement their own themes.
