@@ -35,6 +35,7 @@ def open_selected()
   if File.directory?(@selected) # Rescue for permission error
     begin
       Dir.chdir(@selected)
+      # Set index to stored value if directory has been visited
       @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
     rescue
     end
@@ -55,7 +56,8 @@ def open_selected()
   end
 end
 
-# Initialize the directory hash
+# Initialize the directory hash -
+# for remembering index for every directory visited
 @directory = {}
 
 # Set chosen item to first
@@ -180,11 +182,14 @@ begin
         when 'A' then @index = @index <= min_index ? max_index : @index - 1
         when 'B' then @index = @index >= max_index ? min_index : @index + 1
         when 'C' 
+          # Store index of this directory before leaving
           @directory[Dir.pwd] = @index
           open_selected()
         when 'D' 
+          # Store index of this directory before leaving
           @directory[Dir.pwd] = @index
           Dir.chdir("..")
+          # Set index to stored value if directory has been visited
           @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
         end
       end
