@@ -1,4 +1,4 @@
-# rfm - Ruby File Manager (a viewer, really)
+# rfm - Ruby File Manager (a browser, really)
 
 This is a concept project to show how one can parse LS_COLORS to a file
 manager to have color consistency between the terminal ls experience and a
