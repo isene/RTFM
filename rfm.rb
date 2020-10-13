@@ -85,18 +85,15 @@ begin
     topline = toptext + " " * (win_top.maxx - toptext.length)
     win_top.attron(color_pair(7) | Curses::A_BOLD) { win_top << topline }
     win_top << "─" * win_top.maxx
-    win_top.refresh
 
     # Bottom window (command line)
     win_bottom.clear
     win_bottom.setpos(0,0)
     win_bottom << "─" * win_bottom.maxx
-    bottomtext = ": "
-    win_bottom.attron(color_pair(7) | Curses::A_BOLD) { win_bottom << bottomtext }
-    win_bottom.refresh
+    win_bottom << ": for command (use @s for selected item)"
 
     # Left window (browser)
-    win_left.clear
+    #win_left.clear
     win_left.setpos(0,0)
     max_index = files.size - 1
     min_index = 0
@@ -142,7 +139,7 @@ begin
         win_left << "\n"
       end
     end
-    win_left.refresh
+    (win_left.maxy - win_left.cury).times {win_left.deleteln()}
 
     # Right window (viewer)
     win_right.clear
@@ -152,10 +149,13 @@ begin
       win_right << `cat #{@selected}` if File.read(@selected).force_encoding("UTF-8").valid_encoding?
     rescue
     end
+    win_left.refresh
     win_right.refresh
+    win_top.refresh
+    win_bottom.refresh
 
     # Get key from user
-    #ch = Curses.getch   # Theis blanks out win_top
+    #ch = Curses.getch   # This blanks out win_top
     #ch = win_left.getch # This makes Curses::KEY_DOWN etc not work
     #case ch
     #  when Curses::KEY_UP, ?j
@@ -180,11 +180,30 @@ begin
         when 'D' then Dir.chdir("..") ; @index = 0
         end
       end
-    when ':'
-      Curses.curs_set(1)
+    when ':' # Enter "command mode" in the bottom window - tries to execute the given command
+      win_bottom.clear
+      win_bottom << "─" * win_bottom.maxx
+      win_bottom << ": "
+      win_bottom.refresh
       win_bottom.setpos(3,2)
+      @s = @selected
+      # Display cursor and the text entered
+      Curses.curs_set(1)
+      Curses.echo
       cmd = win_bottom.getstr
+      # Subsitute any '@s' with the selected item
+      # 'rm @s' deletes the selected item 
+      cmd.gsub!(/@s/, @selected)
+      begin
+        `#{cmd}`
+      rescue
+        win_bottom << "Failed to execute command (#{cmd})"
+        win_bottom.getch
+        win_bottom.refresh
+      end
+      # Remove cursor and display no keys pressed
       Curses.curs_set(0)
+      Curses.noecho
     when 'q' then exit 0
     end
   end
