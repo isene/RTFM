@@ -149,7 +149,7 @@ begin
     win_right.setpos(0, 0)
     # View the file if it is utf-8
     begin
-      win_right << `batcat #{@selected}` if File.read(@selected).force_encoding("UTF-8").valid_encoding?
+      win_right << `cat #{@selected}` if File.read(@selected).force_encoding("UTF-8").valid_encoding?
     rescue
     end
     win_right.refresh
