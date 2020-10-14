@@ -199,6 +199,8 @@ begin
         when '6'
           @index += win_left.maxy - 2
           @index = max_index if @index > max_index
+        when '7' then @index = min_index
+        when '8' then @index = max_index
         end
       end
     when ':' # Enter "command mode" in the bottom window - tries to execute the given command
