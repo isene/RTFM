@@ -173,21 +173,10 @@ begin
     win_bottom.refresh
 
     # Get key from user
-    #ch = Curses.getch   # This blanks out win_top
-    #ch = win_left.getch # This makes Curses::KEY_DOWN etc not work
-    #case ch
-    #  when Curses::KEY_UP, ?j
-    #    @index = @index <= min_index ? max_index : @index - 1
-    #  when Curses::KEY_DOWN, ?k
-    #    @index = @index >= max_index ? min_index : @index + 1
-    #  when Curses::KEY_ENTER, Curses::KEY_RIGHT
-    #    open_selected()
-    #  when Curses::KEY_LEFT
-    #    Dir.chdir("..")
-    #    @index = 0
-    #  when 'q' then exit 0
-    #end
-    case STDIN.getc      # Therefore resorting to the generic method
+    # Curses.getch blanks out win_top
+    # win_left.getch makes Curses::KEY_DOWN etc not work
+    # Therefore resorting to the generic method
+    case STDIN.getc
     when "\e"            # ANSI escape sequence
       case $stdin.getc
       when '['           # CSI
@@ -204,6 +193,12 @@ begin
           Dir.chdir("..")
           # Set index to stored value if directory has been visited
           @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
+        when '5' 
+          @index -= win_left.maxy - 2
+          @index = min_index if @index < min_index
+        when '6'
+          @index += win_left.maxy - 2
+          @index = max_index if @index > max_index
         end
       end
     when ':' # Enter "command mode" in the bottom window - tries to execute the given command
