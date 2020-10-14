@@ -63,18 +63,29 @@ end
 # Set chosen item to first
 @index = 0
 
+# Set short form ls (toggled by pressing "l")
+@lslong = false
+
+# Set "ls -a" to false (toggled by pressing "a")
+@lsall = ""
+
 # Main program
 begin
   # Create the four windows/panels
   win_top    = Curses::Window.new(2, 0, 0, 0)
   win_bottom = Curses::Window.new(2, 0, Curses.lines - 2, 0)
-  win_left   = Curses::Window.new(Curses.lines - 4, Curses.cols / 4 - 1, 2, 1)
-  win_right  = Curses::Window.new(Curses.lines - 4, 0, 2, Curses.cols / 4 + 1)
+  win_left   = Curses::Window.new(Curses.lines - 4, Curses.cols / 3 - 1, 2, 1)
+  win_right  = Curses::Window.new(Curses.lines - 4, 0, 2, Curses.cols / 3 + 1)
 
   # Core loop
   loop do
     # Get files in current directory, set selected item
-    files = `ls`.split("\n").sort
+    ls_cmd = "ls #{@lsall} --group-directories-first"
+    files  = `#{ls_cmd}`.split("\n")
+    if @lslong
+      ls_cmd += %q[ -lh | awk '{printf "%s%4s%7s", $1,$2,$5"\n"}']
+      fspes   = `#{ls_cmd}`.split("\n").drop(1)
+    end
     @selected = files[@index]
     @selected = "" if @selected == nil
 
@@ -86,16 +97,17 @@ begin
       perm = File.stat(@selected).mode.to_s(8)
     rescue
     end
-    toptext = "Path: " + Dir.pwd + "/" + @selected + " (#{perm})"
-    topline = toptext + " " * (win_top.maxx - toptext.length)
-    win_top.attron(color_pair(7) | Curses::A_BOLD) { win_top << topline }
+    toptext = "Path: " + Dir.pwd + "/" + @selected + " (#{perm}) \n"
+    clrtoeol
+    win_top.attron(color_pair(7) | Curses::A_BOLD) { win_top << toptext }
     win_top << "─" * win_top.maxx
 
     # Bottom window (command line)
     win_bottom.clear
     win_bottom.setpos(0,0)
+    bottomtext = ": for command (use @s for selected item)"
     win_bottom << "─" * win_bottom.maxx
-    win_bottom << ": for command (use @s for selected item)"
+    win_bottom.attron(Curses::A_DIM) { win_bottom << bottomtext }
 
     # Left window (browser)
     #win_left.clear
@@ -137,6 +149,7 @@ begin
         file_marker = file_marker | Curses::A_BOLD if bold == 1
         file_marker = file_marker | Curses::A_UNDERLINE if index == @index
         File.directory?(str) ? dir = "/" : dir = ""
+        str = fspes[index] + "  " + str if @lslong
         
         # Implement the color (and bold), clear to end-of-line and add newline
         win_left.attron(file_marker) { win_left << str + dir }
@@ -217,6 +230,8 @@ begin
       # Remove cursor and display no keys pressed
       Curses.curs_set(0)
       Curses.noecho
+    when 'l' then @lslong = !@lslong
+    when 'a' then @lsall == "" ? @lsall = "-a" : @lsall = ""
     when 'q' then exit 0
     end
   end
