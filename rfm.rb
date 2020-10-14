@@ -82,38 +82,34 @@ begin
     # Get files in current directory, set selected item
     ls_cmd = "ls #{@lsall} --group-directories-first"
     files  = `#{ls_cmd}`.split("\n")
-    if @lslong
-      ls_cmd += %q[ -lh | awk '{printf "%s%4s%7s", $1,$2,$5"\n"}']
-      fspes   = `#{ls_cmd}`.split("\n").drop(1)
-    end
+    ls_cmd += %q[ -lh | awk '{printf "%s%4s%7s", $1,$2,$5"\n"}']
+    fspes   = `#{ls_cmd}`.split("\n").drop(1)
     @selected = files[@index]
     @selected = "" if @selected == nil
 
+    # Safety measure - correct index overflows
+    max_index = files.size - 1
+    min_index = 0
+    @index = max_index if @index > max_index
+
     # Top window (info line)
-    win_top.clear
     win_top.setpos(0,0)
-    perm = ""
-    begin
-      perm = File.stat(@selected).mode.to_s(8)
-    rescue
-    end
-    toptext = "Path: " + Dir.pwd + "/" + @selected + " (#{perm}) \n"
+    toptext = "Path: " + Dir.pwd + "/" + @selected + " (#{fspes[@index].gsub(/ .* /, ' ')})\n"
     clrtoeol
     win_top.attron(color_pair(7) | Curses::A_BOLD) { win_top << toptext }
     win_top << "─" * win_top.maxx
+    win_top.refresh
 
     # Bottom window (command line)
-    win_bottom.clear
     win_bottom.setpos(0,0)
     bottomtext = ": for command (use @s for selected item)"
     win_bottom << "─" * win_bottom.maxx
     win_bottom.attron(Curses::A_DIM) { win_bottom << bottomtext }
+    win_bottom.refresh
 
     # Left window (browser)
     #win_left.clear
     win_left.setpos(0,0)
-    max_index = files.size - 1
-    min_index = 0
     files.each.with_index(0) do |str, index|
       # Ensure only the items fitting on the screen will be drawn
       if index > @index - win_left.maxy + 3
@@ -158,19 +154,27 @@ begin
       end
     end
     (win_left.maxy - win_left.cury).times {win_left.deleteln()}
+    win_left.refresh
 
     # Right window (viewer)
-    win_right.clear
     win_right.setpos(0, 0)
     # View the file if it is utf-8
     begin
-      win_right << `cat #{@selected}` if File.read(@selected).force_encoding("UTF-8").valid_encoding?
+      if File.read(@selected).force_encoding("UTF-8").valid_encoding?
+        win_right << `cat #{@selected}` 
+      elsif @selected.match(/\.jpg$/)
+        imgx = Curses.cols / 3 + 1
+        imgy = 2
+        imgw = Curses.cols - imgx
+        imgh = Curses.lines - 4
+        `img.sh #{@selected} #{imgx} #{imgy} #{imgw} #{imgh}`    # <- This works but halts the program 
+        #`img.sh #{@selected} #{imgx} #{imgy} #{imgw} #{imgh} &` # <- This shows no image
+      end
     rescue
     end
-    win_left.refresh
+    clrtoeol
+    (win_right.maxy - win_right.cury).times {win_right.deleteln()}
     win_right.refresh
-    win_top.refresh
-    win_bottom.refresh
 
     # Get key from user
     # Curses.getch blanks out win_top
@@ -221,7 +225,7 @@ begin
         `#{cmd}`
       rescue
         win_bottom << "Failed to execute command (#{cmd})"
-        win_bottom.getch
+        STDIN.getc
         win_bottom.refresh
       end
       # Remove cursor and display no keys pressed
