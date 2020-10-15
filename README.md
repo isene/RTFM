@@ -1,4 +1,4 @@
-# RTFM - [Ruby|Ruddy|Rough] File Manager (a browser, really)
+# RTFM - [Ruby|Ruddy|Rough] Terminal File Manager
 
 This is a concept project to show how one can parse LS_COLORS to a file
 manager to have color consistency between the terminal ls experience and a

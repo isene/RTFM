@@ -11,6 +11,9 @@ Curses.noecho
 Curses.cbreak
 Curses.stdscr.keypad = true
 
+# Set basic variables
+@w3mimgdisplay = "/usr/lib/w3m/w3mimgdisplay"
+
 # Set default colors
 init_pair(7, 7, 0)      # Default
 init_pair(255, 0, 250)  # Top/Bottom windows
@@ -53,6 +56,43 @@ def open_selected()
       Curses.refresh
     rescue
     end
+  end
+end
+
+# Show the selected image in the right window (pass "clear" to clear the window)
+def image_show(image)
+  begin
+    terminfo    = `xwininfo -id $(xdotool getactivewindow)`
+    term_w      = terminfo.match(/Width: (\d+)/)[1].to_i
+    term_h      = terminfo.match(/Height: (\d+)/)[1].to_i
+    char_w      = term_w / Curses.cols
+    char_h      = term_h / Curses.lines
+    img_x       = char_w * (Curses.cols / 3 + 1)
+    img_y       = char_h * 2
+    img_max_w   = char_w * (2 * Curses.cols / 3 - 2)
+    img_max_h   = char_h * (Curses.lines - 5)
+    if image == "clear"
+      img_max_w += 5
+      img_max_h += 5
+      `imgw3m.sh CLEAR #{img_x} #{img_y} #{img_max_w} #{img_max_h}`
+    else
+      img_w,img_h = `identify -format "%[fx:w]x%[fx:h]" #{image}`.split('x')
+      img_w       = img_w.to_i
+      img_h       = img_h.to_i
+      if img_w > img_max_w
+        img_h = img_h * img_max_w / img_w 
+        img_w = img_max_w
+      end
+      if img_h > img_max_h
+        img_w = img_w * img_max_h / img_h
+        img_h = img_max_h
+      end
+      `imgw3m.sh #{image} #{img_x} #{img_y} #{img_w} #{img_h}`
+      #w3m_cmd     = "0;1;#{img_x};#{img_y};#{img_w};#{img_h};;;;;#{image}\\n4;\\n3;"
+      #`echo -e "#{w3m_cmd}"|#{@w3mimgdisplay}`
+    end
+  rescue
+    win_right << "Error showing image"
   end
 end
 
@@ -158,14 +198,17 @@ begin
 
     # Right window (viewer)
     win_right.setpos(0, 0)
+    (win_right.maxy - win_right.cury).times {win_right.deleteln()}
+    win_right.refresh
+    win_right.setpos(0, 0)
+    # Clear for any previously showing image
+    image_show("clear")
     # View the file if it is utf-8
     begin
       if File.read(@selected).force_encoding("UTF-8").valid_encoding?
         win_right << `cat #{@selected}` 
       elsif @selected.match(/\.jpg$|\.png$/)
-        imgx = Curses.cols / 3 + 1
-        imgy = 3
-        `imgw3m.sh #{@selected} #{imgx} #{imgy}`
+        image_show(@selected)
         # For using ueberzug (FIXME)
         #imgw = Curses.cols - imgx
         #imgh = Curses.lines - 4
