@@ -1,4 +1,4 @@
-# rfm - Ruby File Manager (a browser, really)
+# RTFM - [Ruby|Ruddy|Rough] File Manager (a browser, really)
 
 This is a concept project to show how one can parse LS_COLORS to a file
 manager to have color consistency between the terminal ls experience and a
@@ -14,3 +14,5 @@ I have included comments in the code to show how this is done.
 
 This file viewer is working (on my setup) and is in fact usable - but nowhere
 near what real file managers can offer.
+
+Use arrows to browse. Use `a` to show all files and `l` to show "long format".
