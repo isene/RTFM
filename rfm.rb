@@ -162,13 +162,14 @@ begin
     begin
       if File.read(@selected).force_encoding("UTF-8").valid_encoding?
         win_right << `cat #{@selected}` 
-      elsif @selected.match(/\.jpg$/)
+      elsif @selected.match(/\.jpg$|\.png$/)
         imgx = Curses.cols / 3 + 1
-        imgy = 2
-        imgw = Curses.cols - imgx
-        imgh = Curses.lines - 4
-        `img.sh #{@selected} #{imgx} #{imgy} #{imgw} #{imgh}`    # <- This works but halts the program 
-        #`img.sh #{@selected} #{imgx} #{imgy} #{imgw} #{imgh} &` # <- This shows no image
+        imgy = 3
+        `imgw3m.sh #{@selected} #{imgx} #{imgy}`
+        # For using ueberzug (FIXME)
+        #imgw = Curses.cols - imgx
+        #imgh = Curses.lines - 4
+        #Process.detach spawn "img.sh #{@selected} #{imgx} #{imgy} #{imgw} #{imgh}"
       end
     rescue
     end
