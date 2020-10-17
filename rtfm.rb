@@ -35,7 +35,9 @@ Curses.stdscr.keypad = true
 @w3mimgdisplay = "/usr/lib/w3m/w3mimgdisplay"
 
 # Set default colors {{{2
-init_pair(7, 7, 0)      # Default
+init_pair(7, 7, 0)        # Default
+init_pair(255, 232, 249)  # Top Windows
+init_pair(254, 250, 0)    # Bottom Windows
 
 # Import LS_COLORS {{{2
 LScolors = `echo $LS_COLORS`
@@ -104,7 +106,7 @@ def list_dir(win, left, files)
   end
 end
 
-# Open selected item (when pressing Enter or Right) {{{2
+# Open selected item (when pressing Right) {{{2
 def open_selected()
   if File.directory?(@selected) # Rescue for permission error
     begin
@@ -116,12 +118,12 @@ def open_selected()
   else
     begin
       if File.read(@selected).force_encoding("UTF-8").valid_encoding?
-        system("$EDITOR #{@selected}")
+        system("$EDITOR #{@selected_safe}")
       else
           begin
-            system("run-mailcap #{@selected}")
+            system("run-mailcap #{@selected_safe}")
           rescue
-            system("xdg-open #{@selected}")
+            system("xdg-open #{@selected_safe}")
           end
         end
       Curses.refresh
@@ -233,7 +235,7 @@ end
 # MAIN PROGRAM {{{1
 begin
   # Create the four windows/panels {{{2
-  win_top    = Curses::Window.new(2, 0, 0, 0)
+  win_top    = Curses::Window.new(1, 0, 0, 0)
   win_bottom = Curses::Window.new(2, 0, Curses.lines - 2, 0)
   win_left   = Curses::Window.new(Curses.lines - 4, Curses.cols / 3 - 1, 2, 1)
   win_right  = Curses::Window.new(Curses.lines - 4, 0, 2, Curses.cols / 3 + 1)
@@ -241,10 +243,10 @@ begin
   # Core loop {{{2
   loop do
     # Get files in current directory, set selected item {{{3
-    ls_cmd = "ls #{@lsall} --group-directories-first"
-    files  = `#{ls_cmd}`.split("\n")
-    ls_cmd += %q[ -lh | awk '{printf "%s%4s%7s", $1,$2,$5"\n"}']
-    fspes   = `#{ls_cmd}`.split("\n").drop(1)
+    ls_cmd    = "ls #{@lsall} -X --group-directories-first"
+    files     = `#{ls_cmd}`.split("\n")
+    ls_cmd   += %q[ -lh | awk '{printf "%s%4s%7s", $1,$2,$5"\n"}']
+    fspes     = `#{ls_cmd}`.split("\n").drop(1)
     @selected = files[@index]
     @selected = "" if @selected == nil
     @selected_safe = "'#{@selected}'"
@@ -256,17 +258,20 @@ begin
 
     # Top window (info line) {{{3
     win_top.setpos(0,0)
-    toptext = "Path: " + Dir.pwd + "/" + @selected + " (#{fspes[@index].gsub(/ .* /, ' ')})\n"
-    clrtoeol
-    win_top.attron(color_pair(7) | Curses::A_BOLD) { win_top << toptext }
-    win_top << "─" * win_top.maxx
+    toptext  = " Path: " + Dir.pwd + "/" + @selected
+    begin
+      toptext += " (#{fspes[@index].gsub(/ .* /, ' ')})" 
+    rescue
+    end
+    toptext += " " * (Curses.cols - toptext.length)
+    win_top.attron(color_pair(255) | Curses::A_BOLD) { win_top << toptext }
     win_top.refresh
 
     # Bottom window (command line) {{{3
     win_bottom.setpos(0,0)
     bottomtext = ": for command (use @s for selected item)"
-    win_bottom << "─" * win_bottom.maxx
-    win_bottom.attron(Curses::A_DIM) { win_bottom << bottomtext }
+    win_bottom.attron(color_pair(254) | Curses::A_DIM) { win_bottom << "─" * win_bottom.maxx }
+    win_bottom.attron(color_pair(254) | Curses::A_DIM) { win_bottom << bottomtext }
     win_bottom.refresh
 
     # Left window (browser) {{{3
@@ -311,8 +316,8 @@ begin
       end
     when ':' # Enter "command mode" in the bottom window - tries to execute the given command
       win_bottom.clear
-      win_bottom << "─" * win_bottom.maxx
-      win_bottom << ": "
+      win_bottom.attron(color_pair(254) | Curses::A_DIM) { win_bottom << "─" * win_bottom.maxx }
+      win_bottom.attron(color_pair(254) | Curses::A_DIM) { win_bottom << " : " }
       win_bottom.refresh
       win_bottom.setpos(3,2)
       @s = @selected
