@@ -23,11 +23,11 @@
 require 'curses'
 include Curses
 
-if File.exist?('~/.rtfm.conf')
-  load '~/.rtfm.conf'
+if File.exist?(ENV['HOME']+'/.rtfm.conf')
+  load(ENV['HOME']+'/.rtfm.conf')
 else
   marks = {}
-  File.write('~/.rtfm.conf', "marks = {}")
+  File.write((ENV['HOME']+'/.rtfm.conf'), "marks = {}")
 end
 # }}}
 # Curses setup {{{2
@@ -49,7 +49,7 @@ init_pair(254, 250, 0)    # Bottom Window
 # Import LS_COLORS {{{2
 LScolors = `echo $LS_COLORS`
 # }}}
-# }}}
+# }}}1
 
 # FUNCTIONS {{{1
 # Get the color for the filetype from imported LS_COLORS {{{2
