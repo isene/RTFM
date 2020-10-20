@@ -58,6 +58,9 @@ HELPTEXT
 # }}}1
 
 # BASIC SETUP {{{1
+# Remove code warnings
+Warning[:deprecated] = false
+
 # Requires and loads {{{2
 require 'curses'
 include Curses
