@@ -1,5 +1,6 @@
 # RTFM - [Ruby|Ruddy|Rough] Terminal File Manager
 
+## Why?
 RTFM parses your LS_COLORS to ensure color consistency with the terminal experience.
 
 The idea came to mind as I was working on [a complete
@@ -9,6 +10,7 @@ LS_COLOR setup is rather stupid. File managers should parse LS_COLORS as
 default rather than implement their own themes. This became an itch that
 I kept scratching until I could happily replace ranger two weeks later.
 
+## How?
 RTFM is a two-pane file manager. You navigate in the left pane and the content
 of the selected item (directory or file) is shown in the right pane. The right
 pane is also used to show information such as the currently tagged items, your
@@ -26,7 +28,7 @@ LibreOffice    | `odt2txt`                        | `apt install `odt2txt`
 OOXML          | `docx2txt`                       | `apt install `docx2txt`
 MS doc/xls/ppt | `catdoc`, `xls2csv` and `catppt` | `apt install `catdoc`
 
-
+## Keys
 Key    | What happens when pressed
 -------|-------------------------------------------------------------
 h      | Show help text in right pane
@@ -56,6 +58,18 @@ M      | Show marked items in right pane
 :      | Enter "command mode" in bottom window
 q      | Quit
 
+## A convenient shell function
+Add this line to your `.bashrc` or `.zshrc` to make RTFM exit to the current
+directory by launching the file manager via `r` in the terminal:
+
+`source ~/.rtfm.launch`
+
+... and place the file `.rtfm.launch` in your home directory.
+
+With this, you can jump around in your directory structure via RTFM, exit to
+the desired directory, do work in the terminal and go back into RTFM via `r`.
+
+## Development
 I don't expect this program to be used by others. I do this for my own
 enjoyment and because I want a file manager that fits my needs better than any
 others I have found. If you come up with a feature request I feel is cool, I
