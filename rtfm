@@ -19,15 +19,16 @@
 # }}}
 
 # BASIC SETUP {{{1
-# Require {{{2
+# Requires and loads {{{2
 require 'curses'
 include Curses
+require 'fileutils'
 
 if File.exist?(ENV['HOME']+'/.rtfm.conf')
   load(ENV['HOME']+'/.rtfm.conf')
 else
-  marks = {}
-  File.write((ENV['HOME']+'/.rtfm.conf'), "marks = {}")
+  $marks = {}
+  File.write((ENV['HOME']+'/.rtfm.conf'), "$marks = {}\n")
 end
 # }}}
 # Curses setup {{{2
@@ -52,8 +53,8 @@ LScolors = `echo $LS_COLORS`
 # }}}1
 
 # FUNCTIONS {{{1
-# Get the color for the filetype from imported LS_COLORS {{{2
-def get_ls_color(type)
+def get_ls_color(type) # {{{2
+  # Get the color for the filetype from imported LS_COLORS
   bold  = 0
   begin
     color = LScolors.match(/#{type}=\d*;\d*;(\d*)/)[1]
@@ -63,14 +64,14 @@ def get_ls_color(type)
   end
   return color.to_i, bold
 end
-# }}}
-# List content of a directory (both left and right windows) {{{2
-def list_dir(win, left, files)
+
+def list_dir(win, left, files)# {{{2
+  # List content of a directory (both left and right windows)
   left ? ix = @index : ix = 0
   files.each.with_index(0) do |str, index|
 
     left ? str_path = str : str_path = "#{@selected}/#{str}" 
-    # Ensure only the items fitting on the screen will be drawn (win_left)
+    # Ensure only the items fitting on the screen will be drawn (@win_left)
     if index > ix - win.maxy + 3
       # Determine the filetype of the item {{{3
       ftype = ""
@@ -104,19 +105,20 @@ def list_dir(win, left, files)
       file_marker = color_pair(fg)
       file_marker = file_marker | Curses::A_BOLD if bold == 1
       file_marker = file_marker | Curses::A_UNDERLINE if index == @index and left
-      File.directory?(str) ? dir = "/" : dir = ""
+      file_marker = file_marker | Curses::A_REVERSE if @tagged.include?("'#{Dir.pwd}/#{str_path}'")
+      File.directory?(str_path) ? dir = "/" : dir = ""
+      File.symlink?(str_path) ? link = "@" : link = ""
       str = @fspes[index] + "  " + str if @lslong
       
       # Implement the color (and bold), clear to end-of-line and add newline
-      win.attron(file_marker) { win << str + dir }
+      win.attron(file_marker) { win << str + link + dir }
       clrtoeol
       win << "\n"
     end
   end
-end
-
-# Open selected item (when pressing Right) {{{2
-def open_selected()
+end # }}}2
+def open_selected() # {{{2
+  # Open selected item (when pressing Right)
   if File.directory?(@selected) # Rescue for permission error
     begin
       Dir.chdir(@selected)
@@ -141,8 +143,8 @@ def open_selected()
   end
 end
 
-# Show the selected image in the right window (pass "clear" to clear the window) {{{2
-def image_show(image)
+def image_show(image)# {{{2
+  # Show the selected image in the right window (pass "clear" to clear the window)
   begin
     terminfo    = `xwininfo -id $(xdotool getactivewindow)`
     term_w      = terminfo.match(/Width: (\d+)/)[1].to_i
@@ -174,17 +176,17 @@ def image_show(image)
       #`echo -e "#{w3m_cmd}"|#{@w3mimgdisplay}`
     end
   rescue
-    win_right << "Error showing image"
+    @win_right << "Error showing image"
   end
 end
 
-# Show contents in the right window {{{2
-def win_right_show(win_right)
+def win_right_show # {{{2
+  # Show contents in the right window
   # Right window (viewer)
-  win_right.setpos(0, 0)
-  (win_right.maxy - win_right.cury).times {win_right.deleteln()}
-  win_right.refresh
-  win_right.setpos(0, 0)
+  @win_right.setpos(0, 0)
+  (@win_right.maxy - @win_right.cury).times {@win_right.deleteln()}
+  @win_right.refresh
+  @win_right.setpos(0, 0)
   # Clear for any previously showing image
   image_show("clear")
   # Determine the specific programs to open/show content {{{3
@@ -193,42 +195,114 @@ def win_right_show(win_right)
     if File.directory?(@selected)
       ls_cmd = "ls #{@lsall} #{@selected_safe} --group-directories-first"
       files  = `#{ls_cmd}`.split("\n")
-      list_dir(win_right, false, files)
+      list_dir(@win_right, false, files)
     # Text {{{4
     # View the file as text if it is utf-8
     elsif File.read(@selected).force_encoding("UTF-8").valid_encoding?
-      win_right << `cat #{@selected_safe} 2>/dev/null`
+      @win_right << `cat #{@selected_safe} 2>/dev/null`
     # PDF {{{4
     elsif @selected.match(/\.pdf$|\.ps$/)
-      win_right << `pdftotext -f 1 -l 4 #{@selected_safe} - 2>/dev/null | less`
+      @win_right << `pdftotext -f 1 -l 4 #{@selected_safe} - 2>/dev/null | less`
     # Open/LibreOffice {{{4
-    elsif @selected.match(/\.odt$|\.odc$|\.odp$/)
-      win_right << `unoconv --stdout #{@selected_safe} 2>/dev/null`
+    elsif @selected.match(/\.odt$|\.odc$|\.odp$|\.odg$/)
+      @win_right << `odt2txt #{@selected_safe} 2>/dev/null`
     # OOXML {{{4
     elsif @selected.match(/\.docx$|\.xlsx$|\.pptx$/)
-      win_right << `docx2txt #{@selected_safe} - 2>/dev/null`
+      @win_right << `docx2txt #{@selected_safe} - 2>/dev/null`
     # MS doc {{{4
     elsif @selected.match(/\.doc$/)
-      win_right << `catdoc #{@selected_safe} 2>/dev/null`
+      @win_right << `catdoc #{@selected_safe} 2>/dev/null`
     # MS xls {{{4
     elsif @selected.match(/\.xls$/)
-      win_right << `xls2csv #{@selected_safe} 2>/dev/null`
+      @win_right << `xls2csv #{@selected_safe} 2>/dev/null`
     # MS ppt {{{4
     elsif @selected.match(/\.ppt$/)
-      win_right << `catppt #{@selected_safe} 2>/dev/null`
+      @win_right << `catppt #{@selected_safe} 2>/dev/null`
     # Images {{{4
-    elsif @selected.match(/\.jpg$|\.jpeg$|\.png$|\.bmp$|\.gif$/)
+    elsif @selected.match(/\.jpg$|\.jpeg$|\.png$|\.bmp$|\.gif$|\.tif$|\.tiff$/)
       image_show(@selected_safe)
     end
   rescue
   end
   clrtoeol
-  (win_right.maxy - win_right.cury).times {win_right.deleteln()}
-  win_right.refresh
-end 
+  (@win_right.maxy - @win_right.cury).times {@win_right.deleteln()}
+  @win_right.refresh
+end # }}}2
+def win_right_info(info) # {{{2
+  # Show info in the right window
+  # Clear for any previously showing image
+  @win_right.setpos(0, 0)
+  (@win_right.maxy - @win_right.cury).times {@win_right.deleteln()}
+  @win_right.refresh
+  @win_right.setpos(0, 0)
+  # Clear for any previously showing image
+  image_show("clear")
+  @win_right << info + "\n"
+  (@win_right.maxy - @win_right.cury).times {@win_right.deleteln()}
+  @win_right.refresh
+end
+
+def marks_info # {{{2
+  # Show marks in right window
+  info = "Marks:\n"
+  unless $marks.empty?
+    $marks.each do |mark, dir|
+      info += "#{mark} = #{dir}\n"
+    end
+  else
+    info += "(none)"
+  end
+  win_right_info(info)
+end
+
+def tagged_info # {{{2
+  # Show the list of tagged items in @win_right
+  info = "Tagged:\n"
+  @tagged.empty? ? info += "(None)" : info += @tagged.join("\n")
+  win_right_info(info)
+end
+
+def win_bottom_info(info) # {{{2
+  # Show info in @win_bottom
+  @win_bottom.clear
+  @win_bottom.attron(color_pair(254) | Curses::A_DIM) { @win_bottom << "─" * @win_bottom.maxx }
+  @win_bottom << info
+  @win_bottom.refresh
+end
+
+def copy_move_link(type) # {{{2
+  # Copy or move tagged items (copy if "keep == true")
+  @tagged.uniq!
+  @tagged.each do | item |
+    item = item[1..-2]
+    dest = Dir.pwd
+    dest += "/" + File.basename(item)
+    dest += "1" if File.exist?(dest)
+    while File.exist?(dest)
+      dest = dest.chop + (dest[-1].to_i + 1).to_s
+    end
+    begin
+      case type
+      when "copy"
+        FileUtils.cp_r(item, dest)
+      when "move"
+        FileUtils.mv(item, dest)
+      when "link"
+        FileUtils.ln_s(item, dest)
+      end
+    rescue StandardError => err
+      win_bottom_info(err.to_s)
+      @info_bottom_stay = true
+    end
+  end
+  @tagged = [] if type == "move"
+end
 # }}}1
 
 # INITIALIZE VARIABLE FOR WINDOWS {{{1
+# Initialize the tagged array - for collecting all tagged items
+@tagged = []
+
 # Initialize the directory hash -
 # for remembering index for every directory visited
 @directory = {}
@@ -241,6 +315,11 @@ end
 
 # Set "ls -a" to false (toggled by pressing "a")
 @lsall = ""
+
+# Show new info (@win_right and @win_bottom), 
+# set to true if info stays until next key press
+@info_right_stay  = false
+@info_bottom_stay = false
 # }}}1
 
 # MAIN PROGRAM {{{1
@@ -249,10 +328,10 @@ begin
   # Curses::Window.new(h,w,y,x)
   maxx       = Curses.cols
   maxy       = Curses.lines
-  win_top    = Curses::Window.new(1, 0, 0, 0)
-  win_bottom = Curses::Window.new(2, 0, maxy - 2, 0)
-  win_left   = Curses::Window.new(maxy - 4, maxx / 3 - 1, 2, 1)
-  win_right  = Curses::Window.new(maxy - 4, maxx - maxx / 3 - 1, 2, maxx / 3 - 1 )
+  @win_top    = Curses::Window.new(1, 0, 0, 0)
+  @win_bottom = Curses::Window.new(2, 0, maxy - 2, 0)
+  @win_left   = Curses::Window.new(maxy - 4, maxx / 3 - 1, 2, 1)
+  @win_right  = Curses::Window.new(maxy - 4, maxx - maxx / 3 - 1, 2, maxx / 3 + 1)
   # }}}
 
   # Core loop {{{2
@@ -272,40 +351,51 @@ begin
     @index = max_index if @index > max_index
 
     # Top window (info line) {{{3
-    win_top.setpos(0,0)
+    @win_top.setpos(0,0)
     toptext  = " Path: " + Dir.pwd + "/" + @selected
+    toptext += " (#{File.readlink(@selected)})" if File.symlink?(@selected) 
     begin
       toptext += " (#{@fspes[@index].gsub(/ .* /, ' ')})" 
     rescue
     end
-    toptext += " " * (win_top.maxx - toptext.length)
-    win_top.attron(color_pair(255) | Curses::A_BOLD) { win_top << toptext }
-    win_top.refresh
+    toptext += " " * (@win_top.maxx - toptext.length)
+    @win_top.attron(color_pair(255) | Curses::A_BOLD) { @win_top << toptext }
+    @win_top.refresh
 
     # Bottom window (command line) {{{3
-    win_bottom.setpos(0,0)
-    bottomtext = ": for command (use @s for selected item)"
-    win_bottom.attron(color_pair(254) | Curses::A_DIM) { win_bottom << "─" * win_bottom.maxx }
-    win_bottom.attron(color_pair(254) | Curses::A_DIM) { win_bottom << bottomtext }
-    win_bottom.refresh
+    if @info_bottom_stay == false
+      @win_bottom.setpos(0,0)
+      bottomtext = ": for command (use @s for selected item)"
+      @win_bottom.attron(color_pair(254) | Curses::A_DIM) { @win_bottom << "─" * @win_bottom.maxx }
+      @win_bottom.attron(color_pair(254) | Curses::A_DIM) { @win_bottom << bottomtext }
+      @win_bottom.refresh
+    end
 
     # Left window (browser) {{{3
-    win_left.setpos(0,0)
-    list_dir(win_left, true, files)
-    (win_left.maxy - win_left.cury).times {win_left.deleteln()}
-    win_left.refresh
+    @win_left.setpos(0,0)
+    list_dir(@win_left, true, files)
+    (@win_left.maxy - @win_left.cury).times {@win_left.deleteln()}
+    @win_left.refresh
 
     # Right window (content viewer) {{{3
-    win_right_show(win_right)
+    win_right_show if @info_right_stay == false
+
+    # Clear @info_stay and residual cursor {{{3
+    @info_right_stay  = false
+    @info_bottom_stay = false
+    
+    # Clear residual cursor from editing files
+    Curses.curs_set(1)
+    Curses.curs_set(0)
 
     # Get key from user {{{3
-    # Curses.getch blanks out win_top
-    # win_left.getch makes Curses::KEY_DOWN etc not work
+    # Curses.getch blanks out @win_top
+    # @win_left.getch makes Curses::KEY_DOWN etc not work
     # Therefore resorting to the generic method
     case STDIN.getc
-    when "\e"            # ANSI escape sequence
+    when "\e" # ANSI escape sequences {{{4
       case $stdin.getc
-      when '['           # CSI
+      when '[' # CSI
         case $stdin.getc
         when 'A' then @index = @index <= min_index ? max_index : @index - 1
         when 'B' then @index = @index >= max_index ? min_index : @index + 1
@@ -320,49 +410,126 @@ begin
           # Set index to stored value if directory has been visited
           @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
         when '5' 
-          @index -= win_left.maxy - 2
+          @index -= @win_left.maxy - 2
           @index = min_index if @index < min_index
         when '6'
-          @index += win_left.maxy - 2
+          @index += @win_left.maxy - 2
           @index = max_index if @index > max_index
         when '7' then @index = min_index
         when '8' then @index = max_index
         end
       end
-    when ':' # Enter "command mode" in the bottom window - tries to execute the given command
-      win_bottom.clear
-      win_bottom.attron(color_pair(254) | Curses::A_DIM) { win_bottom << "─" * win_bottom.maxx }
-      win_bottom.attron(color_pair(254) | Curses::A_DIM) { win_bottom << ": " }
-      win_bottom.refresh
-      win_bottom.setpos(2,2)
+    # }}}4
+    when 'a' then @lsall == "" ? @lsall = "-a" : @lsall = "" # Show all items {{{4
+    # }}}4
+    when 'l' then @lslong = !@lslong # Show long info for all items {{{4
+    # }}}4
+    when 't' # Add item to tegged list {{{4
+      item = "'#{Dir.pwd}/#{@selected}'"
+      if @tagged.include?(item)
+        @tagged.delete(item)
+      else
+        @tagged.push(item)
+      end
+      tagged_info
+      @info_right_stay = true
+    # }}}4
+    when 'T' # Show tagged list {{{4
+      tagged_info
+      @info_right_stay = true
+    # }}}4
+    when 'u' # Clear tagged list {{{4
+      @tagged = []
+      tagged_info
+      @info_right_stay = true
+    # }}}4
+    when 'p' # Copy tagged items here {{{4
+      copy_move_link("copy")
+    # }}}4
+    when 'P' # Move tagged items here {{{4
+      copy_move_link("move")
+    # }}}4
+    when 's' # Create symlink to tagged items here {{{4
+      copy_move_link("link")
+    # }}}4
+    when 'd' # Delete items tagged and @selected {{{4
+      tagged_info
+      win_bottom_info(" Delete selected and tagged? (press 'd' again to delete)")
+      begin
+        @tagged.push("'#{@selected}'")
+        @tagged.uniq!
+        deletes = @tagged.join(" ")
+        `rm -rf #{deletes}` if STDIN.getc == 'd'
+        items_number = @tagged.length
+        @tagged = []
+        win_bottom_info("Deleted #{items_number} items: #{deletes}")
+        @info_bottom_stay = true
+      rescue StandardError => err
+        win_bottom_info(err.to_s)
+        @info_bottom_stay = true
+      end
+    # }}}4
+    when "'" # Jump to mark {{{4
+      marks_info
+      m = STDIN.getc
+      if m.match(/\w/)
+        Dir.chdir($marks[m]) 
+        @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
+      end
+    # }}}4
+    when 'm' # Set mark {{{4
+      marks_info
+      m = STDIN.getc
+      if m.match(/\w/)
+        $marks[m] = Dir.pwd
+      elsif m == "-"
+        r = STDIN.getc
+        $marks.delete(r)
+      end
+      marks_info
+      @info_right_stay = true
+    # }}}4
+    when 'M' # Show marks {{{4
+      marks_info
+      @info_right_stay = true
+    # }}}4
+    when ':' # Enter "command mode" in the bottom window - tries to execute the given command {{{4
+      @win_bottom.clear
+      @win_bottom.attron(color_pair(254) | Curses::A_DIM) { @win_bottom << "─" * @win_bottom.maxx }
+      @win_bottom.attron(color_pair(254) | Curses::A_DIM) { @win_bottom << ": " }
+      @win_bottom.refresh
+      @win_bottom.setpos(2,2)
       @s = @selected
       # Display cursor and the text entered
       Curses.curs_set(1)
       Curses.echo
-      cmd = win_bottom.getstr
+      cmd = @win_bottom.getstr
       # Subsitute any '@s' with the selected item
       # 'rm @s' deletes the selected item 
       cmd.gsub!(/@s/, @selected)
       begin
         `#{cmd}`
       rescue
-        win_bottom.setpos(2,0)
-        win_bottom << " Failed to execute command (#{cmd})"
+        @win_bottom.setpos(2,0)
+        @win_bottom << " Failed to execute command (#{cmd})"
         clrtoeol
-        win_bottom.refresh
-        STDIN.getc
+        @win_bottom.refresh
+        @info_bottom_stay = true
       end
       # Remove cursor and display no keys pressed
       Curses.curs_set(0)
       Curses.noecho
-    when 'l' then @lslong = !@lslong
-    when 'a' then @lsall == "" ? @lsall = "-a" : @lsall = ""
-    when 'q' then exit 0
+    # }}}4
+    when 'q' then exit 0 # Exit {{{4
+    # }}}4
     end
   end
 # }}}2
 # On exit: close curses, clear terminal {{{2
 ensure
+  conf = File.read(ENV['HOME']+'/.rtfm.conf')
+  conf.sub!(/\$marks.*{.*?}/m, "$marks = #{$marks}")
+  File.write(ENV['HOME']+'/.rtfm.conf', conf)
   close_screen
   # If RTFM was launched via the bash script "r", then return the current
   # directory so that "r" can cd to that directory
