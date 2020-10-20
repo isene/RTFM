@@ -18,6 +18,45 @@
 #             any expressed or implied warranty.
 # }}}
 
+# Helptext {{{1
+@help = <<HELPTEXT
+RTFM - [Ruby|Ruddy|Rough] Terminal File Manager
+  https://github.com/isene/RTFM
+
+KEYS
+  h      = Show this help text
+  DOWN   = Go one item down in left pane (rounds to top)
+  UP     = Go one item up in left pane (rounds to bottom)
+  PgDown = Go one page down in left pane
+  PgUp   = Go one page up in left pane
+  END    = Go to last item in left pane
+  HOME   = Go to first item in left pane
+  LEFT   = Go up one directory level
+  RIGHT  = Enter directory or open file (using run-mailcap or xdg-open)
+  a      = Show all (also hidden) items
+  l      = Show long info per item (show item attributes)
+  t      = Tag item (toggles)
+  T      = Show currently tagged items in right pane
+  u      = Untag all tagged items
+  p      = Put (copy) tagged items here
+  P      = PUT (move) tagged items here
+  s      = Create symlink to tagged items here
+  d      = Delete selected item and tagged items
+           Press 'd' to confirm
+  m      = Mark current location (permanent bookmark)
+           Next letter entered is the name of the mark [a-zA-Z]
+           Press '-' and a letter to delete that mark
+  M      = Show marked items in right pane
+  '      = Jump to mark (next letter is the name of the mark [a-zA-Z])
+  :      = Enter "command mode" in bottom window
+  q      = Quit
+
+COPYRIGHT
+  Created by Geir Isene, 2020. No rights reserved.
+  See http://isene.com for more contributions by Geir Isene.
+HELPTEXT
+# }}}1
+
 # BASIC SETUP {{{1
 # Requires and loads {{{2
 require 'curses'
@@ -333,7 +372,6 @@ begin
   @win_left   = Curses::Window.new(maxy - 4, maxx / 3 - 1, 2, 1)
   @win_right  = Curses::Window.new(maxy - 4, maxx - maxx / 3 - 1, 2, maxx / 3 + 1)
   # }}}
-
   # Core loop {{{2
   loop do
     # Get files in current directory, set selected item {{{3
@@ -393,6 +431,9 @@ begin
     # @win_left.getch makes Curses::KEY_DOWN etc not work
     # Therefore resorting to the generic method
     case STDIN.getc
+    when 'h' # Show helptext in right window {{{4
+      win_right_info(@help)
+      @info_right_stay = true
     when "\e" # ANSI escape sequences {{{4
       case $stdin.getc
       when '[' # CSI
@@ -469,14 +510,6 @@ begin
         @info_bottom_stay = true
       end
     # }}}4
-    when "'" # Jump to mark {{{4
-      marks_info
-      m = STDIN.getc
-      if m.match(/\w/)
-        Dir.chdir($marks[m]) 
-        @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
-      end
-    # }}}4
     when 'm' # Set mark {{{4
       marks_info
       m = STDIN.getc
@@ -492,6 +525,14 @@ begin
     when 'M' # Show marks {{{4
       marks_info
       @info_right_stay = true
+    # }}}4
+    when "'" # Jump to mark {{{4
+      marks_info
+      m = STDIN.getc
+      if m.match(/\w/)
+        Dir.chdir($marks[m]) 
+        @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
+      end
     # }}}4
     when ':' # Enter "command mode" in the bottom window - tries to execute the given command {{{4
       @win_bottom.clear
