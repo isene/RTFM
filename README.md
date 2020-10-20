@@ -48,11 +48,8 @@ u      | Untag all tagged items
 p      | Put (copy) tagged items here
 P      | PUT (move) tagged items here
 s      | Create symlink to tagged items here
-d      | Delete selected item and tagged items
-       | Press 'd' to confirm
-m      | Mark current location (permanent bookmark)
-       | Next letter entered is the name of the mark [a-zA-Z]
-       | Press '-' and a letter to delete that mark
+d      | Delete selected item and tagged item. Press 'd' to confirm.
+m      | Mark current location (permanent bookmark). Next letter entered is the name of the mark [a-zA-Z]. Press '-' and a letter to delete that mark.
 M      | Show marked items in right pane
 '      | Jump to mark (next letter is the name of the mark [a-zA-Z])
 :      | Enter "command mode" in bottom window
