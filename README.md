@@ -28,6 +28,9 @@ LibreOffice    | `odt2txt`                        | `apt install odt2txt`
 OOXML          | `docx2txt`                       | `apt install docx2txt`
 MS doc/xls/ppt | `catdoc`, `xls2csv` and `catppt` | `apt install catdoc`
 
+For images to be rendered in the terminal, place the file `imgw3m.sh` in your
+PATH - such as in `~/bin/` and ensure it is executable.
+
 ## Screenshot
 
 ![](screenshot.png)
