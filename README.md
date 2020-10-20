@@ -24,9 +24,13 @@ File type      | Requirements                     | Installation
 ---------------|----------------------------------|------------------------------
 Images         | `w3m` and `ImageMagick`          | `apt install w3m imagemagick`
 PDFs           | `pdftotext`                      | `apt install poppler-utils`
-LibreOffice    | `odt2txt`                        | `apt install `odt2txt`
-OOXML          | `docx2txt`                       | `apt install `docx2txt`
-MS doc/xls/ppt | `catdoc`, `xls2csv` and `catppt` | `apt install `catdoc`
+LibreOffice    | `odt2txt`                        | `apt install odt2txt`
+OOXML          | `docx2txt`                       | `apt install docx2txt`
+MS doc/xls/ppt | `catdoc`, `xls2csv` and `catppt` | `apt install catdoc`
+
+## Screenshot
+
+![](screenshot.png)
 
 ## Keys
 Key    | What happens when pressed
