@@ -16,6 +16,11 @@ of the selected item (directory or file) is shown in the right pane. The right
 pane is also used to show information such as the currently tagged items, your
 (book)marks etc.
 
+In order to run RTFM (without generating [a bunch of
+warnings](https://github.com/isene/RTFM/issues/1)), you need to a `gem install
+curses` (gets v 1.3.2) instead of installing via `apt install ruby-curses`
+(gets v. 1.2.4-1build1 on Ubuntu 20.04). 
+
 Content of text files are handlet by `cat`. Other files are shown via external
 programs. It is shown if you have the program installed (Debian/Ubuntu family
 of Linux distros command in parenthesis):
