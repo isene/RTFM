@@ -27,6 +27,7 @@ of Linux distros command in parenthesis):
 
 File type      | Requirements                     | Installation
 ---------------|----------------------------------|------------------------------
+Syntax highlighting of text | `bat`               | `apt install bat`
 Images         | `w3m` and `ImageMagick`          | `apt install w3m imagemagick`
 PDFs           | `pdftotext`                      | `apt install poppler-utils`
 LibreOffice    | `odt2txt`                        | `apt install odt2txt`
@@ -38,7 +39,7 @@ PATH - such as in `~/bin/` and ensure it is executable.
 
 ## Screenshot
 
-![](screenshot.png)
+![](img/screenshot.png)
 
 ## Keys
 Key    | What happens when pressed
