@@ -262,7 +262,7 @@ def win_right_show # {{{2
     elsif File.read(@selected).force_encoding("UTF-8").valid_encoding?
       begin
         max_lines  = @win_right.maxy - 1
-        input      = `batcat -n --color=always --theme=base16 --line-range :#{max_lines} #{@selected_safe} 2>/dev/null`
+        input      = `batcat -n --color=always --line-range :#{max_lines} #{@selected_safe} 2>/dev/null`
         color_ary  = color_parse(input)
         color_ary.each do | pair |
           fg   = pair[0].to_i
