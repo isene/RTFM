@@ -66,6 +66,7 @@ m      | Mark current location (permanent bookmark). Next letter entered is the 
 M      | Show marked items in right pane
 '      | Jump to mark (next letter is the name of the mark [a-zA-Z])
 :      | Enter "command mode" in bottom window
+ENTER  | Refresh RTFM
 q      | Quit
 
 ## A convenient shell function
