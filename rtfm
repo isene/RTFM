@@ -24,7 +24,7 @@ RTFM - [Ruby|Ruddy|Rough] Terminal File Manager
   https://github.com/isene/RTFM
 
 KEYS
-  h      = Show this help text
+  ?      = Show this help text
   DOWN   = Go one item down in left pane (rounds to top)
   UP     = Go one item up in left pane (rounds to bottom)
   PgDown = Go one page down in left pane
@@ -95,7 +95,9 @@ LScolors = `echo $LS_COLORS`
 # }}}1
 
 # FUNCTIONS {{{1
-def get_ls_color(type) # {{{2
+
+## GENERIC {{{2
+def get_ls_color(type) # {{{3
   # Get the color for the filetype from imported LS_COLORS
   bold  = 0
   begin
@@ -107,7 +109,17 @@ def get_ls_color(type) # {{{2
   return color.to_i, bold
 end
 
-def list_dir(win, left, files)# {{{2
+def color_parse(input) # {{{3
+  input.gsub!( /\e\[\d;38;5;(\d+)m/, '%-%\1%-%')
+  input.gsub!( /\e\[38;5;(\d+)m/, '%-%\1%-%')
+  input.gsub!( /\e\[0m/, "\t")
+  color_array = input.split("%-%")
+  color_array = color_array.drop(1)
+  output = color_array.each_slice(2).to_a
+  return output
+end
+
+def list_dir(win, left, files)# {{{3
   # List content of a directory (both left and right windows)
   left ? ix = @index : ix = 0
   files.each.with_index(0) do |str, index|
@@ -115,7 +127,7 @@ def list_dir(win, left, files)# {{{2
     left ? str_path = str : str_path = "#{@selected}/#{str}" 
     # Ensure only the items fitting on the screen will be drawn (@win_left)
     if index > ix - win.maxy + 3
-      # Determine the filetype of the item {{{3
+      # Determine the filetype of the item {{{4
       ftype = ""
       ftype = str.match(/\.([^.]*$)/)[1] if str.match?(/\.([^.]*$)/)
       
@@ -135,7 +147,7 @@ def list_dir(win, left, files)# {{{2
         ftype = "or" 
       end
 
-      # Set the colors for the filetypes, print to window {{{3 
+      # Set the colors for the filetypes, print to window {{{4
       # Set default colors
       fg = 7; bold = 0; bg = 0
       
@@ -167,8 +179,15 @@ def list_dir(win, left, files)# {{{2
       win << "\n"
     end
   end
-end # }}}2
-def open_selected() # {{{2
+end
+## }}}2
+
+## WIN_TOP {{{2
+
+## }}}2
+
+## WIN_LEFT {{{2
+def open_selected() # {{{3
   # Open selected item (when pressing Right)
   if File.directory?(@selected) # Rescue for permission error
     begin
@@ -194,7 +213,114 @@ def open_selected() # {{{2
   end
 end
 
-def image_show(image)# {{{2
+def copy_move_link(type) # {{{3
+  # Copy or move tagged items (copy if "keep == true")
+  @tagged.uniq!
+  @tagged.each do | item |
+    item = item[1..-2]
+    dest = Dir.pwd
+    dest += "/" + File.basename(item)
+    dest += "1" if File.exist?(dest)
+    while File.exist?(dest)
+      dest = dest.chop + (dest[-1].to_i + 1).to_s
+    end
+    begin
+      case type
+      when "copy"
+        FileUtils.cp_r(item, dest)
+      when "move"
+        FileUtils.mv(item, dest)
+      when "link"
+        FileUtils.ln_s(item, dest)
+      end
+    rescue StandardError => err
+      win_bottom_info(err.to_s)
+      @info_bottom_stay = true
+    end
+  end
+  @tagged = [] if type == "move"
+end
+
+## }}}2
+
+## WIN_RIGHT {{{2
+def win_right_show # {{{3
+  # Show contents in the right window
+  # Right window (viewer)
+  @win_right.setpos(0, 0)
+  (@win_right.maxy - @win_right.cury).times {@win_right.deleteln()}
+  @win_right.refresh
+  @win_right.setpos(0, 0)
+  # Clear for any previously showing image
+  image_show("clear")
+  # Determine the specific programs to open/show content {{{4
+  begin
+    # Directories {{{5
+    if File.directory?(@selected)
+      ls_cmd = "ls #{@lsall} #{@selected_safe} --group-directories-first"
+      files  = `#{ls_cmd}`.split("\n")
+      list_dir(@win_right, false, files)
+    # Text {{{5
+    # View the file as text if it is utf-8
+    elsif File.read(@selected).force_encoding("UTF-8").valid_encoding?
+      begin
+        max_lines  = @win_right.maxy - 1
+        input      = `batcat -n --color=always --line-range :#{max_lines} #{@selected_safe} 2>/dev/null`
+        color_ary  = color_parse(input)
+        color_ary.each do | pair |
+          fg   = pair[0].to_i
+          text = pair[1]
+          text.gsub!(/\t/, '')
+          init_pair(fg, fg, 0)
+          @win_right.attron(color_pair(fg)) { @win_right << text }
+        end
+      rescue
+        @win_right << `cat #{@selected_safe} 2>/dev/null`
+      end
+    # PDF {{{5
+    elsif @selected.match(/\.pdf$|\.ps$/)
+      @win_right << `pdftotext -f 1 -l 4 #{@selected_safe} - 2>/dev/null | less`
+    # Open/LibreOffice {{{5
+    elsif @selected.match(/\.odt$|\.odc$|\.odp$|\.odg$/)
+      @win_right << `odt2txt #{@selected_safe} 2>/dev/null`
+    # OOXML {{{5
+    elsif @selected.match(/\.docx$|\.xlsx$|\.pptx$/)
+      @win_right << `docx2txt #{@selected_safe} - 2>/dev/null`
+    # MS doc {{{5
+    elsif @selected.match(/\.doc$/)
+      @win_right << `catdoc #{@selected_safe} 2>/dev/null`
+    # MS xls {{{5
+    elsif @selected.match(/\.xls$/)
+      @win_right << `xls2csv #{@selected_safe} 2>/dev/null`
+    # MS ppt {{{5
+    elsif @selected.match(/\.ppt$/)
+      @win_right << `catppt #{@selected_safe} 2>/dev/null`
+    # Images {{{5
+    elsif @selected.match(/\.jpg$|\.jpeg$|\.png$|\.bmp$|\.gif$|\.tif$|\.tiff$/)
+      image_show(@selected_safe)
+    end
+  rescue
+  end
+  clrtoeol
+  (@win_right.maxy - @win_right.cury).times {@win_right.deleteln()}
+  @win_right.refresh
+end
+
+def win_right_info(info) # {{{3
+  # Show info in the right window
+  # Clear for any previously showing image
+  @win_right.setpos(0, 0)
+  (@win_right.maxy - @win_right.cury).times {@win_right.deleteln()}
+  @win_right.refresh
+  @win_right.setpos(0, 0)
+  # Clear for any previously showing image
+  image_show("clear")
+  @win_right << info + "\n"
+  (@win_right.maxy - @win_right.cury).times {@win_right.deleteln()}
+  @win_right.refresh
+end
+
+def image_show(image)# {{{3
   # Show the selected image in the right window (pass "clear" to clear the window)
   begin
     terminfo    = `xwininfo -id $(xdotool getactivewindow)`
@@ -231,92 +357,7 @@ def image_show(image)# {{{2
   end
 end
 
-def color_parse(input) # {{{2
-  input.gsub!( /\e\[\d;38;5;(\d+)m/, '%-%\1%-%')
-  input.gsub!( /\e\[38;5;(\d+)m/, '%-%\1%-%')
-  input.gsub!( /\e\[0m/, "\t")
-  color_array = input.split("%-%")
-  color_array = color_array.drop(1)
-  output = color_array.each_slice(2).to_a
-  return output
-end
-
-def win_right_show # {{{2
-  # Show contents in the right window
-  # Right window (viewer)
-  @win_right.setpos(0, 0)
-  (@win_right.maxy - @win_right.cury).times {@win_right.deleteln()}
-  @win_right.refresh
-  @win_right.setpos(0, 0)
-  # Clear for any previously showing image
-  image_show("clear")
-  # Determine the specific programs to open/show content {{{3
-  begin
-    # Directories {{{4
-    if File.directory?(@selected)
-      ls_cmd = "ls #{@lsall} #{@selected_safe} --group-directories-first"
-      files  = `#{ls_cmd}`.split("\n")
-      list_dir(@win_right, false, files)
-    # Text {{{4
-    # View the file as text if it is utf-8
-    elsif File.read(@selected).force_encoding("UTF-8").valid_encoding?
-      begin
-        max_lines  = @win_right.maxy - 1
-        input      = `batcat -n --color=always --line-range :#{max_lines} #{@selected_safe} 2>/dev/null`
-        color_ary  = color_parse(input)
-        color_ary.each do | pair |
-          fg   = pair[0].to_i
-          text = pair[1]
-          text.gsub!(/\t/, '')
-          init_pair(fg, fg, 0)
-          @win_right.attron(color_pair(fg)) { @win_right << text }
-        end
-      rescue
-        @win_right << `cat #{@selected_safe} 2>/dev/null`
-      end
-    # PDF {{{4
-    elsif @selected.match(/\.pdf$|\.ps$/)
-      @win_right << `pdftotext -f 1 -l 4 #{@selected_safe} - 2>/dev/null | less`
-    # Open/LibreOffice {{{4
-    elsif @selected.match(/\.odt$|\.odc$|\.odp$|\.odg$/)
-      @win_right << `odt2txt #{@selected_safe} 2>/dev/null`
-    # OOXML {{{4
-    elsif @selected.match(/\.docx$|\.xlsx$|\.pptx$/)
-      @win_right << `docx2txt #{@selected_safe} - 2>/dev/null`
-    # MS doc {{{4
-    elsif @selected.match(/\.doc$/)
-      @win_right << `catdoc #{@selected_safe} 2>/dev/null`
-    # MS xls {{{4
-    elsif @selected.match(/\.xls$/)
-      @win_right << `xls2csv #{@selected_safe} 2>/dev/null`
-    # MS ppt {{{4
-    elsif @selected.match(/\.ppt$/)
-      @win_right << `catppt #{@selected_safe} 2>/dev/null`
-    # Images {{{4
-    elsif @selected.match(/\.jpg$|\.jpeg$|\.png$|\.bmp$|\.gif$|\.tif$|\.tiff$/)
-      image_show(@selected_safe)
-    end
-  rescue
-  end
-  clrtoeol
-  (@win_right.maxy - @win_right.cury).times {@win_right.deleteln()}
-  @win_right.refresh
-end # }}}2
-def win_right_info(info) # {{{2
-  # Show info in the right window
-  # Clear for any previously showing image
-  @win_right.setpos(0, 0)
-  (@win_right.maxy - @win_right.cury).times {@win_right.deleteln()}
-  @win_right.refresh
-  @win_right.setpos(0, 0)
-  # Clear for any previously showing image
-  image_show("clear")
-  @win_right << info + "\n"
-  (@win_right.maxy - @win_right.cury).times {@win_right.deleteln()}
-  @win_right.refresh
-end
-
-def marks_info # {{{2
+def marks_info # {{{3
   # Show marks in right window
   info = "Marks:\n"
   unless $marks.empty?
@@ -329,14 +370,18 @@ def marks_info # {{{2
   win_right_info(info)
 end
 
-def tagged_info # {{{2
+def tagged_info # {{{3
   # Show the list of tagged items in @win_right
   info = "Tagged:\n"
   @tagged.empty? ? info += "(None)" : info += @tagged.join("\n")
   win_right_info(info)
 end
 
-def win_bottom_info(info) # {{{2
+
+## }}}2
+
+## WIN_BOTTOM {{{2
+def win_bottom_info(info) # {{{3
   # Show info in @win_bottom
   @win_bottom.clear
   init_pair(250, 250, 0)
@@ -345,33 +390,9 @@ def win_bottom_info(info) # {{{2
   @win_bottom.refresh
 end
 
-def copy_move_link(type) # {{{2
-  # Copy or move tagged items (copy if "keep == true")
-  @tagged.uniq!
-  @tagged.each do | item |
-    item = item[1..-2]
-    dest = Dir.pwd
-    dest += "/" + File.basename(item)
-    dest += "1" if File.exist?(dest)
-    while File.exist?(dest)
-      dest = dest.chop + (dest[-1].to_i + 1).to_s
-    end
-    begin
-      case type
-      when "copy"
-        FileUtils.cp_r(item, dest)
-      when "move"
-        FileUtils.mv(item, dest)
-      when "link"
-        FileUtils.ln_s(item, dest)
-      end
-    rescue StandardError => err
-      win_bottom_info(err.to_s)
-      @info_bottom_stay = true
-    end
-  end
-  @tagged = [] if type == "move"
-end
+
+## }}}2
+
 # }}}1
 
 # INITIALIZE VARIABLE FOR WINDOWS {{{1
@@ -568,7 +589,7 @@ begin
     when "'" # Jump to mark {{{4
       marks_info
       m = STDIN.getc
-      if m.match(/\w/)
+      if m.match(/\w/) and $marks[m]
         Dir.chdir($marks[m]) 
         @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
       end
@@ -600,6 +621,10 @@ begin
       # Remove cursor and display no keys pressed
       Curses.curs_set(0)
       Curses.noecho
+    # }}}4
+    when '?' # Display help text
+      win_right_info(@help)
+      @info_right_stay = true
     # }}}4
     when 'q' then exit 0 # Exit {{{4
     # }}}4
