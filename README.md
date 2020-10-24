@@ -44,7 +44,7 @@ PATH - such as in `~/bin/` and ensure it is executable.
 ## Keys
 Key    | What happens when pressed
 -------|-------------------------------------------------------------
-h      | Show help text in right pane
+?      | Show help text in right pane
 DOWN   | Go one item down in left pane (rounds to top)
 UP     | Go one item up in left pane (rounds to bottom)
 PgDown | Go one page down in left pane
