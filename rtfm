@@ -49,6 +49,7 @@ KEYS
   M      = Show marked items in right pane
   '      = Jump to mark (next letter is the name of the mark [a-zA-Z])
   :      = Enter "command mode" in bottom window
+  ENTER  = Refresh RTFM
   q      = Quit
 
 COPYRIGHT
@@ -58,7 +59,7 @@ HELPTEXT
 # }}}1
 
 # BASIC SETUP {{{1
-# Remove code warnings
+# Remove code warnings {{{2
 Warning[:deprecated] = false
 
 # Requires and loads {{{2
@@ -94,8 +95,30 @@ LScolors = `echo $LS_COLORS`
 # }}}
 # }}}1
 
-# FUNCTIONS {{{1
+# INITIALIZE VARIABLES {{{1
+# Initialize the tagged array - for collecting all tagged items
+@tagged = []
 
+# Initialize the directory hash -
+# for remembering index for every directory visited
+@directory = {}
+
+# Set chosen item to first
+@index = 0
+
+# Set short form ls (toggled by pressing "l")
+@lslong = false
+
+# Set "ls -a" to false (toggled by pressing "a")
+@lsall = ""
+
+# Show new info (@win_right and @win_bottom), 
+# set to true if info stays until next key press
+@info_right_stay  = false
+@info_bottom_stay = false
+# }}}1
+
+# FUNCTIONS {{{1
 ## GENERIC {{{2
 def get_ls_color(type) # {{{3
   # Get the color for the filetype from imported LS_COLORS
@@ -180,12 +203,171 @@ def list_dir(win, left, files)# {{{3
     end
   end
 end
-## }}}2
 
+def rtfm_getkey # {{{3
+  # Get key from user
+  # Curses.getch blanks out @win_top
+  # @win_left.getch makes Curses::KEY_DOWN etc not work
+  # Therefore resorting to the generic method
+  case STDIN.getc
+  when 'h' # Show helptext in right window {{{4
+    win_right_info(@help)
+    @info_right_stay = true
+  when "\e" # ANSI escape sequences {{{4
+    case $stdin.getc
+    when '[' # CSI
+      case $stdin.getc
+      when 'A' then @index = @index <= @min_index ? @max_index : @index - 1
+      when 'B' then @index = @index >= @max_index ? @min_index : @index + 1
+      when 'C' 
+        # Store index of this directory before leaving
+        @directory[Dir.pwd] = @index
+        open_selected()
+      when 'D' 
+        # Store index of this directory before leaving
+        @directory[Dir.pwd] = @index
+        Dir.chdir("..")
+        # Set index to stored value if directory has been visited
+        @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
+      when '5' 
+        @index -= @win_left.maxy - 2
+        @index = @min_index if @index < @min_index
+      when '6'
+        @index += @win_left.maxy - 2
+        @index = @max_index if @index > @max_index
+      when '7' then @index = @min_index
+      when '8' then @index = @max_index
+      end
+    end
+  # }}}4
+  when 'a' then @lsall == "" ? @lsall = "-a" : @lsall = "" # Show all items {{{4
+  # }}}4
+  when 'l' then @lslong = !@lslong # Show long info for all items {{{4
+  # }}}4
+  when 't' # Add item to tegged list {{{4
+    item = "'#{Dir.pwd}/#{@selected}'"
+    if @tagged.include?(item)
+      @tagged.delete(item)
+    else
+      @tagged.push(item)
+    end
+    tagged_info
+    @info_right_stay = true
+  # }}}4
+  when 'T' # Show tagged list {{{4
+    tagged_info
+    @info_right_stay = true
+  # }}}4
+  when 'u' # Clear tagged list {{{4
+    @tagged = []
+    tagged_info
+    @info_right_stay = true
+  # }}}4
+  when 'p' # Copy tagged items here {{{4
+    copy_move_link("copy")
+  # }}}4
+  when 'P' # Move tagged items here {{{4
+    copy_move_link("move")
+  # }}}4
+  when 's' # Create symlink to tagged items here {{{4
+    copy_move_link("link")
+  # }}}4
+  when 'd' # Delete items tagged and @selected {{{4
+    tagged_info
+    win_bottom_info(" Delete selected and tagged? (press 'd' again to delete)")
+    begin
+      @tagged.push("'#{@selected}'")
+      @tagged.uniq!
+      deletes = @tagged.join(" ")
+      `rm -rf #{deletes}` if STDIN.getc == 'd'
+      items_number = @tagged.length
+      @tagged = []
+      win_bottom_info("Deleted #{items_number} items: #{deletes}")
+      @info_bottom_stay = true
+    rescue StandardError => err
+      win_bottom_info(err.to_s)
+      @info_bottom_stay = true
+    end
+  # }}}4
+  when 'm' # Set mark {{{4
+    marks_info
+    m = STDIN.getc
+    if m.match(/\w/)
+      $marks[m] = Dir.pwd
+    elsif m == "-"
+      r = STDIN.getc
+      $marks.delete(r)
+    end
+    marks_info
+    @info_right_stay = true
+  # }}}4
+  when 'M' # Show marks {{{4
+    marks_info
+    @info_right_stay = true
+  # }}}4
+  when "'" # Jump to mark {{{4
+    marks_info
+    m = STDIN.getc
+    if m.match(/\w/) and $marks[m]
+      Dir.chdir($marks[m]) 
+      @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
+    end
+  # }}}4
+  when ':' # Enter "command mode" in the bottom window - tries to execute the given command {{{4
+    @win_bottom.clear
+    init_pair(250, 250, 0)
+    @win_bottom.attron(color_pair(250) | Curses::A_DIM) { @win_bottom << "─" * @win_bottom.maxx }
+    @win_bottom.attron(color_pair(250) | Curses::A_DIM) { @win_bottom << ": " }
+    @win_bottom.refresh
+    @win_bottom.setpos(2,2)
+    @s = @selected
+    # Display cursor and the text entered
+    Curses.curs_set(1)
+    Curses.echo
+    cmd = @win_bottom.getstr
+    # Subsitute any '@s' with the selected item
+    # 'rm @s' deletes the selected item 
+    cmd.gsub!(/@s/, @selected)
+    begin
+      `#{cmd}`
+    rescue
+      @win_bottom.setpos(2,0)
+      @win_bottom << " Failed to execute command (#{cmd})"
+      clrtoeol
+      @win_bottom.refresh
+      @info_bottom_stay = true
+    end
+    # Remove cursor and display no keys pressed
+    Curses.curs_set(0)
+    Curses.noecho
+  # }}}4
+  when '?' # Display help text
+    win_right_info(@help)
+    @info_right_stay = true
+  # }}}4
+  when 'q' then exit 0 # Exit {{{4
+  # }}}4
+  end
+end
+## }}}2
 ## WIN_TOP {{{2
+def win_top_info() # {{{3
+  # Show info in @win_top
+  @win_top.setpos(0,0)
+  toptext  = " Path: " + Dir.pwd + "/" + @selected
+  toptext += " (#{File.readlink(@selected)})" if File.symlink?(@selected) 
+  begin
+    toptext += " (#{@fspes[@index].gsub(/ .* /, ' ')})" 
+  rescue
+  end
+  toptext = toptext[1..(@win_top.maxx - 3)] + "…" if toptext.length + 3 > @win_top.maxx 
+  toptext += " " * (@win_top.maxx - toptext.length) if toptext.length < @win_top.maxx
+  init_pair(232, 232, 249)
+  @win_top.attron(color_pair(232) | Curses::A_BOLD) { @win_top << toptext }
+  @win_top.refresh
+end
 
 ## }}}2
-
 ## WIN_LEFT {{{2
 def open_selected() # {{{3
   # Open selected item (when pressing Right)
@@ -242,7 +424,6 @@ def copy_move_link(type) # {{{3
 end
 
 ## }}}2
-
 ## WIN_RIGHT {{{2
 def win_right_show # {{{3
   # Show contents in the right window
@@ -379,43 +560,23 @@ end
 
 
 ## }}}2
-
 ## WIN_BOTTOM {{{2
 def win_bottom_info(info) # {{{3
   # Show info in @win_bottom
-  @win_bottom.clear
   init_pair(250, 250, 0)
+  @win_bottom.setpos(0,0)
   @win_bottom.attron(color_pair(250) | Curses::A_DIM) { @win_bottom << "─" * @win_bottom.maxx }
-  @win_bottom << info
+  info = ": for command (use @s for selected item)" if info == nil
+  @win_bottom.attron(color_pair(250) | Curses::A_DIM) { @win_bottom << info }
   @win_bottom.refresh
 end
 
+def win_bottom_getstr # {{{3
+
+  return str
+end
 
 ## }}}2
-
-# }}}1
-
-# INITIALIZE VARIABLE FOR WINDOWS {{{1
-# Initialize the tagged array - for collecting all tagged items
-@tagged = []
-
-# Initialize the directory hash -
-# for remembering index for every directory visited
-@directory = {}
-
-# Set chosen item to first
-@index = 0
-
-# Set short form ls (toggled by pressing "l")
-@lslong = false
-
-# Set "ls -a" to false (toggled by pressing "a")
-@lsall = ""
-
-# Show new info (@win_right and @win_bottom), 
-# set to true if info stays until next key press
-@info_right_stay  = false
-@info_bottom_stay = false
 # }}}1
 
 # MAIN PROGRAM {{{1
@@ -441,33 +602,12 @@ begin
     @selected_safe = "'#{@selected}'"
 
     # Safety measure - correct index overflows {{{3
-    max_index = files.size - 1
-    min_index = 0
-    @index = max_index if @index > max_index
+    @max_index = files.size - 1
+    @min_index = 0
+    @index = @max_index if @index > @max_index
 
     # Top window (info line) {{{3
-    @win_top.setpos(0,0)
-    toptext  = " Path: " + Dir.pwd + "/" + @selected
-    toptext += " (#{File.readlink(@selected)})" if File.symlink?(@selected) 
-    begin
-      toptext += " (#{@fspes[@index].gsub(/ .* /, ' ')})" 
-    rescue
-    end
-    toptext = toptext[1..(@win_top.maxx - 3)] + "…" if toptext.length + 3 > @win_top.maxx 
-    toptext += " " * (@win_top.maxx - toptext.length) if toptext.length < @win_top.maxx
-    init_pair(232, 232, 249)
-    @win_top.attron(color_pair(232) | Curses::A_BOLD) { @win_top << toptext }
-    @win_top.refresh
-
-    # Bottom window (command line) {{{3
-    if @info_bottom_stay == false
-      @win_bottom.setpos(0,0)
-      bottomtext = ": for command (use @s for selected item)"
-      init_pair(250, 250, 0)
-      @win_bottom.attron(color_pair(250) | Curses::A_DIM) { @win_bottom << "─" * @win_bottom.maxx }
-      @win_bottom.attron(color_pair(250) | Curses::A_DIM) { @win_bottom << bottomtext }
-      @win_bottom.refresh
-    end
+    win_top_info
 
     # Left window (browser) {{{3
     @win_left.setpos(0,0)
@@ -478,157 +618,19 @@ begin
     # Right window (content viewer) {{{3
     win_right_show if @info_right_stay == false
 
+    # Bottom window (command line) {{{3
+    win_bottom_info(nil) if @info_bottom_stay == false
+
     # Clear @info_stay and residual cursor {{{3
     @info_right_stay  = false
     @info_bottom_stay = false
     
-    # Clear residual cursor from editing files
+    # Clear residual cursor from editing files {{{3
     Curses.curs_set(1)
     Curses.curs_set(0)
-
-    # Get key from user {{{3
-    # Curses.getch blanks out @win_top
-    # @win_left.getch makes Curses::KEY_DOWN etc not work
-    # Therefore resorting to the generic method
-    case STDIN.getc
-    when 'h' # Show helptext in right window {{{4
-      win_right_info(@help)
-      @info_right_stay = true
-    when "\e" # ANSI escape sequences {{{4
-      case $stdin.getc
-      when '[' # CSI
-        case $stdin.getc
-        when 'A' then @index = @index <= min_index ? max_index : @index - 1
-        when 'B' then @index = @index >= max_index ? min_index : @index + 1
-        when 'C' 
-          # Store index of this directory before leaving
-          @directory[Dir.pwd] = @index
-          open_selected()
-        when 'D' 
-          # Store index of this directory before leaving
-          @directory[Dir.pwd] = @index
-          Dir.chdir("..")
-          # Set index to stored value if directory has been visited
-          @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
-        when '5' 
-          @index -= @win_left.maxy - 2
-          @index = min_index if @index < min_index
-        when '6'
-          @index += @win_left.maxy - 2
-          @index = max_index if @index > max_index
-        when '7' then @index = min_index
-        when '8' then @index = max_index
-        end
-      end
-    # }}}4
-    when 'a' then @lsall == "" ? @lsall = "-a" : @lsall = "" # Show all items {{{4
-    # }}}4
-    when 'l' then @lslong = !@lslong # Show long info for all items {{{4
-    # }}}4
-    when 't' # Add item to tegged list {{{4
-      item = "'#{Dir.pwd}/#{@selected}'"
-      if @tagged.include?(item)
-        @tagged.delete(item)
-      else
-        @tagged.push(item)
-      end
-      tagged_info
-      @info_right_stay = true
-    # }}}4
-    when 'T' # Show tagged list {{{4
-      tagged_info
-      @info_right_stay = true
-    # }}}4
-    when 'u' # Clear tagged list {{{4
-      @tagged = []
-      tagged_info
-      @info_right_stay = true
-    # }}}4
-    when 'p' # Copy tagged items here {{{4
-      copy_move_link("copy")
-    # }}}4
-    when 'P' # Move tagged items here {{{4
-      copy_move_link("move")
-    # }}}4
-    when 's' # Create symlink to tagged items here {{{4
-      copy_move_link("link")
-    # }}}4
-    when 'd' # Delete items tagged and @selected {{{4
-      tagged_info
-      win_bottom_info(" Delete selected and tagged? (press 'd' again to delete)")
-      begin
-        @tagged.push("'#{@selected}'")
-        @tagged.uniq!
-        deletes = @tagged.join(" ")
-        `rm -rf #{deletes}` if STDIN.getc == 'd'
-        items_number = @tagged.length
-        @tagged = []
-        win_bottom_info("Deleted #{items_number} items: #{deletes}")
-        @info_bottom_stay = true
-      rescue StandardError => err
-        win_bottom_info(err.to_s)
-        @info_bottom_stay = true
-      end
-    # }}}4
-    when 'm' # Set mark {{{4
-      marks_info
-      m = STDIN.getc
-      if m.match(/\w/)
-        $marks[m] = Dir.pwd
-      elsif m == "-"
-        r = STDIN.getc
-        $marks.delete(r)
-      end
-      marks_info
-      @info_right_stay = true
-    # }}}4
-    when 'M' # Show marks {{{4
-      marks_info
-      @info_right_stay = true
-    # }}}4
-    when "'" # Jump to mark {{{4
-      marks_info
-      m = STDIN.getc
-      if m.match(/\w/) and $marks[m]
-        Dir.chdir($marks[m]) 
-        @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
-      end
-    # }}}4
-    when ':' # Enter "command mode" in the bottom window - tries to execute the given command {{{4
-      @win_bottom.clear
-      init_pair(250, 250, 0)
-      @win_bottom.attron(color_pair(250) | Curses::A_DIM) { @win_bottom << "─" * @win_bottom.maxx }
-      @win_bottom.attron(color_pair(250) | Curses::A_DIM) { @win_bottom << ": " }
-      @win_bottom.refresh
-      @win_bottom.setpos(2,2)
-      @s = @selected
-      # Display cursor and the text entered
-      Curses.curs_set(1)
-      Curses.echo
-      cmd = @win_bottom.getstr
-      # Subsitute any '@s' with the selected item
-      # 'rm @s' deletes the selected item 
-      cmd.gsub!(/@s/, @selected)
-      begin
-        `#{cmd}`
-      rescue
-        @win_bottom.setpos(2,0)
-        @win_bottom << " Failed to execute command (#{cmd})"
-        clrtoeol
-        @win_bottom.refresh
-        @info_bottom_stay = true
-      end
-      # Remove cursor and display no keys pressed
-      Curses.curs_set(0)
-      Curses.noecho
-    # }}}4
-    when '?' # Display help text
-      win_right_info(@help)
-      @info_right_stay = true
-    # }}}4
-    when 'q' then exit 0 # Exit {{{4
-    # }}}4
-    end
+    
+    # Get key from user
+    rtfm_getkey
   end
 # }}}2
 # On exit: close curses, clear terminal {{{2
