@@ -66,6 +66,7 @@ Warning[:deprecated] = false
 require 'curses'
 include Curses
 require 'fileutils'
+require 'readline'
 
 if File.exist?(ENV['HOME']+'/.rtfm.conf')
   load(ENV['HOME']+'/.rtfm.conf')
@@ -217,26 +218,26 @@ def rtfm_getkey # {{{3
     case $stdin.getc
     when '[' # CSI
       case $stdin.getc
-      when 'A' then @index = @index <= @min_index ? @max_index : @index - 1
-      when 'B' then @index = @index >= @max_index ? @min_index : @index + 1
-      when 'C' 
+      when 'A' then @index = @index <= @min_index ? @max_index : @index - 1 # UP
+      when 'B' then @index = @index >= @max_index ? @min_index : @index + 1 # DOWN
+      when 'C' # RIGHT
         # Store index of this directory before leaving
         @directory[Dir.pwd] = @index
         open_selected()
-      when 'D' 
+      when 'D' # LEFT
         # Store index of this directory before leaving
         @directory[Dir.pwd] = @index
         Dir.chdir("..")
         # Set index to stored value if directory has been visited
         @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
-      when '5' 
+      when '5' # PgUP
         @index -= @win_left.maxy - 2
         @index = @min_index if @index < @min_index
-      when '6'
+      when '6' # PgDOWN
         @index += @win_left.maxy - 2
         @index = @max_index if @index > @max_index
-      when '7' then @index = @min_index
-      when '8' then @index = @max_index
+      when '7' then @index = @min_index # HOME
+      when '8' then @index = @max_index # END
       end
     end
   # }}}4
@@ -283,10 +284,8 @@ def rtfm_getkey # {{{3
       items_number = @tagged.length
       @tagged = []
       win_bottom_info("Deleted #{items_number} items: #{deletes}")
-      @info_bottom_stay = true
     rescue StandardError => err
       win_bottom_info(err.to_s)
-      @info_bottom_stay = true
     end
   # }}}4
   when 'm' # Set mark {{{4
@@ -314,32 +313,18 @@ def rtfm_getkey # {{{3
     end
   # }}}4
   when ':' # Enter "command mode" in the bottom window - tries to execute the given command {{{4
-    @win_bottom.clear
-    init_pair(250, 250, 0)
-    @win_bottom.attron(color_pair(250) | Curses::A_DIM) { @win_bottom << "─" * @win_bottom.maxx }
-    @win_bottom.attron(color_pair(250) | Curses::A_DIM) { @win_bottom << ": " }
-    @win_bottom.refresh
-    @win_bottom.setpos(2,2)
+    win_bottom_info(": ")
     @s = @selected
-    # Display cursor and the text entered
-    Curses.curs_set(1)
-    Curses.echo
-    cmd = @win_bottom.getstr
+    cmd = win_bottom_getstr
     # Subsitute any '@s' with the selected item
     # 'rm @s' deletes the selected item 
     cmd.gsub!(/@s/, @selected)
     begin
+      #`#{cmd} 2>/dev/null`
       `#{cmd}`
     rescue
-      @win_bottom.setpos(2,0)
-      @win_bottom << " Failed to execute command (#{cmd})"
-      clrtoeol
-      @win_bottom.refresh
-      @info_bottom_stay = true
+      win_bottom_info(" Failed to execute command (#{cmd})")
     end
-    # Remove cursor and display no keys pressed
-    Curses.curs_set(0)
-    Curses.noecho
   # }}}4
   when '?' # Display help text
     win_right_info(@help)
@@ -417,7 +402,6 @@ def copy_move_link(type) # {{{3
       end
     rescue StandardError => err
       win_bottom_info(err.to_s)
-      @info_bottom_stay = true
     end
   end
   @tagged = [] if type == "move"
@@ -566,13 +550,75 @@ def win_bottom_info(info) # {{{3
   init_pair(250, 250, 0)
   @win_bottom.setpos(0,0)
   @win_bottom.attron(color_pair(250) | Curses::A_DIM) { @win_bottom << "─" * @win_bottom.maxx }
+  @win_bottom.deleteln()
   info = ": for command (use @s for selected item)" if info == nil
   @win_bottom.attron(color_pair(250) | Curses::A_DIM) { @win_bottom << info }
   @win_bottom.refresh
+  @info_bottom_stay = true
+end
+
+def win_bottom_curstr # {{{3
+  # Read the current string in @win_bottom
+  x = @win_bottom.curx
+  @win_bottom.setpos(1,2)
+  chr, str = "", ""
+  until str[-2..-1] == "  " do
+    chr = @win_bottom.inch.chr
+    str += chr 
+    @win_bottom.setpos(1,@win_bottom.curx + 1)
+  end
+  str.chop!.chop!
+  return str
+  @win_bottom.setpos(1,x)
+end
+
+def win_bottom_readstr # {{{3
+  # A simple Readline-like routine
+  str = ""
+  chr = ""
+  while chr.to_s != "\r"
+    chr = STDIN.getc
+    case chr
+    when "\e" # ANSI escape sequences
+      case $stdin.getc
+      when '[' # CSI
+        case $stdin.getc
+        when 'C' # RIGHT
+          @win_bottom.setpos(1,@win_bottom.curx + 1)
+        when 'D' # LEFT
+          @win_bottom.setpos(1,@win_bottom.curx - 1) unless @win_bottom.curx == 2
+        when '7' # HOME
+          @win_bottom.setpos(1,2)
+          chr =""
+        when '8' # END
+          @win_bottom.setpos(1,2 + win_bottom_curstr.length)
+        when '3' # DELETE
+          @win_bottom.delch
+        end
+      end
+    when ""
+      unless @win_bottom.curx == 2
+        @win_bottom.setpos(1,@win_bottom.curx - 1) 
+        @win_bottom.delch
+      end
+    when /[^~]/ # match characters
+      @win_bottom.addch(chr)
+    end
+    @win_bottom.refresh
+  end
+  win_bottom_curstr
 end
 
 def win_bottom_getstr # {{{3
-
+  # Get input from user
+  @win_bottom.setpos(1,2)
+  # Display cursor and the text entered
+  Curses.curs_set(1)
+  Curses.echo
+  #str = @win_bottom.getstr
+  str = win_bottom_readstr
+  Curses.curs_set(0)
+  Curses.noecho
   return str
 end
 
