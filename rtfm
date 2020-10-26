@@ -69,11 +69,11 @@ include Curses
 require 'fileutils'
 require 'readline'
 
-if File.exist?(ENV['HOME']+'/.rtfm.conf')
-  load(ENV['HOME']+'/.rtfm.conf')
+if File.exist?(Dir.home+'/.rtfm.conf')
+  load(Dir.home+'/.rtfm.conf')
 else
   $marks = {}
-  File.write((ENV['HOME']+'/.rtfm.conf'), "$marks = {}\n")
+  File.write((Dir.home+'/.rtfm.conf'), "$marks = {}\n")
 end
 # }}}
 # Curses setup {{{2
