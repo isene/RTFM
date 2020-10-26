@@ -47,6 +47,7 @@ KEYS
            Next letter entered is the name of the mark [a-zA-Z]
            Press '-' and a letter to delete that mark
   M      = Show marked items in right pane
+  H      = Show command history in right pane
   '      = Jump to mark (next letter is the name of the mark [a-zA-Z])
   :      = Enter "command mode" in bottom window
   ENTER  = Refresh RTFM
@@ -99,6 +100,9 @@ LScolors = `echo $LS_COLORS`
 # INITIALIZE VARIABLES {{{1
 # Initialize the tagged array - for collecting all tagged items
 @tagged = []
+
+# Initialize the command line history
+@history = []
 
 # Initialize the directory hash -
 # for remembering index for every directory visited
@@ -304,6 +308,10 @@ def rtfm_getkey # {{{3
     marks_info
     @info_right_stay = true
   # }}}4
+  when 'H' # Show command history {{{4
+    win_right_info(@history.join("\n"))
+    @info_right_stay = true
+  # }}}4
   when "'" # Jump to mark {{{4
     marks_info
     m = STDIN.getc
@@ -314,14 +322,15 @@ def rtfm_getkey # {{{3
   # }}}4
   when ':' # Enter "command mode" in the bottom window - tries to execute the given command {{{4
     win_bottom_info(": ")
-    @s = @selected
     cmd = win_bottom_getstr
-    # Subsitute any '@s' with the selected item
-    # 'rm @s' deletes the selected item 
-    cmd.gsub!(/@s/, @selected)
+    # Subsitute any '@s' with the selected item, @t with tagged items
+    # 'rm @s' deletes the selected item, 'rm @t' deletes tagged items
+    @s = @selected
+    cmd.gsub!(/@s/, @s)
+    @t = @tagged.join(" ")
+    cmd.gsub!(/@t/, @t)
     begin
-      #`#{cmd} 2>/dev/null`
-      `#{cmd}`
+      `#{cmd} 2>/dev/null`
     rescue
       win_bottom_info(" Failed to execute command (#{cmd})")
     end
@@ -551,7 +560,7 @@ def win_bottom_info(info) # {{{3
   @win_bottom.setpos(0,0)
   @win_bottom.attron(color_pair(250) | Curses::A_DIM) { @win_bottom << "─" * @win_bottom.maxx }
   @win_bottom.deleteln()
-  info = ": for command (use @s for selected item)" if info == nil
+  info = ": for command (use @s for selected item, @t for tagged items)" if info == nil
   @win_bottom.attron(color_pair(250) | Curses::A_DIM) { @win_bottom << info }
   @win_bottom.refresh
   @info_bottom_stay = true
@@ -576,6 +585,8 @@ def win_bottom_readstr # {{{3
   # A simple Readline-like routine
   str = ""
   chr = ""
+  histidx = -1
+  curstr = ""
   while chr.to_s != "\r"
     chr = STDIN.getc
     case chr
@@ -583,13 +594,24 @@ def win_bottom_readstr # {{{3
       case $stdin.getc
       when '[' # CSI
         case $stdin.getc
+        when 'A' # UP
+          histidx += 1 unless histidx > @history.length
+          @win_bottom.setpos(1,2)
+          histidx < 0 ? @win_bottom << curstr : @win_bottom << @history[histidx]
+          @win_bottom.clrtoeol
+          @win_bottom.setpos(1,2 + win_bottom_curstr.length)
+        when 'B' # DOWN
+          histidx -= 1 unless histidx < -1
+          @win_bottom.setpos(1,2)
+          histidx < 0 ? @win_bottom << curstr : @win_bottom << @history[histidx]
+          @win_bottom.clrtoeol
+          @win_bottom.setpos(1,2 + win_bottom_curstr.length)
         when 'C' # RIGHT
           @win_bottom.setpos(1,@win_bottom.curx + 1)
         when 'D' # LEFT
           @win_bottom.setpos(1,@win_bottom.curx - 1) unless @win_bottom.curx == 2
         when '7' # HOME
           @win_bottom.setpos(1,2)
-          chr =""
         when '8' # END
           @win_bottom.setpos(1,2 + win_bottom_curstr.length)
         when '3' # DELETE
@@ -604,9 +626,13 @@ def win_bottom_readstr # {{{3
     when /[^~]/ # match characters
       @win_bottom.addch(chr)
     end
+    #curstr = win_bottom_curstr if histidx < 0
     @win_bottom.refresh
   end
-  win_bottom_curstr
+  curstr = win_bottom_curstr
+  @history.unshift(curstr)
+  @history.uniq!
+  return curstr
 end
 
 def win_bottom_getstr # {{{3
