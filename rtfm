@@ -67,7 +67,6 @@ Warning[:deprecated] = false
 require 'curses'
 include Curses
 require 'fileutils'
-require 'readline'
 
 if File.exist?(Dir.home+'/.rtfm.conf')
   load(Dir.home+'/.rtfm.conf')
@@ -209,41 +208,81 @@ def list_dir(win, left, files)# {{{3
   end
 end
 
-def rtfm_getkey # {{{3
+def getchr # {{{3
   # Get key from user
   # Curses.getch blanks out @win_top
   # @win_left.getch makes Curses::KEY_DOWN etc not work
   # Therefore resorting to the generic method
-  case STDIN.getc
-  when 'h' # Show helptext in right window {{{4
-    win_right_info(@help)
-    @info_right_stay = true
-  when "\e" # ANSI escape sequences {{{4
+  c = STDIN.getc
+  case c
+  when "\e" # ANSI escape sequences
+    chr = ""
     case $stdin.getc
     when '[' # CSI
       case $stdin.getc
-      when 'A' then @index = @index <= @min_index ? @max_index : @index - 1 # UP
-      when 'B' then @index = @index >= @max_index ? @min_index : @index + 1 # DOWN
-      when 'C' # RIGHT
-        # Store index of this directory before leaving
-        @directory[Dir.pwd] = @index
-        open_selected()
-      when 'D' # LEFT
-        # Store index of this directory before leaving
-        @directory[Dir.pwd] = @index
-        Dir.chdir("..")
-        # Set index to stored value if directory has been visited
-        @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
-      when '5' # PgUP
-        @index -= @win_left.maxy - 2
-        @index = @min_index if @index < @min_index
-      when '6' # PgDOWN
-        @index += @win_left.maxy - 2
-        @index = @max_index if @index > @max_index
-      when '7' then @index = @min_index # HOME
-      when '8' then @index = @max_index # END
+      when 'A' then chr = "UP"
+      when 'B' then chr = "DOWN"
+      when 'C' then chr = "RIGHT"
+      when 'D' then chr = "LEFT"
+      when '2'
+        chr = "INS"
+        STDIN.getc
+      when '3'
+        chr = "DEL"
+        STDIN.getc
+      when '5'
+        chr = "PgUP"
+        STDIN.getc
+      when '6'
+        chr = "PgDOWN"
+        STDIN.getc
+      when '7'
+        chr = "HOME"
+        STDIN.getc
+      when '8'
+        chr = "END"
+        STDIN.getc
       end
     end
+  when "" then chr = "BACK"
+  when "\r" then chr = "ENTER"
+  else chr = c
+  end
+  return chr
+end
+
+def main_getkey # {{{3
+  # Get key from user
+  # Curses.getch blanks out @win_top
+  # @win_left.getch makes Curses::KEY_DOWN etc not work
+  # Therefore resorting to the generic method
+  case getchr
+  when 'h' # Show helptext in right window {{{4
+    win_right_info(@help)
+    @info_right_stay = true
+  when 'UP' then @index = @index <= @min_index ? @max_index : @index - 1 # {{{4
+  # }}}4
+  when 'DOWN' then @index = @index >= @max_index ? @min_index : @index + 1 # {{{4
+  # }}}4
+  when 'RIGHT' # {{{4
+    # Store index of this directory before leaving
+    @directory[Dir.pwd] = @index
+    open_selected()
+  when 'LEFT' # {{{4
+    # Store index of this directory before leaving
+    @directory[Dir.pwd] = @index
+    Dir.chdir("..")
+    # Set index to stored value if directory has been visited
+    @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
+  when 'PgUP' # {{{4
+    @index -= @win_left.maxy - 2
+    @index = @min_index if @index < @min_index
+  when 'PgDOWN' # {{{4
+    @index += @win_left.maxy - 2
+    @index = @max_index if @index > @max_index
+  when 'HOME' then @index = @min_index # {{{4
+  # }}}4
+  when 'END' then @index = @max_index # {{{4
   # }}}4
   when 'a' then @lsall == "" ? @lsall = "-a" : @lsall = "" # Show all items {{{4
   # }}}4
@@ -309,7 +348,7 @@ def rtfm_getkey # {{{3
     @info_right_stay = true
   # }}}4
   when 'H' # Show command history {{{4
-    win_right_info(@history.join("\n"))
+    win_right_info("Command history:\n" + @history.join("\n"))
     @info_right_stay = true
   # }}}4
   when "'" # Jump to mark {{{4
@@ -583,7 +622,6 @@ end
 
 def win_bottom_readstr # {{{3
   # A simple Readline-like routine
-  str = ""
   chr = ""
   histidx = -1
   curstr = ""
@@ -612,10 +650,13 @@ def win_bottom_readstr # {{{3
           @win_bottom.setpos(1,@win_bottom.curx - 1) unless @win_bottom.curx == 2
         when '7' # HOME
           @win_bottom.setpos(1,2)
+          STDIN.getc
         when '8' # END
           @win_bottom.setpos(1,2 + win_bottom_curstr.length)
+          STDIN.getc
         when '3' # DELETE
           @win_bottom.delch
+          STDIN.getc
         end
       end
     when ""
@@ -623,7 +664,7 @@ def win_bottom_readstr # {{{3
         @win_bottom.setpos(1,@win_bottom.curx - 1) 
         @win_bottom.delch
       end
-    when /[^~]/ # match characters
+    when /./ # match characters
       @win_bottom.addch(chr)
     end
     #curstr = win_bottom_curstr if histidx < 0
@@ -702,7 +743,7 @@ begin
     Curses.curs_set(0)
     
     # Get key from user
-    rtfm_getkey
+    main_getkey
   end
 # }}}2
 # On exit: close curses, clear terminal {{{2
