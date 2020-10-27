@@ -62,6 +62,7 @@ p      | Put (copy) tagged items here
 P      | PUT (move) tagged items here
 s      | Create symlink to tagged items here
 d      | Delete selected item and tagged item. Press 'd' to confirm.
+c      | Change/rename selected (adds command to bottom window)
 m      | Mark current location (permanent bookmark). Next letter entered is the name of the mark [a-zA-Z]. Press '-' and a letter to delete that mark.
 M      | Show marked items in right pane
 H      | Show command history in right pane
