@@ -43,6 +43,7 @@ KEYS
   s      = Create symlink to tagged items here
   d      = Delete selected item and tagged items
            Press 'd' to confirm
+  c      = Change/rename selected (adds command to bottom window)
   m      = Mark current location (permanent bookmark)
            Next letter entered is the name of the mark [a-zA-Z]
            Press '-' and a letter to delete that mark
@@ -331,6 +332,11 @@ def main_getkey # {{{3
       win_bottom_info(err.to_s)
     end
   # }}}4
+  when 'c' # Change/rename selected @selected {{{4
+    win_bottom_info(": ")
+    cmd = win_bottom_getstr("mv #{@selected} ")
+    win_bottom_exec(cmd)
+  # }}}4
   when 'm' # Set mark {{{4
     marks_info
     m = STDIN.getc
@@ -361,18 +367,8 @@ def main_getkey # {{{3
   # }}}4
   when ':' # Enter "command mode" in the bottom window - tries to execute the given command {{{4
     win_bottom_info(": ")
-    cmd = win_bottom_getstr
-    # Subsitute any '@s' with the selected item, @t with tagged items
-    # 'rm @s' deletes the selected item, 'rm @t' deletes tagged items
-    @s = @selected
-    cmd.gsub!(/@s/, @s)
-    @t = @tagged.join(" ")
-    cmd.gsub!(/@t/, @t)
-    begin
-      `#{cmd} 2>/dev/null`
-    rescue
-      win_bottom_info(" Failed to execute command (#{cmd})")
-    end
+    cmd = win_bottom_getstr("")
+    win_bottom_exec(cmd)
   # }}}4
   when '?' # Display help text
     win_right_info(@help)
@@ -658,7 +654,6 @@ def win_bottom_readstr # {{{3
     when /^.$/
       @win_bottom.addch(chr)
     end
-    #curstr = win_bottom_curstr if histidx < 0
     @win_bottom.refresh
   end
   curstr = win_bottom_curstr
@@ -667,9 +662,11 @@ def win_bottom_readstr # {{{3
   return curstr
 end
 
-def win_bottom_getstr # {{{3
+def win_bottom_getstr(cmd) # {{{3
   # Get input from user
   @win_bottom.setpos(1,2)
+  @win_bottom << cmd
+  @win_bottom.refresh
   # Display cursor and the text entered
   Curses.curs_set(1)
   Curses.echo
@@ -680,6 +677,24 @@ def win_bottom_getstr # {{{3
   return str
 end
 
+def win_bottom_exec(cmd) #{{{3
+  # Execute command from @win_bottom
+  # Subsitute any '@s' with the selected item, @t with tagged items
+  # 'rm @s' deletes the selected item, 'rm @t' deletes tagged items
+  @s = @selected
+  cmd.gsub!(/@s/, @s)
+  @t = @tagged.join(" ")
+  cmd.gsub!(/@t/, @t)
+  begin
+    output = `#{cmd} 2>/dev/null`
+    if cmd =~ /^locate/
+      win_right_info(output)
+      @info_right_stay = true
+    end
+  rescue
+    win_bottom_info(" Failed to execute command (#{cmd})")
+  end
+end
 ## }}}2
 # }}}1
 
