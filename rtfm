@@ -655,7 +655,8 @@ def win_bottom_readstr # {{{3
         @win_bottom.setpos(1,@win_bottom.curx - 1) 
         @win_bottom.delch
       end
-    else @win_bottom.addch(chr)
+    when /^.$/
+      @win_bottom.addch(chr)
     end
     #curstr = win_bottom_curstr if histidx < 0
     @win_bottom.refresh
