@@ -23,7 +23,7 @@ ruby-curses` (gets v. 1.2.4-1build1 on Ubuntu 20.04).
 
 Content of text files are handled by `cat`. Other files are shown via external
 programs. It is shown if you have the program installed (Debian/Ubuntu family
-of Linux distros command in parenthesis):
+of Linux distros command in last column):
 
 File type      | Requirements                     | Installation
 ---------------|----------------------------------|------------------------------
