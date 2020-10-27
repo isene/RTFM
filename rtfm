@@ -106,7 +106,8 @@ LScolors = `echo $LS_COLORS`
 @history = []
 
 # Initialize the active searched for items
-@searched = ""
+@searched  = ""
+@nohistory = false
 
 # Initialize the directory hash -
 # for remembering index for every directory visited
@@ -358,7 +359,7 @@ def main_getkey # {{{3
     @info_right_stay = true
   # }}}4
   when 'H' # Show command history {{{4
-    win_right_info("Command history:\n" + @history.join("\n"))
+    win_right_info("Command history:\n\n" + @history.join("\n"))
     @info_right_stay = true
   # }}}4
   when "'" # Jump to mark {{{4
@@ -369,11 +370,13 @@ def main_getkey # {{{3
       @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
     end
   # }}}4
-  when '/' # Get search string to mark items that match
+  when '/' # Get search string to mark items that match # {{{4
+    @nohistory = true
     win_bottom_info("/ ")
     @searched = win_bottom_getstr("")
   # }}}4
   when ':' # Enter "command mode" in the bottom window - tries to execute the given command {{{4
+    @nohistory = false
     win_bottom_info(": ")
     cmd = win_bottom_getstr("")
     win_bottom_exec(cmd)
@@ -517,6 +520,13 @@ def win_right_show # {{{3
     # Images {{{5
     elsif @selected.match(/\.jpg$|\.jpeg$|\.png$|\.bmp$|\.gif$|\.tif$|\.tiff$/)
       image_show(@selected_safe)
+    # Images {{{5
+    elsif @selected.match(/\.mpg$|\.mpeg$|\.avi$|\.mov$|\.mp4$/)
+      begin
+        `ffmpegthumbnailer -s 1000 -i #{@selected_safe} -o /tmp/rtfm_video_tn.jpg`
+        image_show("/tmp/rtfm_video_tn.jpg")
+      rescue
+      end
     end
   rescue
   end
@@ -635,17 +645,21 @@ def win_bottom_readstr # {{{3
     chr = getchr
     case chr
     when 'UP'
-      histidx += 1 unless histidx > @history.length
-      @win_bottom.setpos(1,2)
-      histidx < 0 ? @win_bottom << curstr : @win_bottom << @history[histidx]
-      @win_bottom.clrtoeol
-      @win_bottom.setpos(1,2 + win_bottom_curstr.length)
+      unless @nohistory
+        histidx += 1 unless histidx > @history.length
+        @win_bottom.setpos(1,2)
+        histidx < 0 ? @win_bottom << curstr : @win_bottom << @history[histidx]
+        @win_bottom.clrtoeol
+        @win_bottom.setpos(1,2 + win_bottom_curstr.length)
+      end
     when 'DOWN'
-      histidx -= 1 unless histidx < -1
-      @win_bottom.setpos(1,2)
-      histidx < 0 ? @win_bottom << curstr : @win_bottom << @history[histidx]
-      @win_bottom.clrtoeol
-      @win_bottom.setpos(1,2 + win_bottom_curstr.length)
+      unless @nohistory
+        histidx -= 1 unless histidx < -1
+        @win_bottom.setpos(1,2)
+        histidx < 0 ? @win_bottom << curstr : @win_bottom << @history[histidx]
+        @win_bottom.clrtoeol
+        @win_bottom.setpos(1,2 + win_bottom_curstr.length)
+      end
     when 'RIGHT'
       @win_bottom.setpos(1,@win_bottom.curx + 1)
     when 'LEFT'
@@ -667,8 +681,8 @@ def win_bottom_readstr # {{{3
     @win_bottom.refresh
   end
   curstr = win_bottom_curstr
-  @history.unshift(curstr)
-  @history.uniq!
+  @history.unshift(curstr) if not @nohistory
+  @history.uniq! if not @nohistory
   return curstr
 end
 
@@ -697,8 +711,8 @@ def win_bottom_exec(cmd) #{{{3
   cmd.gsub!(/@t/, @t)
   begin
     output = `#{cmd} 2>/dev/null`
-    if cmd =~ /^locate/
-      win_right_info(output)
+    unless output == ""
+      win_right_info("Command output:\n\n" + output)
       @info_right_stay = true
     end
   rescue

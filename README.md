@@ -25,14 +25,15 @@ Content of text files are handled by `cat`. Other files are shown via external
 programs. It is shown if you have the program installed (Debian/Ubuntu family
 of Linux distros command in last column):
 
-File type      | Requirements                     | Installation
----------------|----------------------------------|------------------------------
-Syntax highlighting of text | `bat`               | `apt install bat`
-Images         | `w3m` and `ImageMagick`          | `apt install w3m imagemagick`
-PDFs           | `pdftotext`                      | `apt install poppler-utils`
-LibreOffice    | `odt2txt`                        | `apt install odt2txt`
-OOXML          | `docx2txt`                       | `apt install docx2txt`
-MS doc/xls/ppt | `catdoc`, `xls2csv` and `catppt` | `apt install catdoc`
+File type                   | Requirements                     | Installation
+----------------------------|----------------------------------|-------------------------------
+Syntax highlighting of text | `bat`                            | `apt install bat`
+PDFs                        | `pdftotext`                      | `apt install poppler-utils`
+LibreOffice                 | `odt2txt`                        | `apt install odt2txt`
+OOXML                       | `docx2txt`                       | `apt install docx2txt`
+MS doc/xls/ppt              | `catdoc`, `xls2csv` and `catppt` | `apt install catdoc`
+Images                      | `w3m` and `ImageMagick`          | `apt install w3m imagemagick`
+Video (thumbnails)          | `ffmpegthumbnailer`              | `apt install ffmpegthumbnailer`
 
 For images to be rendered in the terminal, place the file `imgw3m.sh` in your
 PATH - such as in `~/bin/` and ensure it is executable.
