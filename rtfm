@@ -246,7 +246,7 @@ def getchr # {{{3
     end
   when "" then chr = "BACK"
   when "\r" then chr = "ENTER"
-  else chr = c
+  when /./ then chr = c.to_s
   end
   return chr
 end
@@ -620,60 +620,46 @@ def win_bottom_curstr # {{{3
   @win_bottom.setpos(1,x)
 end
 
-def test
-  while chr.to_s != "\r"
-    chr = STDIN.getc
-    case chr
-    when "\e" # ANSI escape sequences
-      case $stdin.getc
-      when '[' # CSI
-        case $stdin.getc
-        when 'A' # UP
-          histidx += 1 unless histidx > @history.length
-          @win_bottom.setpos(1,2)
-          histidx < 0 ? @win_bottom << curstr : @win_bottom << @history[histidx]
-          @win_bottom.clrtoeol
-          @win_bottom.setpos(1,2 + win_bottom_curstr.length)
-        when 'B' # DOWN
-          histidx -= 1 unless histidx < -1
-          @win_bottom.setpos(1,2)
-          histidx < 0 ? @win_bottom << curstr : @win_bottom << @history[histidx]
-          @win_bottom.clrtoeol
-          @win_bottom.setpos(1,2 + win_bottom_curstr.length)
-        when 'C' # RIGHT
-          @win_bottom.setpos(1,@win_bottom.curx + 1)
-        when 'D' # LEFT
-          @win_bottom.setpos(1,@win_bottom.curx - 1) unless @win_bottom.curx == 2
-        when '7' # HOME
-          @win_bottom.setpos(1,2)
-          STDIN.getc
-        when '8' # END
-          @win_bottom.setpos(1,2 + win_bottom_curstr.length)
-          STDIN.getc
-        when '3' # DELETE
-          @win_bottom.delch
-          STDIN.getc
-        end
-      end
-    when ""
-      unless @win_bottom.curx == 2
-        @win_bottom.setpos(1,@win_bottom.curx - 1) 
-        @win_bottom.delch
-      end
-    when /./ # match characters
-      @win_bottom.addch(chr)
-    end
-    #curstr = win_bottom_curstr if histidx < 0
-    @win_bottom.refresh
-  end
-end
-
 def win_bottom_readstr # {{{3
   # A simple Readline-like routine
   chr = ""
   histidx = -1
   curstr = ""
-  test
+  while chr != "ENTER"
+    chr = getchr
+    case chr
+    when 'UP'
+      histidx += 1 unless histidx > @history.length
+      @win_bottom.setpos(1,2)
+      histidx < 0 ? @win_bottom << curstr : @win_bottom << @history[histidx]
+      @win_bottom.clrtoeol
+      @win_bottom.setpos(1,2 + win_bottom_curstr.length)
+    when 'DOWN'
+      histidx -= 1 unless histidx < -1
+      @win_bottom.setpos(1,2)
+      histidx < 0 ? @win_bottom << curstr : @win_bottom << @history[histidx]
+      @win_bottom.clrtoeol
+      @win_bottom.setpos(1,2 + win_bottom_curstr.length)
+    when 'RIGHT'
+      @win_bottom.setpos(1,@win_bottom.curx + 1)
+    when 'LEFT'
+      @win_bottom.setpos(1,@win_bottom.curx - 1) unless @win_bottom.curx == 2
+    when 'HOME'
+      @win_bottom.setpos(1,2)
+    when 'END'
+      @win_bottom.setpos(1,2 + win_bottom_curstr.length)
+    when 'DEL'
+      @win_bottom.delch
+    when 'BACK'
+      unless @win_bottom.curx == 2
+        @win_bottom.setpos(1,@win_bottom.curx - 1) 
+        @win_bottom.delch
+      end
+    else @win_bottom.addch(chr)
+    end
+    #curstr = win_bottom_curstr if histidx < 0
+    @win_bottom.refresh
+  end
   curstr = win_bottom_curstr
   @history.unshift(curstr)
   @history.uniq!
