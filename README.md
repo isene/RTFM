@@ -64,9 +64,10 @@ s      | Create symlink to tagged items here
 d      | Delete selected item and tagged item. Press 'd' to confirm.
 c      | Change/rename selected (adds command to bottom window)
 m      | Mark current location (permanent bookmark). Next letter entered is the name of the mark [a-zA-Z]. Press '-' and a letter to delete that mark.
+'      | Jump to mark (next letter is the name of the mark [a-zA-Z])
 M      | Show marked items in right pane
 H      | Show command history in right pane
-'      | Jump to mark (next letter is the name of the mark [a-zA-Z])
+/      | Enter search string in bottom window to highlight matching items
 :      | Enter "command mode" in bottom window
 ENTER  | Refresh RTFM
 q      | Quit

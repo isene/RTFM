@@ -47,9 +47,10 @@ KEYS
   m      = Mark current location (permanent bookmark)
            Next letter entered is the name of the mark [a-zA-Z]
            Press '-' and a letter to delete that mark
+  '      = Jump to mark (next letter is the name of the mark [a-zA-Z])
   M      = Show marked items in right pane
   H      = Show command history in right pane
-  '      = Jump to mark (next letter is the name of the mark [a-zA-Z])
+  /      = Enter search string in bottom window to highlight matching items
   :      = Enter "command mode" in bottom window
   ENTER  = Refresh RTFM
   q      = Quit
@@ -103,6 +104,9 @@ LScolors = `echo $LS_COLORS`
 
 # Initialize the command line history
 @history = []
+
+# Initialize the active searched for items
+@searched = ""
 
 # Initialize the directory hash -
 # for remembering index for every directory visited
@@ -188,6 +192,7 @@ def list_dir(win, left, files)# {{{3
       file_marker = file_marker | Curses::A_BOLD if bold == 1
       file_marker = file_marker | Curses::A_UNDERLINE if index == @index and left
       file_marker = file_marker | Curses::A_REVERSE if @tagged.include?("'#{Dir.pwd}/#{str_path}'")
+      file_marker = file_marker | Curses::A_BLINK if str.match(/#{@searched}/) and @searched != ""
       File.directory?(str_path) ? dir = "/" : dir = ""
       File.symlink?(str_path) ? link = "@" : link = ""
       str = @fspes[index] + "  " + str if @lslong
@@ -199,7 +204,6 @@ def list_dir(win, left, files)# {{{3
         nbl = win.maxx - 5 - ext_length # nbl: new_base_length
         str = base_name[0..nbl] + "…" + ext_name
       end
-
       
       # Implement the color (and bold), clear to end-of-line and add newline
       win.attron(file_marker) { win << str + link + dir }
@@ -364,6 +368,10 @@ def main_getkey # {{{3
       Dir.chdir($marks[m]) 
       @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
     end
+  # }}}4
+  when '/' # Get search string to mark items that match
+    win_bottom_info("/ ")
+    @searched = win_bottom_getstr("")
   # }}}4
   when ':' # Enter "command mode" in the bottom window - tries to execute the given command {{{4
     win_bottom_info(": ")
