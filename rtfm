@@ -620,11 +620,7 @@ def win_bottom_curstr # {{{3
   @win_bottom.setpos(1,x)
 end
 
-def win_bottom_readstr # {{{3
-  # A simple Readline-like routine
-  chr = ""
-  histidx = -1
-  curstr = ""
+def test
   while chr.to_s != "\r"
     chr = STDIN.getc
     case chr
@@ -670,6 +666,14 @@ def win_bottom_readstr # {{{3
     #curstr = win_bottom_curstr if histidx < 0
     @win_bottom.refresh
   end
+end
+
+def win_bottom_readstr # {{{3
+  # A simple Readline-like routine
+  chr = ""
+  histidx = -1
+  curstr = ""
+  test
   curstr = win_bottom_curstr
   @history.unshift(curstr)
   @history.uniq!
