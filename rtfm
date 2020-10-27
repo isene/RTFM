@@ -466,7 +466,7 @@ def win_right_show # {{{3
   begin
     # Directories {{{5
     if File.directory?(@selected)
-      ls_cmd = "ls #{@lsall} #{@selected_safe} -X --group-directories-first"
+      ls_cmd = "ls #{@lsall} #{@selected_safe} --group-directories-first"
       files  = `#{ls_cmd}`.split("\n")
       ls_cmd   += %q[ -lh | awk '{printf "%s%4s%7s", $1,$2,$5"\n"}']
       @fspes    = `#{ls_cmd}`.split("\n").drop(1)
@@ -714,7 +714,7 @@ begin
   # Core loop {{{2
   loop do
     # Get files in current directory, set selected item {{{3
-    ls_cmd    = "ls #{@lsall} -X --group-directories-first"
+    ls_cmd    = "ls #{@lsall} --group-directories-first"
     files     = `#{ls_cmd}`.split("\n")
     ls_cmd   += %q[ -lh | awk '{printf "%s%4s%7s", $1,$2,$5"\n"}']
     @fspes    = `#{ls_cmd}`.split("\n").drop(1)
