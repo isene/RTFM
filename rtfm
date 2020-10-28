@@ -33,6 +33,9 @@ KEYS
   HOME   = Go to first item in left pane
   LEFT   = Go up one directory level
   RIGHT  = Enter directory or open file (using run-mailcap or xdg-open)
+  TAB    = Next page of the preview 
+           (if the document is longer than the right pane can show - ∇ in the bottom right)
+  S-TAB  = Previous page (if you have moved down the document first - ∆ in the top right)
   a      = Show all (also hidden) items
   l      = Show long info per item (show item attributes)
   t      = Tag item (toggles)
@@ -41,8 +44,7 @@ KEYS
   p      = Put (copy) tagged items here
   P      = PUT (move) tagged items here
   s      = Create symlink to tagged items here
-  d      = Delete selected item and tagged items
-           Press 'd' to confirm
+  d      = Delete selected item and tagged items. Press 'd' to confirm
   c      = Change/rename selected (adds command to bottom window)
   m      = Mark current location (permanent bookmark)
            Next letter entered is the name of the mark [a-zA-Z]
@@ -104,14 +106,20 @@ LScolors = `echo $LS_COLORS`
 
 # Initialize the command line history
 @history = []
+@nohistory = false
 
 # Initialize the active searched for items
 @searched  = ""
-@nohistory = false
 
 # Initialize the directory hash -
 # for remembering index for every directory visited
 @directory = {}
+
+# Initialize pager variable and pager command
+@pager      = 0
+@pager_more = false
+@pager_cmd  = ""
+@page_text  = ""
 
 # Set chosen item to first
 @index = 0
@@ -230,6 +238,7 @@ def getchr # {{{3
       when 'B' then chr = "DOWN"
       when 'C' then chr = "RIGHT"
       when 'D' then chr = "LEFT"
+      when 'Z' then chr = "S-TAB"
       when '2'
         chr = "INS"
         STDIN.getc
@@ -252,6 +261,7 @@ def getchr # {{{3
     end
   when "" then chr = "BACK"
   when "\r" then chr = "ENTER"
+  when "\t" then chr = "TAB"
   when /./ then chr = c.to_s
   end
   return chr
@@ -266,30 +276,59 @@ def main_getkey # {{{3
   when 'h' # Show helptext in right window {{{4
     win_right_info(@help)
     @info_right_stay = true
-  when 'UP' then @index = @index <= @min_index ? @max_index : @index - 1 # {{{4
-  # }}}4
-  when 'DOWN' then @index = @index >= @max_index ? @min_index : @index + 1 # {{{4
-  # }}}4
+  when 'UP' # {{{4
+    # reset @pager
+    @pager = 0; @pager_more = false; @pager_cmd = ""
+    @index = @index <= @min_index ? @max_index : @index - 1
+  when 'DOWN' # {{{4
+    # reset @pager
+    @pager = 0; @pager_more = false; @pager_cmd = ""
+    @index = @index >= @max_index ? @min_index : @index + 1
   when 'RIGHT' # {{{4
     # Store index of this directory before leaving
+    # reset @pager
+    @pager = 0; @pager_more = false; @pager_cmd = ""
     @directory[Dir.pwd] = @index
     open_selected()
   when 'LEFT' # {{{4
     # Store index of this directory before leaving
+    # reset @pager
+    @pager = 0; @pager_more = false; @pager_cmd = ""
     @directory[Dir.pwd] = @index
     Dir.chdir("..")
     # Set index to stored value if directory has been visited
     @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
   when 'PgUP' # {{{4
+    # reset @pager
+    @pager = 0; @pager_more = false; @pager_cmd = ""
     @index -= @win_left.maxy - 2
     @index = @min_index if @index < @min_index
   when 'PgDOWN' # {{{4
+    # reset @pager
+    @pager = 0; @pager_more = false; @pager_cmd = ""
     @index += @win_left.maxy - 2
     @index = @max_index if @index > @max_index
-  when 'HOME' then @index = @min_index # {{{4
-  # }}}4
-  when 'END' then @index = @max_index # {{{4
-  # }}}4
+  when 'HOME' # {{{4
+    # reset @pager
+    @pager = 0; @pager_more = false; @pager_cmd = ""
+    @index = @min_index
+  when 'END' # {{{4
+    # reset @pager
+    @pager = 0; @pager_more = false; @pager_cmd = ""
+    @index = @max_index
+  when 'TAB' # {{{4
+    # Start paging
+    @page_text = `#{@pager_cmd}` if @pager == 1
+    if @pager_more
+      @pager += 1
+      pager_show 
+    end
+  when 'S-TAB'
+    # Up one page
+    if @pager > 1
+      @pager -= 1
+      pager_show
+    end
   when 'a' then @lsall == "" ? @lsall = "-a" : @lsall = "" # Show all items {{{4
   # }}}4
   when 'l' then @lslong = !@lslong # Show long info for all items {{{4
@@ -464,9 +503,53 @@ end
 
 ## }}}2
 ## WIN_RIGHT {{{2
+def syntax_highlight(input) # {{{3
+  # batcat syntax highlighting
+  color_ary  = color_parse(input)
+  color_ary.each do | pair |
+    fg   = pair[0].to_i
+    text = pair[1]
+    text.gsub!(/\t/, '')
+    init_pair(fg, fg, 0)
+    @win_right.attron(color_pair(fg)) { @win_right << text }
+  end
+end
+
+def pager_add_markers # {{{3
+  # Add markers top/right & bottom/right to show paging as relevant
+  if @pager > 1
+    @win_right.setpos(0, @win_right.maxx - 1)
+    @win_right << "∆"
+  end
+  if @pager_more
+    @win_right.setpos(@win_right.maxy - 1, @win_right.maxx - 1)
+    @win_right << "∇"
+  end
+end
+
+def pager_start(input) # {{{3
+  if input.lines.count > @win_right.maxy - 2
+    @pager      = 1
+    @pager_more = true
+  end
+end
+
+def pager_show # {{{3
+  beg_l = (@pager - 1) * (@win_right.maxy - 3)
+  end_l = beg_l + @win_right.maxy - 2
+  input = @page_text.lines[beg_l..end_l].join() + "\n"
+  input.lines.count > @win_right.maxy - 2 ? @pager_more = true : @pager_more = false
+  if @pager_cmd.match(/batcat/)
+    syntax_highlight(input)
+  else
+    @win_right << input
+  end
+  pager_add_markers
+  @win_right.refresh
+end
+
 def win_right_show # {{{3
-  # Show contents in the right window
-  # Right window (viewer)
+  # Show contents in the right window FIXME
   @win_right.setpos(0, 0)
   (@win_right.maxy - @win_right.cury).times {@win_right.deleteln()}
   @win_right.refresh
@@ -484,45 +567,61 @@ def win_right_show # {{{3
       list_dir(@win_right, false, files)
     # Text {{{5
     # View the file as text if it is utf-8
-    elsif File.read(@selected).force_encoding("UTF-8").valid_encoding?
+    elsif File.read(@selected).force_encoding("UTF-8").valid_encoding? and @pager == 0
       begin
-        max_lines  = @win_right.maxy - 1
-        input      = `batcat -n --color=always --line-range :#{max_lines} #{@selected_safe} 2>/dev/null`
-        color_ary  = color_parse(input)
-        color_ary.each do | pair |
-          fg   = pair[0].to_i
-          text = pair[1]
-          text.gsub!(/\t/, '')
-          init_pair(fg, fg, 0)
-          @win_right.attron(color_pair(fg)) { @win_right << text }
-        end
+        @pager_cmd = "batcat -n --color=always #{@selected_safe} 2>/dev/null"
+        input      = `batcat -n --color=always --line-range :#{@win_right.maxy} #{@selected_safe} 2>/dev/null`
+        pager_start(input)
+        syntax_highlight(input)
       rescue
-        @win_right << `cat #{@selected_safe} 2>/dev/null`
+        @pager_cmd  = "cat #{@selected_safe} 2>/dev/null"
+        input       = `#{@pager_cmd}`
+        @win_right << input
+        pager_start(input) 
       end
     # PDF {{{5
-    elsif @selected.match(/\.pdf$|\.ps$/)
-      @win_right << `pdftotext -f 1 -l 4 #{@selected_safe} - 2>/dev/null | less`
+    elsif @selected.match(/\.pdf$|\.ps$/) and @pager == 0
+      @pager_cmd  = "pdftotext #{@selected_safe} - 2>/dev/null | less"
+      input =       `pdftotext -f 1 -l 4 #{@selected_safe} - 2>/dev/null | less`
+      @win_right << input
+      pager_start(input) 
     # Open/LibreOffice {{{5
-    elsif @selected.match(/\.odt$|\.odc$|\.odp$|\.odg$/)
-      @win_right << `odt2txt #{@selected_safe} 2>/dev/null`
+    elsif @selected.match(/\.odt$|\.odc$|\.odp$|\.odg$/) and @pager == 0
+      @pager_cmd  = "odt2txt #{@selected_safe} 2>/dev/null"
+      input       = `#{@pager_cmd}`
+      @win_right << input
+      pager_start(input) 
     # OOXML {{{5
-    elsif @selected.match(/\.docx$|\.xlsx$|\.pptx$/)
-      @win_right << `docx2txt #{@selected_safe} - 2>/dev/null`
+    elsif @selected.match(/\.docx$|\.xlsx$|\.pptx$/) and @pager == 0
+      @pager_cmd  = "docx2txt #{@selected_safe} - 2>/dev/null"
+      input       = `#{@pager_cmd}`
+      @win_right << input
+      pager_start(input) 
     # MS doc {{{5
-    elsif @selected.match(/\.doc$/)
-      @win_right << `catdoc #{@selected_safe} 2>/dev/null`
+    elsif @selected.match(/\.doc$/) and @pager == 0
+      @pager_cmd  = "catdoc #{@selected_safe} 2>/dev/null"
+      input       = `#{@pager_cmd}`
+      @win_right << input
+      pager_start(input) 
     # MS xls {{{5
-    elsif @selected.match(/\.xls$/)
-      @win_right << `xls2csv #{@selected_safe} 2>/dev/null`
+    elsif @selected.match(/\.xls$/) and @pager == 0
+      @pager_cmd  = "xls2csv #{@selected_safe} 2>/dev/null"
+      input       = `#{@pager_cmd}`
+      @win_right << input
+      pager_start(input) 
     # MS ppt {{{5
-    elsif @selected.match(/\.ppt$/)
-      @win_right << `catppt #{@selected_safe} 2>/dev/null`
+    elsif @selected.match(/\.ppt$/) and @pager == 0
+      @pager_cmd  = "catppt #{@selected_safe} 2>/dev/null"
+      input       = `#{@pager_cmd}`
+      @win_right << input
+      pager_start(input) 
     # Images {{{5
     elsif @selected.match(/\.jpg$|\.jpeg$|\.png$|\.bmp$|\.gif$|\.tif$|\.tiff$/)
       image_show(@selected_safe)
-    # Images {{{5
-    elsif @selected.match(/\.mpg$|\.mpeg$|\.avi$|\.mov$|\.mp4$/)
+    # Videos (thumbnails) {{{5
+    elsif @selected.match(/\.mpg$|\.mpeg$|\.avi$|\.mov$|\.mkv$|\.mp4$/)
       begin
+        tmpfile = "/tmp/" + File.basename(@selected_safe,".*")
         `ffmpegthumbnailer -s 1000 -i #{@selected_safe} -o /tmp/rtfm_video_tn.jpg`
         image_show("/tmp/rtfm_video_tn.jpg")
       rescue
@@ -530,8 +629,10 @@ def win_right_show # {{{3
     end
   rescue
   end
+  pager_show if @pager > 0
   clrtoeol
   (@win_right.maxy - @win_right.cury).times {@win_right.deleteln()}
+  pager_add_markers
   @win_right.refresh
 end
 
