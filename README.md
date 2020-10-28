@@ -54,6 +54,8 @@ END    | Go to last item in left pane
 HOME   | Go to first item in left pane
 LEFT   | Go up one directory level
 RIGHT  | Enter directory or open file (using run-mailcap or xdg-open)
+TAB    | Next page of the preview (if the document is longer than the right pane can show - seen by the ∇ in the bottom right)
+S-TAB  | Previous page (if you have used TAB to move down the document first - seen by the ∆ symbol in the top right)
 a      | Show all (also hidden) items
 l      | Show long info per item (show item attributes)
 t      | Tag item (toggles)
