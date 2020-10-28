@@ -583,38 +583,38 @@ def win_right_show # {{{3
     elsif @selected.match(/\.pdf$|\.ps$/) and @pager == 0
       @pager_cmd  = "pdftotext #{@selected_safe} - 2>/dev/null | less"
       input =       `pdftotext -f 1 -l 4 #{@selected_safe} - 2>/dev/null | less`
-      @win_right << input
       pager_start(input) 
+      @win_right << input
     # Open/LibreOffice {{{5
     elsif @selected.match(/\.odt$|\.odc$|\.odp$|\.odg$/) and @pager == 0
       @pager_cmd  = "odt2txt #{@selected_safe} 2>/dev/null"
       input       = `#{@pager_cmd}`
-      @win_right << input
       pager_start(input) 
+      @win_right << input
     # OOXML {{{5
     elsif @selected.match(/\.docx$|\.xlsx$|\.pptx$/) and @pager == 0
       @pager_cmd  = "docx2txt #{@selected_safe} - 2>/dev/null"
       input       = `#{@pager_cmd}`
-      @win_right << input
       pager_start(input) 
+      @win_right << input
     # MS doc {{{5
     elsif @selected.match(/\.doc$/) and @pager == 0
       @pager_cmd  = "catdoc #{@selected_safe} 2>/dev/null"
       input       = `#{@pager_cmd}`
-      @win_right << input
       pager_start(input) 
+      @win_right << input
     # MS xls {{{5
     elsif @selected.match(/\.xls$/) and @pager == 0
       @pager_cmd  = "xls2csv #{@selected_safe} 2>/dev/null"
       input       = `#{@pager_cmd}`
-      @win_right << input
       pager_start(input) 
+      @win_right << input
     # MS ppt {{{5
     elsif @selected.match(/\.ppt$/) and @pager == 0
       @pager_cmd  = "catppt #{@selected_safe} 2>/dev/null"
       input       = `#{@pager_cmd}`
-      @win_right << input
       pager_start(input) 
+      @win_right << input
     # Images {{{5
     elsif @selected.match(/\.jpg$|\.jpeg$|\.png$|\.bmp$|\.gif$|\.tif$|\.tiff$/)
       image_show(@selected_safe)
@@ -626,12 +626,13 @@ def win_right_show # {{{3
         image_show("/tmp/rtfm_video_tn.jpg")
       rescue
       end
+    elsif @pager > 0
+      pager_show 
     end
   rescue
   end
-  pager_show if @pager > 0
   clrtoeol
-  (@win_right.maxy - @win_right.cury).times {@win_right.deleteln()}
+  #(@win_right.maxy - @win_right.cury).times {@win_right.deleteln()}
   pager_add_markers
   @win_right.refresh
 end
