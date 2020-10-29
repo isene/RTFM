@@ -615,7 +615,7 @@ def win_right_show # {{{3
     end
   rescue
   end
-  clrtoeol
+  #clrtoeol
   #(@win_right.maxy - @win_right.cury).times {@win_right.deleteln()}
   pager_add_markers
   @win_right.refresh
@@ -623,15 +623,13 @@ end
 
 def win_right_info(info) # {{{3
   # Show info in the right window
-  # Clear for any previously showing image
   @win_right.setpos(0, 0)
   (@win_right.maxy - @win_right.cury).times {@win_right.deleteln()}
   @win_right.refresh
-  @win_right.setpos(0, 0)
   # Clear for any previously showing image
+  @win_right.setpos(0, 0)
   image_show("clear")
   @win_right << info + "\n"
-  (@win_right.maxy - @win_right.cury).times {@win_right.deleteln()}
   @win_right.refresh
 end
 
