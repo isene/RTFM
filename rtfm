@@ -54,9 +54,7 @@ KEYS
   ENTER  = Refresh RTFM
   q      = Quit
 
-COPYRIGHT
-  Created by Geir Isene, 2020. No rights reserved.
-  See http://isene.com for more contributions by Geir Isene.
+COPYRIGHT: Geir Isene, 2020. No rights reserved. See http://isene.com for more.
 HELPTEXT
 # }}}1
 
@@ -363,7 +361,7 @@ def main_getkey # {{{3
   # }}}4
   when 'c' # Change/rename selected @selected {{{4
     win_bottom_info(": ")
-    cmd = win_bottom_getstr("mv #{@selected} #{@selected}")
+    cmd = win_bottom_getstr(": ", "mv #{@selected} #{@selected}")
     win_bottom_exec(cmd)
   # }}}4
   when 'm' # Set mark {{{4
@@ -383,7 +381,7 @@ def main_getkey # {{{3
     @info_right_stay = true
   # }}}4
   when 'H' # Show command history {{{4
-    win_right_info("Command history:\n\n" + @history.join("\n"))
+    win_right_info("Command history (latest on top):\n\n" + @history.join("\n"))
     @info_right_stay = true
   # }}}4
   when "'" # Jump to mark {{{4
@@ -397,12 +395,12 @@ def main_getkey # {{{3
   when '/' # Get search string to mark items that match # {{{4
     @nohistory = true
     win_bottom_info("/ ")
-    @searched = win_bottom_getstr("")
+    @searched = win_bottom_getstr("/ ", "")
   # }}}4
   when ':' # Enter "command mode" in the bottom window - tries to execute the given command {{{4
     @nohistory = false
     win_bottom_info(": ")
-    cmd = win_bottom_getstr("")
+    cmd = win_bottom_getstr(": ", "")
     win_bottom_exec(cmd)
   # }}}4
   when '?' # Display help text
@@ -708,72 +706,69 @@ def win_bottom_info(info) # {{{3
   @info_bottom_stay = true
 end
 
-def win_bottom_curstr # {{{3
-  # Read the current string in @win_bottom
-  x = @win_bottom.curx
-  @win_bottom.setpos(1,2)
-  chr, str = "", ""
-  until str[-2..-1] == "  " do
-    chr = @win_bottom.inch.chr
-    str += chr 
-    @win_bottom.setpos(1,@win_bottom.curx + 1)
-  end
-  str.chop!.chop!
-  return str
-  @win_bottom.setpos(1,x)
-end
-
-def win_bottom_readstr # {{{3
+def win_bottom_getstr(pretext, text) # {{{3
   # A simple Readline-like routine
+  Curses.curs_set(1)
+  Curses.echo
+  stk = 0
+  @history.insert(stk, text)
+  pos = @history[stk].length
   chr = ""
-  histidx = -1
-  curstr = ""
   while chr != "ENTER"
+    @win_bottom.setpos(1,0)
+    @win_bottom << pretext + @history[stk]
+    @win_bottom.clrtoeol
+    @win_bottom.setpos(1,pretext.length + pos)
+    @win_bottom.refresh
     chr = getchr
     case chr
     when 'UP'
       unless @nohistory
-        histidx += 1 unless histidx > @history.length
-        @win_bottom.setpos(1,2)
-        histidx < 0 ? @win_bottom << curstr : @win_bottom << @history[histidx]
-        @win_bottom.clrtoeol
-        @win_bottom.setpos(1,2 + win_bottom_curstr.length)
+        unless stk == @history.length - 1
+          stk += 1 
+          pos = @history[stk].length
+        end
       end
     when 'DOWN'
       unless @nohistory
-        histidx -= 1 unless histidx < -1
-        @win_bottom.setpos(1,2)
-        histidx < 0 ? @win_bottom << curstr : @win_bottom << @history[histidx]
-        @win_bottom.clrtoeol
-        @win_bottom.setpos(1,2 + win_bottom_curstr.length)
+        unless stk == 0
+          stk -= 1 
+          pos = @history[stk].length
+        end
       end
     when 'RIGHT'
-      @win_bottom.setpos(1,@win_bottom.curx + 1)
+      pos += 1 unless pos > @history[stk].length
     when 'LEFT'
-      @win_bottom.setpos(1,@win_bottom.curx - 1) unless @win_bottom.curx == 2
+      pos -= 1 unless pos == 0
     when 'HOME'
-      @win_bottom.setpos(1,2)
+      pos = 0
     when 'END'
-      @win_bottom.setpos(1,2 + win_bottom_curstr.length)
+      pos = @history[stk].length
     when 'DEL'
-      @win_bottom.delch
+      @history[stk][pos] = ""
     when 'BACK'
-      unless @win_bottom.curx == 2
-        @win_bottom.setpos(1,@win_bottom.curx - 1) 
-        @win_bottom.delch
+      unless pos == 0
+        pos -= 1
+        @history[stk][pos] = ""
       end
     when /^.$/
-      @win_bottom.addstr(chr)
+      @history[stk].insert(pos,chr)
+      pos += 1
     end
-    @win_bottom.refresh
   end
-  curstr = win_bottom_curstr
-  @history.unshift(curstr) if not @nohistory
-  @history.uniq! if not @nohistory
+  curstr = @history[stk]
+  @history.shift if @nohistory
+  unless @nohistory
+    @history.uniq!
+    @history.compact!
+    @history.delete("")
+  end
+  Curses.curs_set(0)
+  Curses.noecho
   return curstr
 end
 
-def win_bottom_getstr(cmd) # {{{3
+def win_bottom_getstr2(cmd,pretext) # {{{3
   # Get input from user
   @win_bottom.setpos(1,2)
   @win_bottom << cmd
@@ -781,8 +776,7 @@ def win_bottom_getstr(cmd) # {{{3
   # Display cursor and the text entered
   Curses.curs_set(1)
   Curses.echo
-  #str = @win_bottom.getstr
-  str = win_bottom_readstr
+  str = win_bottom_readstr(pretext)
   Curses.curs_set(0)
   Curses.noecho
   return str
