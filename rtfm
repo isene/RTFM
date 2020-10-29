@@ -361,7 +361,7 @@ def main_getkey # {{{3
   # }}}4
   when 'c' # Change/rename selected @selected {{{4
     win_bottom_info(": ")
-    cmd = win_bottom_getstr(": ", "mv #{@selected} #{@selected}")
+    cmd = win_bottom_getstr(": ", "mv \"#{@selected}\" \"#{@selected}\"")
     win_bottom_exec(cmd)
   # }}}4
   when 'm' # Set mark {{{4
