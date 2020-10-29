@@ -20,8 +20,7 @@
 
 # Helptext {{{1
 @help = <<HELPTEXT
-RTFM - [Ruby|Ruddy|Rough] Terminal File Manager
-  https://github.com/isene/RTFM
+RTFM - [Ruby|Ruddy|Rough] Terminal File Manager (https://github.com/isene/RTFM)
 
 KEYS
   ?      = Show this help text
@@ -33,8 +32,7 @@ KEYS
   HOME   = Go to first item in left pane
   LEFT   = Go up one directory level
   RIGHT  = Enter directory or open file (using run-mailcap or xdg-open)
-  TAB    = Next page of the preview 
-           (if the document is longer than the right pane can show - ∇ in the bottom right)
+  TAB    = Next page of the preview (if doc long and ∇ in the bottom right)
   S-TAB  = Previous page (if you have moved down the document first - ∆ in the top right)
   a      = Show all (also hidden) items
   l      = Show long info per item (show item attributes)
@@ -46,10 +44,9 @@ KEYS
   s      = Create symlink to tagged items here
   d      = Delete selected item and tagged items. Press 'd' to confirm
   c      = Change/rename selected (adds command to bottom window)
-  m      = Mark current location (permanent bookmark)
-           Next letter entered is the name of the mark [a-zA-Z]
+  m      = Mark current dir (persistent). Next letter is the name of the mark [a-zA-Z']
            Press '-' and a letter to delete that mark
-  '      = Jump to mark (next letter is the name of the mark [a-zA-Z])
+  '      = Jump to mark (next letter is the name of the mark [a-zA-Z'])
   M      = Show marked items in right pane
   H      = Show command history in right pane
   /      = Enter search string in bottom window to highlight matching items
@@ -227,10 +224,10 @@ def getchr # {{{3
   # Curses.getch blanks out @win_top
   # @win_left.getch makes Curses::KEY_DOWN etc not work
   # Therefore resorting to the generic method
+  chr = ""
   c = STDIN.getc
   case c
   when "\e" # ANSI escape sequences
-    chr = ""
     case $stdin.getc
     when '[' # CSI
       case $stdin.getc
@@ -384,7 +381,7 @@ def main_getkey # {{{3
   when 'm' # Set mark {{{4
     marks_info
     m = STDIN.getc
-    if m.match(/\w/)
+    if m.match(/[\w']/)
       $marks[m] = Dir.pwd
     elsif m == "-"
       r = STDIN.getc
@@ -404,7 +401,7 @@ def main_getkey # {{{3
   when "'" # Jump to mark {{{4
     marks_info
     m = STDIN.getc
-    if m.match(/\w/) and $marks[m]
+    if m.match(/[\w']/) and $marks[m]
       Dir.chdir($marks[m]) 
       @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
     end
