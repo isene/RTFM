@@ -312,10 +312,10 @@ def main_getkey # {{{3
       @pager -= 1
       pager_show
     end
-  when 'a' then @lsall == "" ? @lsall = "-a" : @lsall = "" # Show all items {{{4
-  # }}}4
-  when 'l' then @lslong = !@lslong # Show long info for all items {{{4
-  # }}}4
+  when 'a'# Show all items {{{4
+    @lsall == "" ? @lsall = "-a" : @lsall = ""
+  when 'l' # Show long info for all items {{{4
+    @lslong = !@lslong
   when 't' # Add item to tegged list {{{4
     item = "'#{Dir.pwd}/#{@selected}'"
     if @tagged.include?(item)
@@ -407,8 +407,9 @@ def main_getkey # {{{3
     win_right_info(@help)
     @info_right_stay = true
   # }}}4
-  when 'q' then exit 0 # Exit {{{4
-  # }}}4
+  when 'q' # Exit {{{4
+    system("printf \"\033]0;#{Dir.pwd}\007\"")
+    exit 0
   end
 end
 ## }}}2
@@ -802,6 +803,9 @@ begin
   # }}}
   # Core loop {{{2
   loop do
+    # Set Window title to path {{{3
+    system("printf \"\033]0;RTFM: #{Dir.pwd}\007\"")
+
     # Get files in current directory, set selected item {{{3
     ls_cmd    = "ls #{@lsall} --group-directories-first"
     files     = `#{ls_cmd}`.split("\n")
@@ -841,9 +845,6 @@ begin
     
     # Get key from user {{{3
     main_getkey
-
-    # Set Window title to path {{{3
-    system("printf \"\033]0;RTFM: #{Dir.pwd}\007\"")
   end
 # }}}2
 # On exit: close curses, clear terminal {{{2
