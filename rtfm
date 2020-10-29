@@ -85,8 +85,8 @@ Curses.cbreak
 Curses.stdscr.keypad = true
 # }}}
 # Set basic variables {{{2
+STDIN.set_encoding(Encoding::UTF_8)
 @w3mimgdisplay = "/usr/lib/w3m/w3mimgdisplay"
-STDIN.set_encoding(Encoding::BINARY) # FIXME
 # }}}
 # Set default colors {{{2
 init_pair(7, 7, 0)        # Default
@@ -227,10 +227,6 @@ def getchr # {{{3
   # Therefore resorting to the generic method
   c = STDIN.getc
   case c
-  when "\xC3".b
-    case STDIN.getc
-    when "\xA5".b then chr = "å"
-    end
   when "\e" # ANSI escape sequences
     case $stdin.getc
     when '[' # CSI
@@ -248,14 +244,10 @@ def getchr # {{{3
       when '8' then chr = "END"    ; STDIN.getc
       end
     end
-  when "\xC3"
-    case $stdin.getc
-    when "\xA5" then chr = "å"
-    end
   when "" then chr = "BACK"
   when "\r" then chr = "ENTER"
   when "\t" then chr = "TAB"
-  when /./ then chr = c.to_s
+  when /./  then chr = c
   end
   return chr
 end
@@ -771,7 +763,7 @@ def win_bottom_readstr # {{{3
         @win_bottom.delch
       end
     when /^.$/
-      @win_bottom.addch(chr)
+      @win_bottom.addstr(chr)
     end
     @win_bottom.refresh
   end
