@@ -844,7 +844,7 @@ begin
     @fspes    = `#{ls_cmd}`.split("\n").drop(1)
     @selected = files[@index]
     @selected = "" if @selected == nil
-    @selected_safe = "'#{@selected}'"
+    @selected_safe = "\"#{@selected}\""
 
     # Safety measure - correct index overflows {{{3
     @max_index = files.size - 1
