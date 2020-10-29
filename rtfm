@@ -839,8 +839,11 @@ begin
     Curses.curs_set(1)
     Curses.curs_set(0)
     
-    # Get key from user
+    # Get key from user {{{3
     main_getkey
+
+    # Set Window title to path {{{3
+    system("printf \"\033]0;RTFM: #{Dir.pwd}\007\"")
   end
 # }}}2
 # On exit: close curses, clear terminal {{{2
