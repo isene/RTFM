@@ -18,7 +18,7 @@
 #             any expressed or implied warranty.
 # }}}
 
-# Helptext {{{1
+# HELPTEXT {{{1
 @help = <<HELPTEXT
 RTFM - [Ruby|Ruddy|Rough] Terminal File Manager (https://github.com/isene/RTFM)
 
@@ -766,20 +766,6 @@ def win_bottom_getstr(pretext, text) # {{{3
   Curses.curs_set(0)
   Curses.noecho
   return curstr
-end
-
-def win_bottom_getstr2(cmd,pretext) # {{{3
-  # Get input from user
-  @win_bottom.setpos(1,2)
-  @win_bottom << cmd
-  @win_bottom.refresh
-  # Display cursor and the text entered
-  Curses.curs_set(1)
-  Curses.echo
-  str = win_bottom_readstr(pretext)
-  Curses.curs_set(0)
-  Curses.noecho
-  return str
 end
 
 def win_bottom_exec(cmd) #{{{3
