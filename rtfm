@@ -65,9 +65,9 @@ HELPTEXT
 Warning[:deprecated] = false
 
 # Requires and loads {{{2
+require 'fileutils'
 require 'curses'
 include Curses
-require 'fileutils'
 
 if File.exist?(Dir.home+'/.rtfm.conf')
   load(Dir.home+'/.rtfm.conf')
@@ -86,6 +86,7 @@ Curses.stdscr.keypad = true
 # }}}
 # Set basic variables {{{2
 @w3mimgdisplay = "/usr/lib/w3m/w3mimgdisplay"
+STDIN.set_encoding(Encoding::BINARY) # FIXME
 # }}}
 # Set default colors {{{2
 init_pair(7, 7, 0)        # Default
@@ -224,9 +225,12 @@ def getchr # {{{3
   # Curses.getch blanks out @win_top
   # @win_left.getch makes Curses::KEY_DOWN etc not work
   # Therefore resorting to the generic method
-  chr = ""
   c = STDIN.getc
   case c
+  when "\xC3".b
+    case STDIN.getc
+    when "\xA5".b then chr = "å"
+    end
   when "\e" # ANSI escape sequences
     case $stdin.getc
     when '[' # CSI
@@ -236,25 +240,17 @@ def getchr # {{{3
       when 'C' then chr = "RIGHT"
       when 'D' then chr = "LEFT"
       when 'Z' then chr = "S-TAB"
-      when '2'
-        chr = "INS"
-        STDIN.getc
-      when '3'
-        chr = "DEL"
-        STDIN.getc
-      when '5'
-        chr = "PgUP"
-        STDIN.getc
-      when '6'
-        chr = "PgDOWN"
-        STDIN.getc
-      when '7'
-        chr = "HOME"
-        STDIN.getc
-      when '8'
-        chr = "END"
-        STDIN.getc
+      when '2' then chr = "INS"    ; STDIN.getc
+      when '3' then chr = "DEL"    ; STDIN.getc
+      when '5' then chr = "PgUP"   ; STDIN.getc
+      when '6' then chr = "PgDOWN" ; STDIN.getc
+      when '7' then chr = "HOME"   ; STDIN.getc
+      when '8' then chr = "END"    ; STDIN.getc
       end
+    end
+  when "\xC3"
+    case $stdin.getc
+    when "\xA5" then chr = "å"
     end
   when "" then chr = "BACK"
   when "\r" then chr = "ENTER"
