@@ -233,6 +233,13 @@ def list_dir(win, left, files)# {{{3
   end
 end
 
+def var_resets # {{{ 3
+    @pager = 0
+    @pager_more = false
+    @pager_cmd = ""
+    @info = false
+end
+
 def getchr # {{{3
   # Get key from user
   # Curses.getch blanks out @win_top
@@ -277,44 +284,36 @@ def main_getkey # {{{3
     win_right_info(@help)
     @info = true
   when 'UP' # {{{4
-    # reset @pager
-    @pager = 0; @pager_more = false; @pager_cmd = ""
+    var_resets
     @index = @index <= @min_index ? @max_index : @index - 1
   when 'DOWN' # {{{4
-    # reset @pager
-    @pager = 0; @pager_more = false; @pager_cmd = ""
+    var_resets
     @index = @index >= @max_index ? @min_index : @index + 1
   when 'RIGHT' # {{{4
-    # reset @pager
-    @pager = 0; @pager_more = false; @pager_cmd = ""
+    var_resets
     # Store index of this directory before leaving
     @directory[Dir.pwd] = @index
     open_selected()
   when 'LEFT' # {{{4
-    # reset @pager
-    @pager = 0; @pager_more = false; @pager_cmd = ""
+    var_resets
     # Store index of this directory before leaving
     @directory[Dir.pwd] = @index
     Dir.chdir("..")
     # Set index to stored value if directory has been visited
     @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
   when 'PgUP' # {{{4
-    # reset @pager
-    @pager = 0; @pager_more = false; @pager_cmd = ""
+    var_resets
     @index -= @win_left.maxy - 2
     @index = @min_index if @index < @min_index
   when 'PgDOWN' # {{{4
-    # reset @pager
-    @pager = 0; @pager_more = false; @pager_cmd = ""
+    var_resets
     @index += @win_left.maxy - 2
     @index = @max_index if @index > @max_index
   when 'HOME' # {{{4
-    # reset @pager
-    @pager = 0; @pager_more = false; @pager_cmd = ""
+    var_resets
     @index = @min_index
   when 'END' # {{{4
-    # reset @pager
-    @pager = 0; @pager_more = false; @pager_cmd = ""
+    var_resets
     @index = @max_index
   when 'TAB' # {{{4
     # Start paging
@@ -401,6 +400,7 @@ def main_getkey # {{{3
     @info = true
   # }}}4
   when 'h' # {{{4
+    var_resets
     # Store index of this directory before leaving
     @directory[Dir.pwd] = @index
     Dir.chdir
@@ -409,6 +409,7 @@ def main_getkey # {{{3
     marks_info
     m = STDIN.getc
     if m.match(/[\w']/) and $marks[m]
+      var_resets
       # Store index of this directory before leaving
       @directory[Dir.pwd] = @index
       Dir.chdir($marks[m]) 
@@ -429,7 +430,10 @@ def main_getkey # {{{3
       jumpnr   = win_bottom_getstr("# ", "").to_i
       jumpline = @page_text.lines[jumpnr - 1]
       jumpdir  = jumpline[/\/[^\e]*/]
-      jumpdir = File.dirname(jumpdir) unless Dir.exist?(jumpdir) 
+      unless Dir.exist?(jumpdir) 
+        @searched = File.basename(jumpdir)
+        jumpdir = File.dirname(jumpdir)
+      end
       # Store index of this directory before leaving
       @directory[Dir.pwd] = @index
       Dir.chdir(jumpdir)
@@ -447,7 +451,10 @@ def main_getkey # {{{3
     system("printf \"\033]0;#{Dir.pwd}\007\"")
     exit 0
   end
-  @locate = false unless chr == 'L' or chr =~ /TAB/
+  unless chr == 'L' or chr =~ /TAB/
+    @locate = false
+    @pager  = 0
+  end
   @info = false if dir != Dir.pwd
 end
 ## }}}2
@@ -692,8 +699,7 @@ def win_right_show # {{{3
     end
   rescue
   end
-  #clrtoeol
-  #(@win_right.maxy - @win_right.cury).times {@win_right.deleteln()}
+  # Add page markers & refresh {{{ 5
   pager_add_markers
   @win_right.refresh
 end
