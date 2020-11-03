@@ -138,10 +138,10 @@ end
 ## GENERIC {{{2
 def wins_set_update # {{{3
   # Set all windows to update
-  @win_top.update    = true
-  @win_left.update   = true
-  @win_right.update  = true
-  @win_bottom.update = true
+  @w_t.update    = true
+  @w_l.update   = true
+  @w_r.update  = true
+  @w_b.update = true
 end
 
 def get_ls_color(type) # {{{3
@@ -168,12 +168,12 @@ end
 
 def list_dir(left)# {{{3
   # List content of a directory (both left and right windows)
-  left ? win = @win_left : win = @win_right
+  left ? win = @w_l : win = @w_r
   left ? ix = @index : ix = 0
   @files.each.with_index(0) do |str, index|
 
     left ? str_path = str : str_path = "#{@selected}/#{str}" 
-    # Ensure only the items fitting on the screen will be drawn (@win_left)
+    # Ensure only the items fitting on the screen will be drawn (@w_l)
     if index > ix - win.maxy + 3
       # Determine the filetype of the item {{{4
       ftype = ""
@@ -238,8 +238,8 @@ end
 
 def getchr # {{{3
   # Get key from user
-  # Curses.getch blanks out @win_top
-  # @win_left.getch makes Curses::KEY_DOWN etc not work
+  # Curses.getch blanks out @w_t
+  # @w_l.getch makes Curses::KEY_DOWN etc not work
   # Therefore resorting to the generic method
   c = STDIN.getc
   case c
@@ -270,26 +270,29 @@ end
 
 def main_getkey # {{{3
   # Get key from user
-  # Curses.getch blanks out @win_top
-  # @win_left.getch makes Curses::KEY_DOWN etc not work
+  # Curses.getch blanks out @w_t
+  # @w_l.getch makes Curses::KEY_DOWN etc not work
   # Therefore resorting to the generic method
   dir = Dir.pwd
   chr = getchr
   case chr
   when '?' # Show helptext in right window {{{4
-    win_right_info(@help)
-    @win_right.update = false
+    w_r_info(@help)
+    @w_r.update = false
   when 'UP' # {{{4
     var_resets
     @index = @index <= @min_index ? @max_index : @index - 1
+    @w_r.update = true
   when 'DOWN' # {{{4
     var_resets
     @index = @index >= @max_index ? @min_index : @index + 1
+    @w_r.update = true
   when 'RIGHT' # {{{4
     var_resets
     # Store index of this directory before leaving
     @directory[Dir.pwd] = @index
     open_selected()
+    @w_r.update = true
   when 'LEFT' # {{{4
     var_resets
     # Store index of this directory before leaving
@@ -297,31 +300,36 @@ def main_getkey # {{{3
     Dir.chdir("..")
     # Set index to stored value if directory has been visited
     @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
+    @w_r.update = true
   when 'PgUP' # {{{4
     var_resets
-    @index -= @win_left.maxy - 2
+    @index -= @w_l.maxy - 2
     @index = @min_index if @index < @min_index
+    @w_r.update = true
   when 'PgDOWN' # {{{4
     var_resets
-    @index += @win_left.maxy - 2
+    @index += @w_l.maxy - 2
     @index = @max_index if @index > @max_index
+    @w_r.update = true
   when 'HOME' # {{{4
     var_resets
     @index = @min_index
+    @w_r.update = true
   when 'END' # {{{4
     var_resets
     @index = @max_index
+    @w_r.update = true
   when 'TAB' # {{{4
     # Start paging
-    @win_right.page_text = `#{@win_right.page_cmd}` if @win_right.pager == 1 and @win_right.update == false
-    if @win_right.pager_more
-      @win_right.pager += 1
+    @w_r.page_text = `#{@w_r.pager_cmd}` if @w_r.pager == 1 and @w_r.update == true
+    if @w_r.pager_more
+      @w_r.pager += 1
       pager_show 
     end
   when 'S-TAB' # {{{4
     # Up one page
-    if @win_right.pager > 1
-      @win_right.pager -= 1
+    if @w_r.pager > 1
+      @w_r.pager -= 1
       pager_show
     end
   when 'a'# Show all items {{{4
@@ -336,29 +344,29 @@ def main_getkey # {{{3
       @tagged.push(item)
     end
     tagged_info
-    @win_right.update = false
+    @w_r.update = false
   # }}}4
   when 'T' # Show tagged list {{{4
     tagged_info
-    @win_right.update = false
+    @w_r.update = false
   # }}}4
   when 'u' # Clear tagged list {{{4
     @tagged = []
     tagged_info
-    @win_right.update = false
+    @w_r.update = false
   # }}}4
   when 'p' # Copy tagged items here {{{4
     copy_move_link("copy")
-  # }}}4
+    @w_r.update = true
   when 'P' # Move tagged items here {{{4
     copy_move_link("move")
-  # }}}4
+    @w_r.update = true
   when 's' # Create symlink to tagged items here {{{4
     copy_move_link("link")
-  # }}}4
+    @w_r.update = true
   when 'd' # Delete items tagged and @selected {{{4
     tagged_info
-    win_bottom_info(" Delete selected and tagged? (press 'd' again to delete)")
+    w_b_info(" Delete selected and tagged? (press 'd' again to delete)")
     begin
       @tagged.push("'#{@selected}'")
       @tagged.uniq!
@@ -366,15 +374,15 @@ def main_getkey # {{{3
       `rm -rf #{deletes}` if STDIN.getc == 'd'
       items_number = @tagged.length
       @tagged = []
-      win_bottom_info("Deleted #{items_number} items: #{deletes}")
+      w_b_info("Deleted #{items_number} items: #{deletes}")
+      @w_r.update = true
     rescue StandardError => err
-      win_bottom_info(err.to_s)
+      w_b_info(err.to_s)
     end
-  # }}}4
   when 'c' # Change/rename selected @selected {{{4
-    cmd = win_bottom_getstr(": ", "mv \"#{@selected}\" \"#{@selected}\"")
-    win_bottom_exec(cmd)
-  # }}}4
+    cmd = w_b_getstr(": ", "mv \"#{@selected}\" \"#{@selected}\"")
+    w_b_exec(cmd)
+    @w_r.update = true
   when 'm' # Set mark {{{4
     marks_info
     m = STDIN.getc
@@ -385,22 +393,20 @@ def main_getkey # {{{3
       $marks.delete(r)
     end
     marks_info
-    @win_right.update = false
-  # }}}4
+    @w_r.update = false
   when 'M' # Show marks {{{4
     marks_info
-    @win_right.update = false
-  # }}}4
+    @w_r.update = false
   when 'H' # Show command history {{{4
-    win_right_info("Command history (latest on top):\n\n" + @history.join("\n"))
-    @win_right.update = false
-  # }}}4
+    w_r_info("Command history (latest on top):\n\n" + @history.join("\n"))
+    @w_r.update = false
   when 'h' # {{{4
     var_resets
     # Store index of this directory before leaving
     @directory[Dir.pwd] = @index
     Dir.chdir
     @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
+    @w_r.update = true
   when "'" # Jump to mark {{{4
     marks_info
     m = STDIN.getc
@@ -411,20 +417,20 @@ def main_getkey # {{{3
       Dir.chdir($marks[m]) 
       @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
     end
-  # }}}4
+    @w_r.update = true
   when '/' # Get search string to mark items that match # {{{4
-    @win_bottom.nohistory = true
-    win_bottom_info("/ ")
-    @searched = win_bottom_getstr("/ ", "")
-  # }}}4
+    @w_b.nohistory = true
+    w_b_info("/ ")
+    @searched = w_b_getstr("/ ", "")
+    @w_r.update = true
   when 'L' # Run 'locate' and let user jump to a result (by '#') {{{4
-    cmd = win_bottom_getstr(": ", "locate ")
-    win_bottom_exec(cmd)
-    @win_right.locate = true
+    cmd = w_b_getstr(": ", "locate ")
+    w_b_exec(cmd)
+    @w_r.locate = true
   when '#' # {{{4
-    if @win_right.locate
-      jumpnr   = win_bottom_getstr("# ", "").to_i
-      jumpline = @win_right.page_text.lines[jumpnr - 1]
+    if @w_r.locate
+      jumpnr   = w_b_getstr("# ", "").to_i
+      jumpline = @w_r.page_text.lines[jumpnr - 1]
       jumpdir  = jumpline[/\/[^\e]*/]
       unless Dir.exist?(jumpdir) 
         @searched = File.basename(jumpdir)
@@ -434,45 +440,45 @@ def main_getkey # {{{3
       @directory[Dir.pwd] = @index
       Dir.chdir(jumpdir)
       @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
-      @win_right.pager = 0
+      @w_r.pager = 0
     end
   when ':' # Enter "command mode" in the bottom window - tries to execute the given command {{{4
-    @win_right.nohistory = false
-    cmd = win_bottom_getstr(": ", "")
-    win_bottom_exec(cmd)
+    @w_r.nohistory = false
+    cmd = w_b_getstr(": ", "")
+    w_b_exec(cmd)
   when '?' # Display help text {{{4
-    win_right_info(@help)
-    @win_right.update = false
+    w_r_info(@help)
+    @w_r.update = false
   when 'q' # Exit {{{4
     system("printf \"\033]0;#{Dir.pwd}\007\"")
     exit 0
   end
   unless chr == 'L' or chr =~ /TAB/
-    @win_right.locate = false
-    @win_right.pager  = 0
+    @w_r.locate = false
+    @w_r.pager  = 0
   end
-  @win_right.update = true if dir != Dir.pwd
+  @w_r.update = true if dir != Dir.pwd
 end
 ## }}}2
-## WIN_TOP {{{2
-def win_top_info() # {{{3
-  # Show info in @win_top
-  @win_top.setpos(0,0)
+## w_t {{{2
+def w_t_info() # {{{3
+  # Show info in @w_t
+  @w_t.setpos(0,0)
   toptext  = " Path: " + Dir.pwd + "/" + @selected
   toptext += " (#{File.readlink(@selected)})" if File.symlink?(@selected) 
   begin
     toptext += " (#{@fspes[@index].gsub(/ .* /, ' ')})" 
   rescue
   end
-  toptext = toptext[1..(@win_top.maxx - 3)] + "…" if toptext.length + 3 > @win_top.maxx 
-  toptext += " " * (@win_top.maxx - toptext.length) if toptext.length < @win_top.maxx
+  toptext = toptext[1..(@w_t.maxx - 3)] + "…" if toptext.length + 3 > @w_t.maxx 
+  toptext += " " * (@w_t.maxx - toptext.length) if toptext.length < @w_t.maxx
   init_pair(232, 232, 249)
-  @win_top.attron(color_pair(232) | Curses::A_BOLD) { @win_top << toptext }
-  @win_top.refresh
+  @w_t.attron(color_pair(232) | Curses::A_BOLD) { @w_t << toptext }
+  @w_t.refresh
 end
 
 ## }}}2
-## WIN_LEFT {{{2
+## w_l {{{2
 def open_selected() # {{{3
   # Open selected item (when pressing Right)
   if File.directory?(@selected) # Rescue for permission error
@@ -520,14 +526,14 @@ def copy_move_link(type) # {{{3
         FileUtils.ln_s(item, dest)
       end
     rescue StandardError => err
-      win_bottom_info(err.to_s)
+      w_b_info(err.to_s)
     end
   end
   @tagged = [] if type == "move"
 end
 
 ## }}}2
-## WIN_RIGHT {{{2
+## w_r {{{2
 def syntax_highlight(input) # {{{3
   # batcat syntax highlighting
   color_ary  = color_parse(input)
@@ -537,7 +543,7 @@ def syntax_highlight(input) # {{{3
       text = pair[1]
       text.gsub!(/\t/, '')
       init_pair(fg, fg, 0)
-      @win_right.attron(color_pair(fg)) { @win_right << text }
+      @w_r.attron(color_pair(fg)) { @w_r << text }
     rescue
     end
   end
@@ -545,36 +551,36 @@ end
 
 def pager_add_markers # {{{3
   # Add markers top/right & bottom/right to show paging as relevant
-  if @win_right.pager > 1
-    @win_right.setpos(0, @win_right.maxx - 1)
-    @win_right << "∆"
+  if @w_r.pager > 1
+    @w_r.setpos(0, @w_r.maxx - 1)
+    @w_r << "∆"
   end
-  if @win_right.pager_more
-    @win_right.setpos(@win_right.maxy - 1, @win_right.maxx - 1)
-    @win_right << "∇"
+  if @w_r.pager_more
+    @w_r.setpos(@w_r.maxy - 1, @w_r.maxx - 1)
+    @w_r << "∇"
   end
 end
 
 def pager_start(input) # {{{3
-  if input.lines.count > @win_right.maxy - 2
-    @win_right.pager      = 1
-    @win_right.pager_more = true
+  if input.lines.count > @w_r.maxy - 2
+    @w_r.pager      = 1
+    @w_r.pager_more = true
   end
 end
 
 def pager_show # {{{3
-  @win_right.clr
-  beg_l = (@win_right.pager - 1) * (@win_right.maxy - 3)
-  end_l = beg_l + @win_right.maxy - 2
-  input = @win_right.page_text.lines[beg_l..end_l].join() + "\n"
-  input.lines.count > @win_right.maxy - 2 ? @win_right.pager_more = true : @win_right.pager_more = false
-  if @win_right.pager_cmd.match(/batcat/)
+  @w_r.clr
+  beg_l = (@w_r.pager - 1) * (@w_r.maxy - 3)
+  end_l = beg_l + @w_r.maxy - 2
+  input = @w_r.page_text.lines[beg_l..end_l].join() + "\n"
+  input.lines.count > @w_r.maxy - 2 ? @w_r.pager_more = true : @w_r.pager_more = false
+  if @w_r.pager_cmd.match(/batcat/)
     syntax_highlight(input)
   else
-    @win_right << input
+    @w_r << input
   end
   pager_add_markers
-  @win_right.refresh
+  @w_r.refresh
 end
 
 def image_show(image)# {{{3
@@ -610,20 +616,20 @@ def image_show(image)# {{{3
       #`echo -e "#{w3m_cmd}"|#{@w3mimgdisplay}`
     end
   rescue
-    @win_right << "Error showing image"
+    @w_r << "Error showing image"
   end
 end
 
-def win_right_show # {{{3
+def w_r_show # {{{3
   # Show contents in the right window
   # First clear the window
-  @win_right.clr
+  @w_r.clr
   # Then clear any previously showing image
   image_show("clear")
   # Determine the specific programs to open/show content {{{4
   begin
     # Directories {{{5
-    if @win_right.pager > 0
+    if @w_r.pager > 0
       pager_show 
     elsif File.directory?(@selected)
       ls_cmd = "ls #{@lsall} #{@selected_safe} --group-directories-first"
@@ -633,54 +639,54 @@ def win_right_show # {{{3
       list_dir(false)
     # Text {{{5
     # View the file as text if it is utf-8
-    elsif File.read(@selected).force_encoding("UTF-8").valid_encoding? and @win_right.pager == 0
+    elsif File.read(@selected).force_encoding("UTF-8").valid_encoding? and @w_r.pager == 0
       begin
-        @win_right.pager_cmd = "batcat -n --color=always #{@selected_safe} 2>/dev/null"
-        input      = `batcat -n --color=always --line-range :#{@win_right.maxy} #{@selected_safe} 2>/dev/null`
+        @w_r.pager_cmd = "batcat -n --color=always #{@selected_safe} 2>/dev/null"
+        input      = `batcat -n --color=always --line-range :#{@w_r.maxy} #{@selected_safe} 2>/dev/null`
         pager_start(input)
         syntax_highlight(input)
       rescue
-        @win_right.pager_cmd  = "cat #{@selected_safe} 2>/dev/null"
-        input       = `#{@win_right.pager_cmd}`
-        @win_right << input
+        @w_r.pager_cmd  = "cat #{@selected_safe} 2>/dev/null"
+        input       = `#{@w_r.pager_cmd}`
+        @w_r << input
         pager_start(input) 
       end
     # PDF {{{5
-    elsif @selected.match(/\.pdf$|\.ps$/) and @win_right.pager == 0
-      @win_right.pager_cmd  = "pdftotext #{@selected_safe} - 2>/dev/null | less"
+    elsif @selected.match(/\.pdf$|\.ps$/) and @w_r.pager == 0
+      @w_r.pager_cmd  = "pdftotext #{@selected_safe} - 2>/dev/null | less"
       input =       `pdftotext -f 1 -l 4 #{@selected_safe} - 2>/dev/null | less`
       pager_start(input) 
-      @win_right << input
+      @w_r << input
     # Open/LibreOffice {{{5
-    elsif @selected.match(/\.odt$|\.odc$|\.odp$|\.odg$/) and @win_right.pager == 0
-      @win_right.pager_cmd  = "odt2txt #{@selected_safe} 2>/dev/null"
-      input       = `#{@win_right.pager_cmd}`
+    elsif @selected.match(/\.odt$|\.odc$|\.odp$|\.odg$/) and @w_r.pager == 0
+      @w_r.pager_cmd  = "odt2txt #{@selected_safe} 2>/dev/null"
+      input       = `#{@w_r.pager_cmd}`
       pager_start(input) 
-      @win_right << input
+      @w_r << input
     # OOXML {{{5
-    elsif @selected.match(/\.docx$|\.xlsx$|\.pptx$/) and @win_right.pager == 0
-      @win_right.pager_cmd  = "docx2txt #{@selected_safe} - 2>/dev/null"
-      input       = `#{@win_right.pager_cmd}`
+    elsif @selected.match(/\.docx$|\.xlsx$|\.pptx$/) and @w_r.pager == 0
+      @w_r.pager_cmd  = "docx2txt #{@selected_safe} - 2>/dev/null"
+      input       = `#{@w_r.pager_cmd}`
       pager_start(input) 
-      @win_right << input
+      @w_r << input
     # MS doc {{{5
-    elsif @selected.match(/\.doc$/) and @win_right.pager == 0
-      @win_right.pager_cmd  = "catdoc #{@selected_safe} 2>/dev/null"
-      input       = `#{@win_right.pager_cmd}`
+    elsif @selected.match(/\.doc$/) and @w_r.pager == 0
+      @w_r.pager_cmd  = "catdoc #{@selected_safe} 2>/dev/null"
+      input       = `#{@w_r.pager_cmd}`
       pager_start(input) 
-      @win_right << input
+      @w_r << input
     # MS xls {{{5
-    elsif @selected.match(/\.xls$/) and @win_right.pager == 0
-      @win_right.pager_cmd  = "xls2csv #{@selected_safe} 2>/dev/null"
-      input       = `#{@win_right.pager_cmd}`
+    elsif @selected.match(/\.xls$/) and @w_r.pager == 0
+      @w_r.pager_cmd  = "xls2csv #{@selected_safe} 2>/dev/null"
+      input       = `#{@w_r.pager_cmd}`
       pager_start(input) 
-      @win_right << input
+      @w_r << input
     # MS ppt {{{5
-    elsif @selected.match(/\.ppt$/) and @win_right.pager == 0
-      @win_right.pager_cmd  = "catppt #{@selected_safe} 2>/dev/null"
-      input       = `#{@win_right.pager_cmd}`
+    elsif @selected.match(/\.ppt$/) and @w_r.pager == 0
+      @w_r.pager_cmd  = "catppt #{@selected_safe} 2>/dev/null"
+      input       = `#{@w_r.pager_cmd}`
       pager_start(input) 
-      @win_right << input
+      @w_r << input
     # Images {{{5
     elsif @selected.match(/\.jpg$|\.jpeg$|\.png$|\.bmp$|\.gif$|\.tif$|\.tiff$/)
       image_show(@selected_safe)
@@ -697,19 +703,19 @@ def win_right_show # {{{3
   end
   # Add page markers & refresh {{{ 5
   pager_add_markers
-  @win_right.refresh
+  @w_r.refresh
 end
 
-def win_right_info(info) # {{{3
+def w_r_info(info) # {{{3
   # Show info in the right window
-  @win_right.setpos(0, 0)
-  (@win_right.maxy - @win_right.cury).times {@win_right.deleteln()}
-  @win_right.refresh
+  @w_r.setpos(0, 0)
+  (@w_r.maxy - @w_r.cury).times {@w_r.deleteln()}
+  @w_r.refresh
   # Clear for any previously showing image
-  @win_right.setpos(0, 0)
+  @w_r.setpos(0, 0)
   image_show("clear")
-  @win_right << info + "\n"
-  @win_right.refresh
+  @w_r << info + "\n"
+  @w_r.refresh
 end
 
 def marks_info # {{{3
@@ -722,32 +728,32 @@ def marks_info # {{{3
   else
     info += "(none)"
   end
-  win_right_info(info)
+  w_r_info(info)
 end
 
 def tagged_info # {{{3
-  # Show the list of tagged items in @win_right
+  # Show the list of tagged items in @w_r
   info = "Tagged:\n"
   @tagged.empty? ? info += "(None)" : info += @tagged.join("\n")
-  win_right_info(info)
+  w_r_info(info)
 end
 
 
 ## }}}2
-## WIN_BOTTOM {{{2
-def win_bottom_info(info) # {{{3
-  # Show info in @win_bottom
+## w_b {{{2
+def w_b_info(info) # {{{3
+  # Show info in @w_b
   init_pair(250, 250, 0)
-  @win_bottom.setpos(0,0)
-  @win_bottom.attron(color_pair(250) | Curses::A_DIM) { @win_bottom << "─" * @win_bottom.maxx }
-  @win_bottom.deleteln()
+  @w_b.setpos(0,0)
+  @w_b.attron(color_pair(250) | Curses::A_DIM) { @w_b << "─" * @w_b.maxx }
+  @w_b.deleteln()
   info = ": for command (use @s for selected item, @t for tagged items)" if info == nil
-  @win_bottom.attron(color_pair(250) | Curses::A_DIM) { @win_bottom << info }
-  @win_bottom.refresh
-  @win_bottom.update = false
+  @w_b.attron(color_pair(250) | Curses::A_DIM) { @w_b << info }
+  @w_b.refresh
+  @w_b.update = false
 end
 
-def win_bottom_getstr(pretext, text) # {{{3
+def w_b_getstr(pretext, text) # {{{3
   # A simple Readline-like routine
   Curses.curs_set(1)
   Curses.echo
@@ -756,22 +762,22 @@ def win_bottom_getstr(pretext, text) # {{{3
   pos = @history[stk].length
   chr = ""
   while chr != "ENTER"
-    @win_bottom.setpos(1,0)
-    @win_bottom << pretext + @history[stk]
-    @win_bottom.clrtoeol
-    @win_bottom.setpos(1,pretext.length + pos)
-    @win_bottom.refresh
+    @w_b.setpos(1,0)
+    @w_b << pretext + @history[stk]
+    @w_b.clrtoeol
+    @w_b.setpos(1,pretext.length + pos)
+    @w_b.refresh
     chr = getchr
     case chr
     when 'UP'
-      unless @win_bottom.nohistory
+      unless @w_b.nohistory
         unless stk == @history.length - 1
           stk += 1 
           pos = @history[stk].length
         end
       end
     when 'DOWN'
-      unless @win_bottom.nohistory
+      unless @w_b.nohistory
         unless stk == 0
           stk -= 1 
           pos = @history[stk].length
@@ -798,8 +804,8 @@ def win_bottom_getstr(pretext, text) # {{{3
     end
   end
   curstr = @history[stk]
-  @history.shift if @win_bottom.nohistory
-  unless @win_bottom.nohistory
+  @history.shift if @w_b.nohistory
+  unless @w_b.nohistory
     @history.uniq!
     @history.compact!
     @history.delete("")
@@ -809,8 +815,8 @@ def win_bottom_getstr(pretext, text) # {{{3
   return curstr
 end
 
-def win_bottom_exec(cmd) #{{{3
-  # Execute command from @win_bottom
+def w_b_exec(cmd) #{{{3
+  # Execute command from @w_b
   # Subsitute any '@s' with the selected item, @t with tagged items
   # 'rm @s' deletes the selected item, 'rm @t' deletes tagged items
   return if cmd == ""
@@ -820,22 +826,22 @@ def win_bottom_exec(cmd) #{{{3
   cmd.gsub!(/@t/, @t)
   begin
     begin
-      @win_right.pager_cmd = "#{cmd} | batcat -n --color=always"
-      @win_right.page_text = `#{@win_right.pager_cmd}`
+      @w_r.pager_cmd = "#{cmd} | batcat -n --color=always"
+      @w_r.page_text = `#{@w_r.pager_cmd}`
     rescue
-      @win_right.page_text = `#{cmd}`
+      @w_r.page_text = `#{cmd}`
     end
-    unless @win_right.page_text == ""
+    unless @w_r.page_text == ""
       image_show("clear")
-      @win_right.setpos(0, 0)
-      (@win_right.maxy - @win_right.cury).times {@win_right.deleteln()}
-      pager_start(@win_right.page_text)
+      @w_r.setpos(0, 0)
+      (@w_r.maxy - @w_r.cury).times {@w_r.deleteln()}
+      pager_start(@w_r.page_text)
       pager_show
-      @win_right.refresh
-      @win_right.update = false
+      @w_r.refresh
+      @w_r.update = false
     end
   rescue
-    win_bottom_info(" Failed to execute command (#{cmd})")
+    w_b_info(" Failed to execute command (#{cmd})")
   end
 end
 ## }}}2
@@ -847,14 +853,14 @@ begin
   # Curses::Window.new(h,w,y,x)
   maxx       = Curses.cols
   maxy       = Curses.lines
-  @win_top    = Curses::Window.new(1, 0, 0, 0)
-  @win_bottom = Curses::Window.new(2, 0, maxy - 2, 0)
-  @win_left   = Curses::Window.new(maxy - 4, maxx / 3 - 1, 2, 1)
-  @win_right  = Curses::Window.new(maxy - 4, maxx - maxx / 3 - 1, 2, maxx / 3 + 1)
+  @w_t    = Curses::Window.new(1, 0, 0, 0)
+  @w_b = Curses::Window.new(2, 0, maxy - 2, 0)
+  @w_l   = Curses::Window.new(maxy - 4, maxx / 3 - 1, 2, 1)
+  @w_r  = Curses::Window.new(maxy - 4, maxx - maxx / 3 - 1, 2, maxx / 3 + 1)
   wins_set_update
-  # Set no pager for @win_right
-  @win_right.pager      = 0
-  @win_right.pager_more = false
+  # Set no pager for @w_r
+  @w_r.pager      = 0
+  @w_r.pager_more = false
 
   # Core loop {{{2
   loop do
@@ -876,22 +882,21 @@ begin
     @index = @max_index if @index > @max_index
 
     # Top window (info line) {{{3
-    win_top_info
+    w_t_info
 
     # Left window (browser) {{{3
-    @win_left.setpos(0,0)
+    @w_l.setpos(0,0)
     list_dir(true)
-    (@win_left.maxy - @win_left.cury).times {@win_left.deleteln()}
-    @win_left.refresh
+    (@w_l.maxy - @w_l.cury).times {@w_l.deleteln()}
+    @w_l.refresh
 
     # Right window (content viewer) {{{3
-    win_right_show if @win_right.update
+    w_r_show if @w_r.update
 
     # Bottom window (command line) {{{3
-    win_bottom_info(nil) if @win_bottom.update
+    w_b_info(nil) if @w_b.update
 
     # Set wins to update, clear residual cursor from editing files {{{3
-    wins_set_update
     Curses.curs_set(1)
     Curses.curs_set(0)
     
