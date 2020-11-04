@@ -90,7 +90,7 @@ With this, you can jump around in your directory structure via RTFM, exit to
 the desired directory, do work in the terminal and go back into RTFM via `r`.
 
 ## Screencast
-[![RTFM screencast](/img/screenshot-logo.png)](/img/rtfm-screencast.mp4)
+[![RTFM screencast](/img/screenshot-logo.png)](https://isene.com/x/rtfm-screencast.mp4)
 
 ## Development
 I don't expect this program to be used by others. I do this for my own
