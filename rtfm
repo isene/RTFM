@@ -124,13 +124,26 @@ LScolors = `echo $LS_COLORS`
 
 # CLASS EXTENSIONS {{{1
 class Curses::Window
+
   attr_accessor :update, :pager, :pager_more, :pager_cmd, :text, :locate, :nohistory 
+  
   def clr
     self.setpos(0, 0)
     (self.maxy - self.cury).times {self.deleteln()}
     self.refresh
     self.setpos(0, 0)
   end
+  
+  def color_parse(input) # {{{3
+    input.gsub!( /\e\[\d;38;5;(\d+)m/, '%-%\1%-%')
+    input.gsub!( /\e\[38;5;(\d+)m/, '%-%\1%-%')
+    input.gsub!( /\e\[0m/, "\t")
+    color_array = input.split("%-%")
+    color_array = color_array.drop(1)
+    output = color_array.each_slice(2).to_a
+    return output
+  end
+
 end
 # }}}
 
@@ -148,15 +161,6 @@ def get_ls_color(type) # {{{3
   return color.to_i, bold
 end
 
-def color_parse(input) # {{{3
-  input.gsub!( /\e\[\d;38;5;(\d+)m/, '%-%\1%-%')
-  input.gsub!( /\e\[38;5;(\d+)m/, '%-%\1%-%')
-  input.gsub!( /\e\[0m/, "\t")
-  color_array = input.split("%-%")
-  color_array = color_array.drop(1)
-  output = color_array.each_slice(2).to_a
-  return output
-end
 
 def list_dir(left)# {{{3
   # List content of a directory (both left and right windows)
@@ -528,7 +532,7 @@ end
 ## RIGHT WINDOW {{{2
 def syntax_highlight(input) # {{{3
   # batcat syntax highlighting
-  color_ary  = color_parse(input)
+  color_ary  = @w_r.color_parse(input)
   color_ary.each do | pair |
     begin
       fg   = pair[0].to_i
@@ -544,12 +548,12 @@ end
 def pager_add_markers # {{{3
   # Add markers top/right & bottom/right to show paging as relevant
   if @w_r.pager > 1
-    @w_r.setpos(0, @w_r.maxx - 1)
-    @w_r << "∆"
+    @w_r.setpos(0, @w_r.maxx - 2)
+    @w_r << " ∆"
   end
   if @w_r.pager_more
-    @w_r.setpos(@w_r.maxy - 1, @w_r.maxx - 1)
-    @w_r << "∇"
+    @w_r.setpos(@w_r.maxy - 1, @w_r.maxx - 2)
+    @w_r << " ∇"
   end
 end
 
@@ -694,11 +698,7 @@ end
 
 def w_r_info(info) # {{{3
   # Show info in the right window
-  @w_r.setpos(0, 0)
-  (@w_r.maxy - @w_r.cury).times {@w_r.deleteln()}
-  @w_r.refresh
-  # Clear for any previously showing image
-  @w_r.setpos(0, 0)
+  @w_r.clr
   image_show("clear")
   @w_r << info + "\n"
   @w_r.refresh
@@ -732,7 +732,7 @@ def w_b_info(info) # {{{3
   init_pair(250, 250, 0)
   @w_b.setpos(0,0)
   @w_b.attron(color_pair(250) | Curses::A_DIM) { @w_b << "─" * @w_b.maxx }
-  @w_b.deleteln()
+  @w_b.deleteln
   info = ": for command (use @s for selected item, @t for tagged items)" if info == nil
   @w_b.attron(color_pair(250) | Curses::A_DIM) { @w_b << info }
   @w_b.refresh
