@@ -458,8 +458,9 @@ def main_getkey # {{{3
     exit 0
   end
   unless chr == 'L' or chr =~ /TAB/
-    @w_r.locate = false
-    @w_r.pager  = 0
+    @w_r.locate     = false
+    @w_r.pager      = 0
+    @w_r.pager_more = false
   end
   @w_r.update = true if dir != Dir.pwd
 end
