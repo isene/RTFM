@@ -74,7 +74,8 @@ H      | Show command history in right pane
 /      | Enter search string in bottom window to highlight matching items
 :      | Enter "command mode" in bottom window
 L      | Start 'locate' search for files, then use '#' to jump to desired line/directory
-ENTER  | Refresh RTFM
+ENTER  | Refresh the right pane
+r      | Refresh RTFM (recreates all windows in case there is garbage somewhere)
 q      | Quit
 
 ## A convenient shell function
