@@ -135,7 +135,7 @@ class Curses::Window
     self.setpos(0, 0)
   end
   
-  def color_parse(input) # {{{3
+  def color_parse(input)
     input.gsub!( /\e\[\d;38;5;(\d+)m/, '%-%\1%-%')
     input.gsub!( /\e\[38;5;(\d+)m/, '%-%\1%-%')
     input.gsub!( /\e\[0m/, "\t")
@@ -170,8 +170,13 @@ def list_dir(left)# {{{3
   @files.each.with_index(0) do |str, index|
 
     left ? str_path = str : str_path = "#{@selected}/#{str}" 
-    # Ensure only the items fitting on the screen will be drawn (@w_l)
+    # Ensure only the items fitting on the screen will be drawn (@w_l, then @w_r)
     if index > ix - win.maxy + 3
+      if !left and index > win.maxy - 2
+        win << "...\n"
+        return
+      end
+
       # Determine the filetype of the item {{{4
       ftype = ""
       ftype = str.match(/\.([^.]*$)/)[1] if str.match?(/\.([^.]*$)/)
@@ -787,13 +792,13 @@ def w_b_getstr(pretext, text) # {{{3
         pos -= 1
         @history[stk][pos] = ""
       end
-   #when 'TAB'
-   #  p1 = pos - 1
-   #  c  = @history[stk][0..(p1)].sub(/^.* /, '')
-   #  p0 = p1 - c.length
-   #  compl = File.expand_path(c)
-   #  @history[stk].sub(c,compl)
-   #  pos = pos - c.length + compl.length
+    when 'TAB'
+      p1 = pos - 1
+      c  = @history[stk][0..(p1)].sub(/^.* /, '')
+      p0 = p1 - c.length
+      compl = File.expand_path(c)
+      @history[stk].sub!(c,compl)
+      pos = pos - c.length + compl.length
     when /^.$/
       @history[stk].insert(pos,chr)
       pos += 1
