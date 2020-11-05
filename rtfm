@@ -794,10 +794,43 @@ def w_b_getstr(pretext, text) # {{{3
         @history[stk][pos] = ""
       end
     when 'TAB'
+      # Tab completion of dirs and files
       p1 = pos - 1
       c  = @history[stk][0..(p1)].sub(/^.* /, '')
       p0 = p1 - c.length
       compl = File.expand_path(c)
+      compl += "/" if Dir.exist?(compl)
+      clist = Dir.glob(compl + "*")
+      unless compl == clist[0].to_s and clist.length == 1
+        if clist.length == 1
+          compl = clist[0].to_s
+        else
+          ix = clist.find_index(compl)
+          ix = 0 if ix == nil
+          sel_item = ""
+          begin
+            Curses.curs_set(0)
+            Curses.noecho
+            @w_r.clr
+            @w_r << "Completion list:\n\n"
+            clist.each.with_index do |item, index|
+              if index == ix
+                @w_r.attron(Curses::A_BLINK) { @w_r << item }
+                sel_item = item
+              else
+                @w_r << item
+              end
+              @w_r << "\n"
+            end
+            @w_r.refresh
+            ix == clist.length ? ix = 0 : ix += 1
+          end while getchr == 'TAB'
+          compl = sel_item
+          @w_r.clr
+          Curses.curs_set(1)
+          Curses.echo
+        end
+      end
       @history[stk].sub!(c,compl)
       pos = pos - c.length + compl.length
     when /^.$/
