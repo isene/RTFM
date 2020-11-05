@@ -262,7 +262,8 @@ def getchr # {{{3
       when '8' then chr = "END"    ; STDIN.getc
       end
     end
-  when "" then chr = "BACK"
+  when "", "" then chr = "BACK"
+  when "" then chr = "WBACK"
   when "\r" then chr = "ENTER"
   when "\t" then chr = "TAB"
   when /./  then chr = c
@@ -792,6 +793,17 @@ def w_b_getstr(pretext, text) # {{{3
       unless pos == 0
         pos -= 1
         @history[stk][pos] = ""
+      end
+    when 'WBACK'
+      unless pos == 0
+        until @history[stk][pos - 1] == " " or pos == 0
+          pos -= 1
+          @history[stk][pos] = ""
+        end
+        if @history[stk][pos - 1] == " "
+          pos -= 1
+          @history[stk][pos] = ""
+        end
       end
     when 'TAB'
       # Tab completion of dirs and files
