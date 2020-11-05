@@ -43,40 +43,41 @@ PATH - such as in `~/bin/` and ensure it is executable.
 ![](img/screenshot.png)
 
 ## Keys
-Key    | What happens when pressed
--------|-------------------------------------------------------------
-?      | Show help text in right pane
-DOWN   | Go one item down in left pane (rounds to top)
-UP     | Go one item up in left pane (rounds to bottom)
-PgDown | Go one page down in left pane
-PgUp   | Go one page up in left pane
-END    | Go to last item in left pane
-HOME   | Go to first item in left pane
-LEFT   | Go up one directory level
-RIGHT  | Enter directory or open file (using run-mailcap or xdg-open)
-TAB    | Next page of the preview (if the document is longer than the right pane can show - seen by the ∇ in the bottom right)
-S-TAB  | Previous page (if you have used TAB to move down the document first - seen by the ∆ symbol in the top right)
-a      | Show all (also hidden) items
-l      | Show long info per item (show item attributes)
-t      | Tag item (toggles)
-T      | Show currently tagged items in right pane
-u      | Untag all tagged items
-p      | Put (copy) tagged items here
-P      | PUT (move) tagged items here
-s      | Create symlink to tagged items here
-d      | Delete selected item and tagged item. Press 'd' to confirm.
-c      | Change/rename selected (adds command to bottom window)
-m      | Mark current location (permanent bookmark). Next letter entered is the name of the mark [a-zA-Z]. Press '-' and a letter to delete that mark.
-h      | Jump to Home directory
-'      | Jump to mark (next letter is the name of the mark [a-zA-Z])
-M      | Show marked items in right pane
-H      | Show command history in right pane
-/      | Enter search string in bottom window to highlight matching items
-:      | Enter "command mode" in bottom window
-L      | Start 'locate' search for files, then use '#' to jump to desired line/directory
-ENTER  | Refresh the right pane
-r      | Refresh RTFM (recreates all windows in case there is garbage somewhere)
-q      | Quit
+Key       | What happens when pressed
+----------|-------------------------------------------------------------
+?         | Show this help text
+j, DOWN   | Go one item down in left pane (rounds to top)
+k, UP     | Go one item up in left pane (rounds to bottom)
+h, LEFT   | Go up one directory level
+l, RIGHT  | Enter directory or open file (using run-mailcap or xdg-open)
+   PgDown | Go one page down in left pane
+   PgUp   | Go one page up in left pane
+L, END    | Go to last item in left pane
+H, HOME   | Go to first item in left pane
+   TAB    | Next page of the preview (if doc long and ∇ in the bottom right)
+   S-TAB  | Previous page (if you have moved down the document first - ∆ in the top right)
+a         | Show all (also hidden) items
+l         | Show long info per item (show item attributes)
+t         | Tag item (toggles)
+T         | Show currently tagged items in right pane
+u         | Untag all tagged items
+p         | Put (copy) tagged items here
+P         | PUT (move) tagged items here
+s         | Create symlink to tagged items here
+d         | Delete selected item and tagged items. Press 'd' to confirm
+c         | Change/rename selected (adds command to bottom window)
+m         | Mark current dir (persistent). Next letter is the name of the mark [a-zA-Z']
+          | Press '-' and a letter to delete that mark
+M         | Show marked items in right pane
+'         | Jump to mark (next letter is the name of the mark [a-zA-Z'])
+   SPACE  | Jump to Home directory
+/         | Enter search string in bottom window to highlight matching items
+:         | Enter "command mode" in bottom window
+;         | Show command history in right pane
+L         | Start 'locate' search for files, then use '#' to jump to desired line/directory
+   ENTER  | Refresh the right pane
+r         | Refresh RTFM (recreates all windows in case there is garbage somewhere)
+q         | Quit
 
 ## A convenient shell function
 Add this line to your `.bashrc` or `.zshrc` to make RTFM exit to the current
