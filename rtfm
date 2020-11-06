@@ -454,6 +454,8 @@ def main_getkey # GET KEY FROM USER
   when '?' # Display help text 
     w_r_info(@help)
     @w_r.update = false
+  when 'ENTER'
+    @w_r.update = true
   when 'r' # Refresh all windows 
     @break = true
   when 'q' # Exit 
@@ -560,8 +562,8 @@ def pager_add_markers # ADD MARKERS TOP/RIGHT & BOTTOM/RIGHT TO SHOW PAGING AS R
   end
 end
 def pager_start # START PAGING
+  @w_r.pager = 1
   if @w_r.text.lines.count > @w_r.maxy - 2
-    @w_r.pager      = 1
     @w_r.pager_more = true
   end
 end
@@ -856,7 +858,7 @@ def w_b_exec(cmd) # EXECUTE COMMAND FROM @W_B
     rescue
       @w_r.text = `#{cmd}`
     end
-    unless @w_r.text == "" or nil
+    unless @w_r.text == "" or @w_r.text == nil
       pager_start
       pager_show
       @w_r.refresh
