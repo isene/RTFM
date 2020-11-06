@@ -210,9 +210,12 @@ def list_dir(left) # LIST CONTENT OF A DIRECTORY (BOTH LEFT AND RIGHT WINDOWS)
       file_marker = color_pair(fg)
       file_marker = file_marker | Curses::A_BOLD if bold == 1
       file_marker = file_marker | Curses::A_UNDERLINE if index == @index and left
-      if str.match(/#{@tag}/) and @tag != false
-        @tagged.push("'#{Dir.pwd}/#{str}'")
-        @tagged.uniq!
+      begin
+        if str.match(/#{@tag}/) and @tag != false
+          @tagged.push("'#{Dir.pwd}/#{str}'")
+          @tagged.uniq!
+        end
+      rescue
       end
       file_marker = file_marker | Curses::A_REVERSE if @tagged.include?("'#{Dir.pwd}/#{str_path}'")
       file_marker = file_marker | Curses::A_BLINK if str.match(/#{@searched}/) and @searched != ""
