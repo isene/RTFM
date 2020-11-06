@@ -599,7 +599,7 @@ def image_show(image)# SHOW THE SELECTED IMAGE IN THE RIGHT WINDOW
         img_w = img_w * img_max_h / img_h
         img_h = img_max_h
       end
-      `echo "0;1;#{img_x};#{img_y};#{img_w};#{img_h};;;;;#{image}\n4;\n3;" | #{@w3mimgdisplay}`
+      `echo "0;1;#{img_x};#{img_y};#{img_w};#{img_h};;;;;\"#{image}\"\n4;\n3;" | #{@w3mimgdisplay}`
     end
   rescue
     @w_r << "Error showing image"
@@ -890,7 +890,7 @@ loop do # Outer loop - catching refreshes via 'r'
       @fspes         = `#{ls_cmd}`.split("\n").drop(1)
       @selected      = @files[@index]
       @selected      = "" if @selected == nil
-      @selected_safe = @selected.sub(/\(/, '\(').sub(/\)/, '\)')
+      #@selected_safe = @selected.sub(/\(/, '\(').sub(/\)/, '\)')
       @selected_safe = "\"#{@selected}\""
 
       # Safety measure - correct index overflows 
