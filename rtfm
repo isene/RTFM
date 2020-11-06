@@ -123,6 +123,10 @@ LScolors = `echo $LS_COLORS`
 
 # Set "ls -a" to false (toggled by pressing "a")
 @lsall = ""
+
+# Set the image flag to false (set if an image is currently displayed in @w_r)
+@image = false
+
 # }}}1
 
 # CLASS EXTENSIONS {{{1
@@ -578,7 +582,8 @@ end
 
 def pager_show # {{{3
   @w_r.clr
-  image_show("clear")
+  image_show("clear") if @image
+  @image == false
   beg_l = (@w_r.pager - 1) * (@w_r.maxy - 3)
   end_l = beg_l + @w_r.maxy - 2
   input = @w_r.text.lines[beg_l..end_l].join() + "\n"
@@ -638,7 +643,8 @@ def w_r_show # {{{3
   # First clear the window
   @w_r.clr
   # Then clear any previously showing image
-  image_show("clear")
+  image_show("clear") if @image
+  @image == false
   # Determine the specific programs to open/show content {{{4
   begin
     # Directories {{{5
@@ -691,12 +697,14 @@ def w_r_show # {{{3
     # Images {{{5
     elsif @selected.match(/\.jpg$|\.jpeg$|\.png$|\.bmp$|\.gif$|\.tif$|\.tiff$/)
       image_show(@selected_safe)
+      @image = true
     # Videos (thumbnails) {{{5
     elsif @selected.match(/\.mpg$|\.mpeg$|\.avi$|\.mov$|\.mkv$|\.mp4$/)
       begin
         tmpfile = "/tmp/" + File.basename(@selected_safe,".*")
         `ffmpegthumbnailer -s 1000 -i #{@selected_safe} -o /tmp/rtfm_video_tn.jpg`
         image_show("/tmp/rtfm_video_tn.jpg")
+        @image = true
       rescue
       end
     end
@@ -710,7 +718,8 @@ end
 def w_r_info(info) # {{{3
   # Show info in the right window
   @w_r.clr
-  image_show("clear")
+  image_show("clear") if @image
+  @image == false
   @w_r << info + "\n"
   @w_r.refresh
 end
@@ -958,6 +967,9 @@ loop do
   # }}}2
   # On exit: close curses, clear terminal {{{2
   ensure
+    # Clear any image shown
+    image_show("clear")
+    # Write marks to config file
     conf = File.read(Dir.home+'/.rtfm.conf')
     conf.sub!(/\$marks.*{.*?}/m, "$marks = #{$marks}")
     File.write(Dir.home+'/.rtfm.conf', conf)
