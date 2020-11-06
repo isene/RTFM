@@ -348,7 +348,7 @@ def main_getkey # GET KEY FROM USER
     @w_r.update = false
   when 'C-T' # Tag items matching a pettern
     @w_b.nohistory = true
-    @tag = w_b_getstr("T:", "")
+    @tag = w_b_getstr("~ ", "")
     @w_r.update = true
   when 'T' # Show tagged list 
     tagged_info
