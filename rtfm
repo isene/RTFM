@@ -673,7 +673,7 @@ def w_r_show # SHOW CONTENTS IN THE RIGHT WINDOW
       @w_r.pager_cmd  = "catppt #{@selected_safe} 2>/dev/null"
       w_r_doc
     # Images 
-    elsif @selected.match(/\.jpg$|\.jpeg$|\.png$|\.bmp$|\.gif$|\.tif$|\.tiff$/)
+    elsif @selected.match(/\.jpg$|\.JPG$|\.jpeg$|\.png$|\.bmp$|\.gif$|\.tif$|\.tiff$/)
       image_show(@selected_safe)
       @image = true
     # Videos (thumbnails) 
