@@ -578,6 +578,7 @@ end
 
 def pager_show # {{{3
   @w_r.clr
+  image_show("clear")
   beg_l = (@w_r.pager - 1) * (@w_r.maxy - 3)
   end_l = beg_l + @w_r.maxy - 2
   input = @w_r.text.lines[beg_l..end_l].join() + "\n"
