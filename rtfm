@@ -284,15 +284,15 @@ def main_getkey # {{{3
   when '?' # Show helptext in right window {{{4
     w_r_info(@help)
     @w_r.update = false
-  when 'UP', 'k' # {{{4
+  when 'UP' # {{{4
     var_resets
     @index = @index <= @min_index ? @max_index : @index - 1
     @w_r.update = true
-  when 'DOWN', 'j' # {{{4
+  when 'DOWN' # {{{4
     var_resets
     @index = @index >= @max_index ? @min_index : @index + 1
     @w_r.update = true
-  when 'LEFT', 'h' # {{{4
+  when 'LEFT' # {{{4
     var_resets
     # Store index of this directory before leaving
     @directory[Dir.pwd] = @index
@@ -300,7 +300,7 @@ def main_getkey # {{{3
     # Set index to stored value if directory has been visited
     @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
     @w_r.update = true
-  when 'RIGHT', 'l' # {{{4
+  when 'RIGHT' # {{{4
     var_resets
     # Store index of this directory before leaving
     @directory[Dir.pwd] = @index
@@ -316,11 +316,11 @@ def main_getkey # {{{3
     @index += @w_l.maxy - 2
     @index = @max_index if @index > @max_index
     @w_r.update = true
-  when 'HOME', 'H' # {{{4
+  when 'HOME' # {{{4
     var_resets
     @index = @min_index
     @w_r.update = true
-  when 'END', 'L' # {{{4
+  when 'END' # {{{4
     var_resets
     @index = @max_index
     @w_r.update = true
@@ -606,9 +606,8 @@ def image_show(image)# {{{3
     if image == "clear"
       img_max_w += 5
       img_max_h += 5
-      Open3.capture2 @w3mimgdisplay, stdin_data: "6;#{img_x};#{img_y};#{img_max_w};#{img_max_h};\n4;\n3;"
-      #"6;$posx;$posy;$width;$height;\n4;\n3;"
-      #`imgw3m.sh CLEAR #{img_x} #{img_y} #{img_max_w} #{img_max_h} 2>/dev/null`
+      #Open3.capture2 @w3mimgdisplay, stdin_data: "6;#{img_x};#{img_y};#{img_max_w};#{img_max_h};\n4;\n3;"
+      `imgw3m.sh CLEAR #{img_x} #{img_y} #{img_max_w} #{img_max_h} 2>/dev/null`
     else
       img_w,img_h = `identify -format "%[fx:w]x%[fx:h]" #{image} 2>/dev/null`.split('x')
       img_w       = img_w.to_i
@@ -621,8 +620,8 @@ def image_show(image)# {{{3
         img_w = img_w * img_max_h / img_h
         img_h = img_max_h
       end
-      Open3.capture2 @w3mimgdisplay, stdin_data: "0;1;#{img_x};#{img_y};#{img_w};#{img_h};;;;;#{image}\n4;\n3;"
-      #`imgw3m.sh #{image} #{img_x} #{img_y} #{img_w} #{img_h} 2>/dev/null`
+      #Open3.capture2 @w3mimgdisplay, stdin_data: "0;1;#{img_x};#{img_y};#{img_w};#{img_h};;;;;#{image}\n4;\n3;"
+      `imgw3m.sh #{image} #{img_x} #{img_y} #{img_w} #{img_h} 2>/dev/null`
     end
   rescue
     @w_r << "Error showing image"
@@ -925,6 +924,7 @@ loop do
       @fspes    = `#{ls_cmd}`.split("\n").drop(1)
       @selected = @files[@index]
       @selected = "" if @selected == nil
+      #@selected_safe = "\"#{@selected}\""
       @selected_safe = Shellwords.escape(@selected)
 
       # Safety measure - correct index overflows {{{3
