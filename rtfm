@@ -50,7 +50,7 @@ KEYS
           Press '-' and a letter to delete that mark
  M      = Show marked items in right pane
  '      = Jump to mark (next letter is the name of the mark [a-zA-Z'])
- SPACE  = Jump to Home directory
+ h      = Jump to Home directory
  /      = Enter search string in bottom window to highlight matching items
  :      = Enter "command mode" in bottom window
  ;      = Show command history in right pane
@@ -210,7 +210,7 @@ def list_dir(left) # LIST CONTENT OF A DIRECTORY (BOTH LEFT AND RIGHT WINDOWS)
       file_marker = color_pair(fg)
       file_marker = file_marker | Curses::A_BOLD if bold == 1
       file_marker = file_marker | Curses::A_UNDERLINE if index == @index and left
-      if str.match(/#{@tag}/) and @tag != ""
+      if str.match(/#{@tag}/) and @tag != false
         @tagged.push("'#{Dir.pwd}/#{str}'")
         @tagged.uniq!
       end
@@ -402,7 +402,7 @@ def main_getkey # GET KEY FROM USER
   when ';' # Show command history 
     w_r_info("Command history (latest on top):\n\n" + @history.join("\n"))
     @w_r.update = false
-  when ' ' # 
+  when 'h' # 
     var_resets
     # Store index of this directory before leaving
     @directory[Dir.pwd] = @index
@@ -870,8 +870,8 @@ loop do # Outer loop - catching refreshes via 'r'
   @break = false
   # Set the image flag to false (set if an image is currently displayed in @w_r)
   @image = false
-  # Set pattern tagging to none
-  @tag = ""
+  # Set pattern tagging to nothing (false)
+  @tag = false
 
   begin # Create the four windows/panels 
     # Curses::Window.new(h,w,y,x)
@@ -929,7 +929,7 @@ loop do # Outer loop - catching refreshes via 'r'
       Curses.curs_set(0)
       
       # Clear tag pattern
-      @tag = ""
+      @tag = false
 
       # Get key from user 
       main_getkey
