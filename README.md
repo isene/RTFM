@@ -69,7 +69,7 @@ m      | Mark current dir (persistent). Next letter is the name of the mark [a-z
        | Press '-' and a letter to delete that mark
 M      | Show marked items in right pane
 '      | Jump to mark (next letter is the name of the mark [a-zA-Z'])
-SPACE  | Jump to Home directory
+h      | Jump to Home directory
 /      | Enter search string in bottom window to highlight matching items
 :      | Enter "command mode" in bottom window
 ;      | Show command history in right pane
