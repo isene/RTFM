@@ -82,18 +82,10 @@ else
   File.write((Dir.home+'/.rtfm.conf'), "$marks = {}\n")
 end
 
-# Curses setup 
-Curses.init_screen
-Curses.start_color
-Curses.curs_set(0)
-Curses.noecho
-Curses.cbreak
-Curses.stdscr.keypad = true
-
 # Set basic variables 
 STDIN.set_encoding(Encoding::UTF_8)
 @w3mimgdisplay = "/usr/lib/w3m/w3mimgdisplay"
-# }}}
+
 # Set default colors 
 init_pair(7, 7, 0)        # Default
 init_pair(232, 232, 249)  # Top Window
@@ -101,6 +93,14 @@ init_pair(250, 250, 0)    # Bottom Window
 
 # Import LS_COLORS 
 LScolors = `echo $LS_COLORS`
+
+# Curses setup 
+Curses.init_screen
+Curses.start_color
+Curses.curs_set(0)
+Curses.noecho
+Curses.cbreak
+Curses.stdscr.keypad = true
 
 
 # INITIALIZE VARIABLES 
