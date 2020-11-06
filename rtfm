@@ -38,6 +38,7 @@ KEYS
  a      = Show all (also hidden) items
  l      = Show long info per item (show item attributes)
  t      = Tag item (toggles)
+ Ctrl-t = Add items matching pattern to list of tagged items
  T      = Show currently tagged items in right pane
  u      = Untag all tagged items
  p      = Put (copy) tagged items here
@@ -209,6 +210,10 @@ def list_dir(left) # LIST CONTENT OF A DIRECTORY (BOTH LEFT AND RIGHT WINDOWS)
       file_marker = color_pair(fg)
       file_marker = file_marker | Curses::A_BOLD if bold == 1
       file_marker = file_marker | Curses::A_UNDERLINE if index == @index and left
+      if str.match(/#{@tag}/) and @tag != ""
+        @tagged.push("'#{Dir.pwd}/#{str}'")
+        @tagged.uniq!
+      end
       file_marker = file_marker | Curses::A_REVERSE if @tagged.include?("'#{Dir.pwd}/#{str_path}'")
       file_marker = file_marker | Curses::A_BLINK if str.match(/#{@searched}/) and @searched != ""
       File.directory?(str_path) ? dir = "/" : dir = ""
@@ -261,6 +266,7 @@ def getchr # PROCESS KEY PRESSES
     end
   when "", "" then chr = "BACK"
   when "" then chr = "WBACK"
+  when "" then chr = "C-T"
   when "\r" then chr = "ENTER"
   when "\t" then chr = "TAB"
   when /./  then chr = c
@@ -340,16 +346,17 @@ def main_getkey # GET KEY FROM USER
     end
     tagged_info
     @w_r.update = false
-  
+  when 'C-T' # Tag items matching a pettern
+    @w_b.nohistory = true
+    @tag = w_b_getstr("T:", "")
+    @w_r.update = true
   when 'T' # Show tagged list 
     tagged_info
     @w_r.update = false
-  
   when 'u' # Clear tagged list 
     @tagged = []
     tagged_info
     @w_r.update = false
-  
   when 'p' # Copy tagged items here 
     copy_move_link("copy")
     @w_r.update = true
@@ -863,6 +870,8 @@ loop do # Outer loop - catching refreshes via 'r'
   @break = false
   # Set the image flag to false (set if an image is currently displayed in @w_r)
   @image = false
+  # Set pattern tagging to none
+  @tag = ""
 
   begin # Create the four windows/panels 
     # Curses::Window.new(h,w,y,x)
@@ -919,8 +928,13 @@ loop do # Outer loop - catching refreshes via 'r'
       Curses.curs_set(1)
       Curses.curs_set(0)
       
+      # Clear tag pattern
+      @tag = ""
+
       # Get key from user 
       main_getkey
+      
+      # Break to outer loop, redrawing windows, if user hit 'r'
       break if @break
     end
   
