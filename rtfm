@@ -57,6 +57,7 @@ KEYS
  ENTER  = Refresh the right pane
  r      = Refresh RTFM (recreates all windows in case there is garbage somewhere)
  q      = Quit
+ Q      = QUIT (without writing changes to the config file)
 
 COPYRIGHT: Geir Isene, 2020. No rights reserved. See http://isene.com for more.
 HELPTEXT
