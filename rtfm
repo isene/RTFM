@@ -74,14 +74,6 @@ require 'curses'
 include Curses
 require 'open3'
 
-# Get marks from config file
-if File.exist?(Dir.home+'/.rtfm.conf')
-  load(Dir.home+'/.rtfm.conf')
-else
-  $marks = {}
-  File.write((Dir.home+'/.rtfm.conf'), "$marks = {}\n")
-end
-
 # Set basic variables 
 STDIN.set_encoding(Encoding::UTF_8)
 @w3mimgdisplay = "/usr/lib/w3m/w3mimgdisplay"
@@ -105,29 +97,21 @@ Curses.stdscr.keypad = true
 
 # INITIALIZE VARIABLES 
 
-# Initialize the tagged array - for collecting all tagged items
-@tagged = []
+@lslong    = false # Set short form ls (toggled by pressing "l")
+@lsall     = ""    # Set "ls -a" to false (toggled by pressing "a")
+@marks     = {}    # Initialize marks
+@tagged    = []    # Initialize the tagged array - for collecting all tagged items
+@history   = []    # Initialize the command line history
+@searched  = ""    # Initialize the active searched for items, 'info' and 'locate' variables
+@directory = {}    # Initialize the directory hash for remembering index for every directory visited
+@index     = 0     # Set chosen item to first
 
-# Initialize the command line history
-@history = []
+# Get variables from config file
+if File.exist?(Dir.home+'/.rtfm.conf')
+  load(Dir.home+'/.rtfm.conf')
+end
 
-# Initialize the active searched for items, 'info' and 'locate' variables
-@searched  = ""
-
-# Initialize the directory hash for remembering index for every directory visited
-@directory = {}
-
-# Set chosen item to first
-@index = 0
-
-# Set short form ls (toggled by pressing "l")
-@lslong = false
-
-# Set "ls -a" to false (toggled by pressing "a")
-@lsall = ""
-
-
-# CLASS EXTENSIONS 
+# CLASS EXTENSION 
 class Curses::Window
 
   attr_accessor :update, :pager, :pager_more, :pager_cmd, :text, :locate, :nohistory 
@@ -173,11 +157,12 @@ def list_dir(left) # LIST CONTENT OF A DIRECTORY (BOTH LEFT AND RIGHT WINDOWS)
     left ? str_path = str : str_path = "#{@selected}/#{str}" 
     # Ensure only the items fitting on the screen will be drawn (@w_l, then @w_r)
     if index > ix - win.maxy + 3
+
       if !left and index > win.maxy - 2
         win << "...\n"
         return
       end
-
+      
       # Determine the filetype of the item 
       ftype = ""
       ftype = str.match(/\.([^.]*$)/)[1] if str.match?(/\.([^.]*$)/)
@@ -210,6 +195,7 @@ def list_dir(left) # LIST CONTENT OF A DIRECTORY (BOTH LEFT AND RIGHT WINDOWS)
       file_marker = color_pair(fg)
       file_marker = file_marker | Curses::A_BOLD if bold == 1
       file_marker = file_marker | Curses::A_UNDERLINE if index == @index and left
+      # Add items matching @tag to @tagged
       begin
         if str.match(/#{@tag}/) and @tag != false
           @tagged.push("'#{Dir.pwd}/#{str}'")
@@ -233,6 +219,19 @@ def list_dir(left) # LIST CONTENT OF A DIRECTORY (BOTH LEFT AND RIGHT WINDOWS)
       
       # Implement the color (and bold), clear to end-of-line and add newline
       win.attron(file_marker) { win << str + link + dir + "\n" }
+      # Clear to bottom of window
+      (win.maxy - win.cury).times {win.deleteln()}
+    end
+  end
+  if left
+    init_pair(242, 242, 0)
+    if @index > @w_l.maxy - 4
+      @w_l.setpos(0, @w_l.maxx - 1)
+      @w_l.attron(color_pair(242) | Curses::A_DIM) { @w_l << "∆" }
+    end
+    if @files.length > @w_l.maxy - 3 and @files.length > @index + 3
+      @w_l.setpos(@w_l.maxy - 1, @w_l.maxx - 1)
+      @w_l.attron(color_pair(242) | Curses::A_DIM) { @w_l << "∇" }
     end
   end
 end
@@ -390,10 +389,10 @@ def main_getkey # GET KEY FROM USER
     marks_info
     m = STDIN.getc
     if m.match(/[\w']/)
-      $marks[m] = Dir.pwd
+      @marks[m] = Dir.pwd
     elsif m == "-"
       r = STDIN.getc
-      $marks.delete(r)
+      @marks.delete(r)
     end
     marks_info
     @w_r.update = false
@@ -413,11 +412,11 @@ def main_getkey # GET KEY FROM USER
   when "'" # Jump to mark 
     marks_info
     m = STDIN.getc
-    if m.match(/[\w']/) and $marks[m]
+    if m.match(/[\w']/) and @marks[m]
       var_resets
       # Store index of this directory before leaving
       @directory[Dir.pwd] = @index
-      Dir.chdir($marks[m]) 
+      Dir.chdir(@marks[m]) 
       @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
     end
     @w_r.update = true
@@ -458,6 +457,11 @@ def main_getkey # GET KEY FROM USER
     @break = true
   when 'q' # Exit 
     system("printf \"\033]0;#{Dir.pwd}\007\"")
+    @write_conf = true
+    exit 0
+  when 'Q'
+    system("printf \"\033]0;#{Dir.pwd}\007\"")
+    @write_conf = false
     exit 0
   end
   unless chr == 'L' or chr =~ /TAB/
@@ -691,7 +695,7 @@ def w_r_show # SHOW CONTENTS IN THE RIGHT WINDOW
     end
   rescue
   end
-  # Add page markers & refresh 5
+  # Add page markers & refresh
   pager_add_markers
   @w_r.refresh
 end
@@ -704,8 +708,8 @@ def w_r_info(info) # SHOW INFO IN THE RIGHT WINDOW
 end
 def marks_info # SHOW MARKS IN RIGHT WINDOW
   info = "Marks:\n"
-  unless $marks.empty?
-    $marks.each do |mark, dir|
+  unless @marks.empty?
+    @marks.each do |mark, dir|
       info += "#{mark} = #{dir}\n"
     end
   else
@@ -916,16 +920,6 @@ loop do # Outer loop - catching refreshes via 'r'
       # Left window (browser) 
       @w_l.setpos(0,0)
       list_dir(true)
-      (@w_l.maxy - @w_l.cury).times {@w_l.deleteln()}
-      init_pair(242, 242, 0)
-      if @index > @w_l.maxy - 4
-        @w_l.setpos(0, @w_l.maxx - 1)
-        @w_l.attron(color_pair(242) | Curses::A_DIM) { @w_l << "∆" }
-      end
-      if @files.length > @w_l.maxy - 3 and @files.length > @index + 3
-        @w_l.setpos(@w_l.maxy - 2, @w_l.maxx - 1)
-        @w_l.attron(color_pair(242) | Curses::A_DIM) { @w_l << "∇" }
-      end
       @w_l.refresh
 
       # Bottom window (command line)
@@ -954,9 +948,18 @@ loop do # Outer loop - catching refreshes via 'r'
     # Clear any image shown
     image_show("clear")
     # Write marks to config file
-    conf = File.read(Dir.home+'/.rtfm.conf')
-    conf.sub!(/\$marks.*{.*?}/m, "$marks = #{$marks}")
-    File.write(Dir.home+'/.rtfm.conf', conf)
+    if @write_conf
+      if File.exist?(Dir.home+'/.rtfm.conf')
+        conf = File.read(Dir.home+'/.rtfm.conf')
+      else
+        conf = ""
+      end
+      conf.sub!(/@marks.*{.*}\n/, "") 
+      conf += "@marks = #{@marks}\n"
+      conf.sub!(/@tagged.*\[.*\]\n/, "")
+      conf += "@tagged = #{@tagged}\n"
+      File.write(Dir.home+'/.rtfm.conf', conf)
+    end
     close_screen
     # If RTFM was launched via the bash script "r", then return the current
     # directory so that "r" can cd to that directory
