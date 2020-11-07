@@ -14,7 +14,8 @@ I kept scratching until I could happily replace ranger two weeks later.
 RTFM is a two-pane file manager. You navigate in the left pane and the content
 of the selected item (directory or file) is shown in the right pane. The right
 pane is also used to show information such as the currently tagged items, your
-(book)marks, output from commands, etc.
+(book)marks, output from commands, etc. You can run any command in the bottom
+"command line" and have the output presented in the right pane.
 
 In order to run RTFM (without generating [a bunch of
 warnings](https://github.com/isene/RTFM/issues/1)), you need to do a `gem
