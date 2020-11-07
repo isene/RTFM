@@ -18,7 +18,6 @@
 #             any expressed or implied warranty.
 # }}}
 
-
 # HELPTEXT 
 @help = <<HELPTEXT
 RTFM - [Ruby|Ruddy|Rough] Terminal File Manager (https://github.com/isene/RTFM)
@@ -62,31 +61,29 @@ KEYS
 COPYRIGHT: Geir Isene, 2020. No rights reserved. See http://isene.com for more.
 HELPTEXT
 
-
 # BASIC SETUP 
-
-# Remove code warnings 
+## Remove code warnings, set encoding for STDIN 
 Warning[:deprecated] = false
+STDIN.set_encoding(Encoding::UTF_8)
 
-# Requires and loads 
+## Requires and loads 
 require 'fileutils'
 require 'curses'
 include Curses
 require 'open3'
 
-# Set basic variables 
-STDIN.set_encoding(Encoding::UTF_8)
+## Set basic variables
 @w3mimgdisplay = "/usr/lib/w3m/w3mimgdisplay"
 
-# Set default colors 
+## Set default colors 
 init_pair(7, 7, 0)        # Default
 init_pair(232, 232, 249)  # Top Window
 init_pair(250, 250, 0)    # Bottom Window
 
-# Import LS_COLORS 
+## Import LS_COLORS 
 LScolors = `echo $LS_COLORS`
 
-# Curses setup 
+## Curses setup 
 Curses.init_screen
 Curses.start_color
 Curses.curs_set(0)
@@ -94,9 +91,7 @@ Curses.noecho
 Curses.cbreak
 Curses.stdscr.keypad = true
 
-
 # INITIALIZE VARIABLES 
-
 @lslong    = false # Set short form ls (toggled by pressing "l")
 @lsall     = ""    # Set "ls -a" to false (toggled by pressing "a")
 @marks     = {}    # Initialize marks
@@ -135,9 +130,7 @@ class Curses::Window
 
 end
 
-
 # FUNCTIONS 
-
 ## GENERIC 
 def get_ls_color(type) # GET THE COLOR FOR THE FILETYPE FROM IMPORTED LS_COLORS
   bold  = 0
@@ -471,7 +464,6 @@ def main_getkey # GET KEY FROM USER
   end
   @w_r.update = true if dir != Dir.pwd
 end
-
 ## TOP WINDOW 
 def w_t_info() # SHOW INFO IN @W_T
   @w_t.setpos(0,0)
@@ -487,7 +479,6 @@ def w_t_info() # SHOW INFO IN @W_T
   @w_t.attron(color_pair(232) | Curses::A_BOLD) { @w_t << toptext }
   @w_t.refresh
 end
-
 ## LEFT WINDOW 
 def open_selected() # OPEN SELECTED ITEM (WHEN PRESSING RIGHT)
   if File.directory?(@selected) # Rescue for permission error
@@ -538,7 +529,6 @@ def copy_move_link(type) # COPY OR MOVE TAGGED ITEMS (COPY IF "KEEP == TRUE")
   end
   @tagged = [] if type == "move"
 end
-
 ## RIGHT WINDOW 
 def syntax_highlight(input) # BATCAT SYNTAX HIGHLIGHTING
   color_ary  = @w_r.color_parse(input)
@@ -722,7 +712,6 @@ def tagged_info # SHOW THE LIST OF TAGGED ITEMS IN @W_R
   @tagged.empty? ? info += "(None)" : info += @tagged.join("\n")
   w_r_info(info)
 end
-
 ## BOTTOM WINDOW 
 def w_b_info(info) # SHOW INFO IN @W_B
   init_pair(250, 250, 0)
@@ -871,7 +860,6 @@ def w_b_exec(cmd) # EXECUTE COMMAND FROM @W_B
   end
 end
 
-
 # MAIN PROGRAM 
 loop do # Outer loop - catching refreshes via 'r'
   @break = false
@@ -968,7 +956,6 @@ loop do # Outer loop - catching refreshes via 'r'
     end
   end
 end
-
 
 # vim modeline 
 # vim: set sw=2 sts=2 et fdm=syntax fillchars=fold\:\ :
