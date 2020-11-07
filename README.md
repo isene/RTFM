@@ -77,6 +77,7 @@ L      | Start 'locate' search for files, then use '#' to jump to desired line/d
 ENTER  | Refresh the right pane
 r      | Refresh RTFM (recreates all windows in case there is garbage somewhere)
 q      | Quit
+Q      | QUIT (without writing changes to the config file)
 
 ## A convenient shell function
 Add this line to your `.bashrc` or `.zshrc` to make RTFM exit to the current
