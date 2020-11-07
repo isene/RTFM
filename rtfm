@@ -232,9 +232,7 @@ def list_dir(left) # LIST CONTENT OF A DIRECTORY (BOTH LEFT AND RIGHT WINDOWS)
       end
       
       # Implement the color (and bold), clear to end-of-line and add newline
-      win.attron(file_marker) { win << str + link + dir }
-      clrtoeol
-      win << "\n"
+      win.attron(file_marker) { win << str + link + dir + "\n" }
     end
   end
 end
@@ -919,6 +917,15 @@ loop do # Outer loop - catching refreshes via 'r'
       @w_l.setpos(0,0)
       list_dir(true)
       (@w_l.maxy - @w_l.cury).times {@w_l.deleteln()}
+      init_pair(242, 242, 0)
+      if @index > @w_l.maxy - 4
+        @w_l.setpos(0, @w_l.maxx - 1)
+        @w_l.attron(color_pair(242) | Curses::A_DIM) { @w_l << "∆" }
+      end
+      if @files.length > @w_l.maxy - 3 and @files.length > @index + 3
+        @w_l.setpos(@w_l.maxy - 2, @w_l.maxx - 1)
+        @w_l.attron(color_pair(242) | Curses::A_DIM) { @w_l << "∇" }
+      end
       @w_l.refresh
 
       # Bottom window (command line)
