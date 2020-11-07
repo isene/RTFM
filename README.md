@@ -89,6 +89,32 @@ directory by launching the file manager via `r` in the terminal:
 With this, you can jump around in your directory structure via RTFM, exit to
 the desired directory, do work in the terminal and go back into RTFM via `r`.
 
+## Configuration file
+When you first exit RTFM, it will write your (book)marks and the set of tagged
+files to `.rtfm.conf`. This ensures your marks and tagged files are
+persistent. It also means you can launch rtfm tag a bunch of dirs and files,
+drop out back to the terminal to do some work, back into rtfm and resume to
+work with your previously tagged items.
+
+You can also set persistent variables in the config file manually. At the top
+of `.rtfm.conf` you can set the following:
+
+To have long info per item: `@lslong = true` (this is otherwise set to `false`)
+
+To show hidden files: `@lsall = "-a"` (this is otherwise set to `""`)
+
+To have some commands already prepared for the command history, you can set:
+```
+@history = ["cat /home/me/MyTodo.txt", "neofetch --stdout"]
+```
+These variables that you manually add to the top of the config files are
+undisturbed by launching and exiting RTFM.
+
+To exit RTFM without writing any changes to you marks or list of tagged items,
+exit with `Q`. They will then remain the same as when you launched RTFM for
+that session.
+
+
 ## Screencast
 [![RTFM screencast](/img/screenshot-logo.png)](https://isene.com/x/rtfm-screencast.mp4)
 
