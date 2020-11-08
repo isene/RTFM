@@ -16,7 +16,6 @@
 #             obligation to maintain or extend this software. It is provided 
 #             on an 'as is' basis without any expressed or implied warranty.
 
-# HELPTEXT 
 @help = <<HELPTEXT
 RTFM - [Ruby|Ruddy|Rough] Terminal File Manager (https://github.com/isene/RTFM)
 
@@ -59,48 +58,46 @@ KEYS
 
 COPYRIGHT: Geir Isene, 2020. No rights reserved. See http://isene.com for more.
 HELPTEXT
+begin # BASIC SETUP
+  require 'fileutils'
+  require 'curses'
+  include  Curses
 
-# BASIC SETUP
-require 'fileutils'
-require 'curses'
-include  Curses
+  @w3mimgdisplay = "/usr/lib/w3m/w3mimgdisplay"
 
-@w3mimgdisplay = "/usr/lib/w3m/w3mimgdisplay"
+  STDIN.set_encoding(Encoding::UTF_8) # Set encoding for STDIN 
 
-STDIN.set_encoding(Encoding::UTF_8) # Set encoding for STDIN 
+  ## Set default colors (#, fg, bg) 
+  init_pair(7, 7, 0)           # Default
+  init_pair(232, 232, 249)     # Top Window
+  init_pair(250, 250, 0)       # Bottom Window
 
-## Set default colors (#, fg, bg) 
-init_pair(7, 7, 0)           # Default
-init_pair(232, 232, 249)     # Top Window
-init_pair(250, 250, 0)       # Bottom Window
+  LScolors = `echo $LS_COLORS` # Import LS_COLORS 
 
-LScolors = `echo $LS_COLORS` # Import LS_COLORS 
+  ## Curses setup 
+  Curses.init_screen
+  Curses.start_color
+  Curses.curs_set(0)
+  Curses.noecho
+  Curses.cbreak
+  Curses.stdscr.keypad = true
 
-## Curses setup 
-Curses.init_screen
-Curses.start_color
-Curses.curs_set(0)
-Curses.noecho
-Curses.cbreak
-Curses.stdscr.keypad = true
+  # INITIALIZE VARIABLES 
+  @lslong    = false # Set short form ls (toggled by pressing "l")
+  @lsall     = ""    # Set "ls -a" to false (toggled by pressing "a" - sets it to "-a")
+  @marks     = {}    # Initialize (book)marks hash
+  @tagged    = []    # Initialize the tagged array - for collecting all tagged items
+  @directory = {}    # Initialize the directory hash for remembering index for every directory visited
+  @searched  = ""    # Initialize the active searched for items
+  @history   = []    # Initialize the command line history array
+  @index     = 0     # Set chosen item to first on startup
 
-# INITIALIZE VARIABLES 
-@lslong    = false # Set short form ls (toggled by pressing "l")
-@lsall     = ""    # Set "ls -a" to false (toggled by pressing "a" - sets it to "-a")
-@marks     = {}    # Initialize (book)marks hash
-@tagged    = []    # Initialize the tagged array - for collecting all tagged items
-@directory = {}    # Initialize the directory hash for remembering index for every directory visited
-@searched  = ""    # Initialize the active searched for items
-@history   = []    # Initialize the command line history array
-@index     = 0     # Set chosen item to first on startup
-
-# Get variables from config file (written back to .rtf.conf upon exit via 'q')
-if File.exist?(Dir.home+'/.rtfm.conf')
-  load(Dir.home+'/.rtfm.conf')
+  # Get variables from config file (written back to .rtf.conf upon exit via 'q')
+  if File.exist?(Dir.home+'/.rtfm.conf')
+    load(Dir.home+'/.rtfm.conf')
+  end
 end
-
-# CLASS EXTENSION 
-class Curses::Window
+class Curses::Window # CLASS EXTENSION 
   attr_accessor :update, :pager, :pager_more, :pager_cmd, :text, :locate, :nohistory 
   def clr
     self.setpos(0, 0)
@@ -118,7 +115,6 @@ class Curses::Window
     return output
   end
 end
-
 # GENERIC FUNCTIONS 
 def get_ls_color(type) # GET THE COLOR FOR THE FILETYPE FROM IMPORTED LS_COLORS
   bold  = 0
@@ -178,11 +174,22 @@ def main_getkey # GET KEY FROM USER
     @w_r.update = true
   when 'LEFT'
     var_resets
+    cur_sel = Dir.pwd + "/" + @selected
     # Store index of this directory before leaving
     @directory[Dir.pwd] = @index
     Dir.chdir("..")
     # Set index to stored value if directory has been visited
-    @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
+    if @directory.key?(Dir.pwd)
+      @index = @directory[Dir.pwd]
+    else
+      ls_cmd = "ls #{@lsall} --group-directories-first"
+      @files = `#{ls_cmd}`.split("\n")
+      begin
+        @index = @files.index(File.basename(File.dirname(cur_sel)))
+      rescue
+        @index = 0
+      end
+    end
     @w_r.update = true
   when 'RIGHT'
     var_resets
@@ -374,20 +381,11 @@ def list_dir(left) # LIST CONTENT OF A DIRECTORY (BOTH LEFT AND RIGHT WINDOWS)
   left ? win = @w_l : win = @w_r
   left ? ix = @index : ix = 0
   @files.each.with_index(0) do |str, index|
-
     left ? str_path = str : str_path = "#{@selected}/#{str}" 
-    # Ensure only the items fitting on the screen will be drawn (@w_l, then @w_r)
-    if index > ix - win.maxy + 3
-
-      if !left and index > win.maxy - 2
-        win << "...\n"
-        return
-      end
-      
+    if index > ix - win.maxy + 3 # Ensure only the items fitting on the screen will be drawn
       # Determine the filetype of the item 
       ftype = ""
       ftype = str.match(/\.([^.]*$)/)[1] if str.match?(/\.([^.]*$)/)
-      
       # Set special filetypes (sequence matters)
       ftype = "bd" if File.blockdev?(str_path)
       ftype = "cd" if File.chardev?(str_path)
@@ -402,19 +400,13 @@ def list_dir(left) # LIST CONTENT OF A DIRECTORY (BOTH LEFT AND RIGHT WINDOWS)
       rescue
         ftype = "or"        # Set to orphant if no link target
       end
-
-      # Set default color
-      fg = 7; bold = 0; bg = 0
-      # Get color for filetype from imported LS_COLORS
-      fg, bold = get_ls_color(ftype) unless ftype == ""
+      fg = 7; bold = 0; bg = 0 # Set default color
+      fg, bold = get_ls_color(ftype) unless ftype == "" # Color from LS_COLORS
       init_pair(fg, fg, bg)
-
-      # Set color for the item and add "/" if directory
       file_marker = color_pair(fg)
       file_marker = file_marker | Curses::A_BOLD if bold == 1
       file_marker = file_marker | Curses::A_UNDERLINE if index == @index and left
-      # Add items matching @tag to @tagged
-      begin
+      begin # Add items matching @tag to @tagged
         if str.match(/#{@tag}/) and @tag != false
           @tagged.push("'#{Dir.pwd}/#{str}'")
           @tagged.uniq!
@@ -434,13 +426,16 @@ def list_dir(left) # LIST CONTENT OF A DIRECTORY (BOTH LEFT AND RIGHT WINDOWS)
         nbl = win.maxx - 5 - ext_length # nbl: new_base_length
         str = base_name[0..nbl] + "…" + ext_name
       end
-      
-      # Implement the color (and bold) to the item and add newline
-      win.attron(file_marker) { win << str + link + dir + "\n" }
-      # Clear to bottom of window
-      (win.maxy - win.cury).times {win.deleteln()}
+      if !left and index == win.maxy - 1 # Add indicator of more at bottom @w_r list 
+        win << "..."
+        return
+      end
+      win.attron(file_marker) { win << str + link + dir } # Implement color/bold to the item
+      win.clrtoeol
+      win << "\n"
     end
   end
+  (win.maxy - win.cury).times {win.deleteln()} # Clear to bottom of window
   if left
     init_pair(242, 242, 0)
     if @index > @w_l.maxy - 4
