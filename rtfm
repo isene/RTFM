@@ -61,16 +61,15 @@ COPYRIGHT: Geir Isene, 2020. No rights reserved. See http://isene.com for more.
 HELPTEXT
 
 # BASIC SETUP
-Warning[:deprecated] = false        # Remove code warnings
-STDIN.set_encoding(Encoding::UTF_8) # Set encoding for STDIN 
-
 require 'fileutils'
 require 'curses'
 include  Curses
 
 @w3mimgdisplay = "/usr/lib/w3m/w3mimgdisplay"
 
-## Set default colors 
+STDIN.set_encoding(Encoding::UTF_8) # Set encoding for STDIN 
+
+## Set default colors (#, fg, bg) 
 init_pair(7, 7, 0)           # Default
 init_pair(232, 232, 249)     # Top Window
 init_pair(250, 250, 0)       # Bottom Window
@@ -210,7 +209,7 @@ def main_getkey # GET KEY FROM USER
     @index = @max_index
     @w_r.update = true
   when 'TAB' # Start paging
-    if @w_r.pager == 1 and @w_r.update == true
+    if @w_r.pager == 1 and @w_r.pager_cmd != ""
       @w_r.text = `#{@w_r.pager_cmd}` 
     end
     if @w_r.pager_more
@@ -348,7 +347,7 @@ def main_getkey # GET KEY FROM USER
     @write_conf = false
     exit 0
   end
-  unless chr == 'L' or chr =~ /TAB/
+  if @w_r.update == true
     @w_r.locate     = false
     @w_r.pager      = 0
     @w_r.pager_more = false
@@ -356,7 +355,7 @@ def main_getkey # GET KEY FROM USER
   @w_r.update = true if dir != Dir.pwd
 end
 # TOP WINDOW FUNCTIONS 
-def w_t_info() # SHOW INFO IN @W_T
+def w_t_info() # SHOW INFO IN @w_t
   @w_t.setpos(0,0)
   toptext  = " Path: " + Dir.pwd + "/" + @selected
   toptext += " → #{File.readlink(@selected)}" if File.symlink?(@selected) 
@@ -585,11 +584,6 @@ def w_r_info(info) # SHOW INFO IN THE RIGHT WINDOW
   pager_start
   pager_show
   @w_r.update = false
-  #@w_r.clr
-  #image_show("clear") if @image
-  #@image == false
-  #@w_r << info + "\n"
-  #@w_r.refresh
 end
 def marks_info # SHOW MARKS IN RIGHT WINDOW
   info = "Marks:\n"
@@ -602,7 +596,7 @@ def marks_info # SHOW MARKS IN RIGHT WINDOW
   end
   w_r_info(info)
 end
-def tagged_info # SHOW THE LIST OF TAGGED ITEMS IN @W_R
+def tagged_info # SHOW THE LIST OF TAGGED ITEMS IN @w_r
   info = "Tagged:\n"
   @tagged.empty? ? info += "(None)" : info += @tagged.join("\n")
   w_r_info(info)
@@ -832,7 +826,6 @@ def w_b_exec(cmd) # EXECUTE COMMAND FROM @W_B
     unless @w_r.text == "" or @w_r.text == nil
       pager_start
       pager_show
-      @w_r.refresh
       @w_r.update = false
     end
   rescue
@@ -841,8 +834,8 @@ def w_b_exec(cmd) # EXECUTE COMMAND FROM @W_B
 end
 
 # MAIN PROGRAM 
-loop do # OUTER LOOP - CATCHING REFRESHES VIA 'R'
-  @break = false
+loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
+  @break = false # Initialize @break variable (set if user hits 'r')
   @image = false # Set the image flag to false (set if image is displayed in @w_r)
   @tag   = false # Set pattern tagging to nothing (false)
 
@@ -861,7 +854,7 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'R'
     @w_r.pager      = 0
     @w_r.pager_more = false
 
-    loop do # Inner, core loop 
+    loop do # INNER, CORE LOOP 
       system("printf \"\033]0;RTFM: #{Dir.pwd}\007\"") # Set Window title to path 
 
       # Get files in current directory, set selected item 
@@ -874,8 +867,8 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'R'
       @selected_safe = "\"#{@selected}\""
 
       # Safety measure - correct index overflows 
-      @max_index = @files.size - 1
       @min_index = 0
+      @max_index = @files.size - 1
       @index     = @max_index if @index > @max_index
 
       # Top window (info line) 
@@ -920,4 +913,4 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'R'
   end
 end
 
-# vim: set sw=2 sts=2 et fdm=syntax fdn=3 fcs=fold\:\ :
+# vim: set sw=2 sts=2 et fdm=syntax fdn=2 fcs=fold\:\ :
