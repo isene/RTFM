@@ -405,7 +405,14 @@ def list_dir(left) # LIST CONTENT OF A DIRECTORY (BOTH LEFT AND RIGHT WINDOWS)
       init_pair(fg, fg, bg)
       file_marker = color_pair(fg)
       file_marker = file_marker | Curses::A_BOLD if bold == 1
-      file_marker = file_marker | Curses::A_UNDERLINE if index == @index and left
+      if left
+        if index == @index
+          str = "▶" + str
+          file_marker = file_marker | Curses::A_UNDERLINE 
+        else
+          str = " " + str
+        end
+      end
       begin # Add items matching @tag to @tagged
         if str.match(/#{@tag}/) and @tag != false
           @tagged.push("'#{Dir.pwd}/#{str}'")
@@ -834,7 +841,6 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
   @break = false # Initialize @break variable (set if user hits 'r')
   @image = false # Set the image flag to false (set if image is displayed in @w_r)
   @tag   = false # Set pattern tagging to nothing (false)
-
   begin # Create the four windows/panels 
     # Curses::Window.new(h,w,y,x)
     maxx = Curses.cols
@@ -849,10 +855,8 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     @w_b.update     = true
     @w_r.pager      = 0
     @w_r.pager_more = false
-
     loop do # INNER, CORE LOOP 
       system("printf \"\033]0;RTFM: #{Dir.pwd}\007\"") # Set Window title to path 
-
       # Get files in current directory, set selected item 
       ls_cmd         = "ls #{@lsall} --group-directories-first"
       @files         = `#{ls_cmd}`.split("\n")
@@ -861,34 +865,26 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       @selected      = @files[@index]
       @selected      = "" if @selected == nil
       @selected_safe = "\"#{@selected}\""
-
       # Safety measure - correct index overflows 
       @min_index = 0
       @max_index = @files.size - 1
       @index     = @max_index if @index > @max_index
-
       # Top window (info line) 
       w_t_info
-
       # Bottom window (command line) Before @w_r to avoid image dropping out on startup
       w_b_info(nil) if @w_b.update
       @w_b.update = true
-
       # Left and right windows (browser & content viewer)
-      if @w_r.update
-        @w_l.setpos(0,0)
-        list_dir(true)
-        @w_l.refresh
-        w_r_show
-      end
-
+      @w_l.setpos(0,0)
+      list_dir(true)
+      @w_l.refresh
+      w_r_show if @w_r.update
       Curses.curs_set(1) # Clear residual cursor
       Curses.curs_set(0) # ...from editing files 
       @tag = false       # Clear tag pattern
       main_getkey        # Get key from user 
       break if @break    # Break to outer loop, redrawing windows, if user hit 'r'
     end
-  
   ensure # On exit: close curses, clear terminal 
     if @write_conf # Write marks to config file
       if File.exist?(Dir.home+'/.rtfm.conf')
