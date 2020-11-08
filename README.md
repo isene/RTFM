@@ -1,4 +1,4 @@
-# RTFM - [Ruby|Ruddy|Rough] Terminal File Manager
+# RTFM - Ruby Terminal File Manager
 
 ## Why?
 RTFM parses your LS_COLORS to ensure color consistency with the terminal experience.
