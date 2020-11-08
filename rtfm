@@ -571,6 +571,7 @@ def w_r_show # SHOW CONTENTS IN THE RIGHT WINDOW
   rescue
   end
   pager_add_markers # Add page markers, up and/or down
+  @w_r.update = false
   @w_r.refresh
 end
 def w_r_doc # GET FULL CONTENT TO PAGE
