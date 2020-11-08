@@ -449,7 +449,7 @@ def list_dir(left) # LIST CONTENT OF A DIRECTORY (BOTH LEFT AND RIGHT WINDOWS)
       @w_l.setpos(0, @w_l.maxx - 1)
       @w_l.attron(color_pair(242) | Curses::A_DIM) { @w_l << "∆" }
     end
-    if @files.length > @w_l.maxy - 3 and @files.length > @index + 3
+    if @files.length > @w_l.maxy - 1 and @files.length > @index + 3
       @w_l.setpos(@w_l.maxy - 1, @w_l.maxx - 1)
       @w_l.attron(color_pair(242) | Curses::A_DIM) { @w_l << "∇" }
     end
