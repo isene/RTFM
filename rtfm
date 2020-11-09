@@ -871,10 +871,10 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     loop do # INNER, CORE LOOP 
       system("printf \"\033]0;RTFM: #{Dir.pwd}\007\"") # Set Window title to path 
       # Get files in current directory, set selected item 
-      ls_cmd         = "ls #{@lsall} --group-directories-first"
-      @files         = `#{ls_cmd}`.split("\n")
-      ls_cmd        += %q[ -lh | awk '{printf "%s%4s%7s", $1,$2,$5"\n"}']
-      @fspes         = `#{ls_cmd}`.split("\n").drop(1)
+      ls_cmd  = "ls #{@lsall} --group-directories-first"
+      @files  = `#{ls_cmd}`.split("\n")
+      ls_cmd += %q[ -lh | awk '{printf "%s%4s%7s", $1,$2,$5"\n"}']
+      @fspes  = `#{ls_cmd}`.split("\n").drop(1)
       @lsall == lsall_old ?  @selected = @files[@index] : @index = @files.index(@selected)
       @selected      = "" if @selected == nil
       @selected_safe = "\"#{@selected}\""
