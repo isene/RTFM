@@ -1,5 +1,6 @@
 # RTFM - Ruby Terminal File Manager
 
+
 ## Why?
 RTFM parses your LS_COLORS to ensure color consistency with the terminal experience.
 
@@ -9,6 +10,7 @@ ranger theme. But making a separate theme for ranger to mimic a massive
 LS_COLOR setup is rather stupid. File managers should parse LS_COLORS as
 default rather than implement their own themes. This became an itch that
 I kept scratching until I could happily replace ranger two weeks later.
+
 
 ## How?
 RTFM is a two-pane file manager. You navigate in the left pane and the content
@@ -37,9 +39,11 @@ MS doc/xls/ppt              | `catdoc`, `xls2csv` and `catppt` | `apt install ca
 Images                      | `w3m` and `ImageMagick`          | `apt install w3m imagemagick`
 Video (thumbnails)          | `ffmpegthumbnailer`              | `apt install ffmpegthumbnailer`
 
+
 ## Screenshot
 
 ![](img/screenshot.png)
+
 
 ## Keys
 Key    | What happens when pressed
@@ -79,6 +83,7 @@ r      | Refresh RTFM (recreates all windows in case there is garbage somewhere)
 q      | Quit
 Q      | QUIT (without writing changes to the config file)
 
+
 ## A convenient shell function
 Add this line to your `.bashrc` or `.zshrc` to make RTFM exit to the current
 directory by launching the file manager via `r` in the terminal:
@@ -89,6 +94,7 @@ directory by launching the file manager via `r` in the terminal:
 
 With this, you can jump around in your directory structure via RTFM, exit to
 the desired directory, do work in the terminal and go back into RTFM via `r`.
+
 
 ## Configuration file
 When you first exit RTFM, it will write your (book)marks and the set of tagged
@@ -114,6 +120,21 @@ undisturbed by launching and exiting RTFM.
 To exit RTFM without writing any changes to you marks or list of tagged items,
 exit with `Q`. They will then remain the same as when you launched RTFM for
 that session.
+
+
+## Extra info
+The top line shows information about the currently item in the left pane. When
+you are at a file, the information is pretty self explanatory:
+
+`Path: /home/geir/RTFM/README.md (-rw-rw-r-- 6,0K)`
+
+This shows the full path of the selected file as well as the permissions and
+the size of the file. When you are at a directory in the left pane, you get
+two numbers in brackets. The first number is the number of regular dirs/files
+in that directory. The second shows the total number of entries, including the
+hidden directories and files:
+
+`Path: /home/geir/RTFM (drwxrwxr-x 4,0K) [4 8]`
 
 
 ## Screencast
