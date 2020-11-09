@@ -186,9 +186,8 @@ def main_getkey # GET KEY FROM USER
       @files = `#{ls_cmd}`.split("\n")
       begin
         @index = @files.index(File.basename(File.dirname(cur_sel)))
-      rescue
-        @index = 0
       end
+      @index = 0 if @index == nil
     end
     @w_r.update = true
   when 'RIGHT'
@@ -407,7 +406,7 @@ def list_dir(left) # LIST CONTENT OF A DIRECTORY (BOTH LEFT AND RIGHT WINDOWS)
       file_marker = file_marker | Curses::A_BOLD if bold == 1
       if left
         if index == @index
-          str = "▶" + str
+          str = "∘" + str
           file_marker = file_marker | Curses::A_UNDERLINE 
         else
           str = " " + str
