@@ -229,9 +229,11 @@ def main_getkey # GET KEY FROM USER
     end
   when 'a'  # Show all items 
     @lsall == "" ? @lsall = "-a" : @lsall = ""
+    @w_r.update = true
   when 'l'  # Show long info for all items 
     @lslong = !@lslong
-  when 't'  # Add item to tegged list 
+    @w_r.update = true
+  when 't'  # Add item to tagged list 
     item = "'#{Dir.pwd}/#{@selected}'"
     if @tagged.include?(item)
       @tagged.delete(item)
@@ -253,7 +255,8 @@ def main_getkey # GET KEY FROM USER
     @w_r.update = false
   when 'p' # Copy tagged items here 
     copy_move_link("copy")
-    @w_r.update = true
+    tagged_info
+    @w_r.update = false
   when 'P' # Move tagged items here 
     copy_move_link("move")
     @w_r.update = true
@@ -368,6 +371,9 @@ def w_t_info() # SHOW INFO IN @w_t
   begin
     toptext += " (#{@fspes[@index].gsub(/ .* /, ' ')})" 
   rescue
+  end
+  if Dir.exist?(@selected)
+    toptext += " [" + Dir.glob(@selected+"/*").count.to_s + " " + Dir.children(@selected).count.to_s + "]"
   end
   toptext = toptext[1..(@w_t.maxx - 3)] + "…" if toptext.length + 3 > @w_t.maxx 
   toptext += " " * (@w_t.maxx - toptext.length) if toptext.length < @w_t.maxx
@@ -528,11 +534,9 @@ def w_r_show # SHOW CONTENTS IN THE RIGHT WINDOW
       list_dir(false)
     # TEXT 
     elsif File.read(@selected).force_encoding("UTF-8").valid_encoding? and @w_r.pager == 0
-      # View the file as text if it is utf-8
-      begin
-        @w_r.pager_cmd = "batcat -n --color=always #{@selected_safe} 2>/dev/null"
-        @w_r.text      = `batcat -n --color=always --line-range :#{@w_r.maxy} #{@selected_safe} 2>/dev/null`
-        pager_start
+      begin # View the file as text if it is utf-8
+        @w_r.pager_cmd = "batcat -n --color=always --terminal-width #{@w_r.maxx - 7} #{@selected_safe}"
+        @w_r.text      = `batcat -n --color=always --terminal-width #{@w_r.maxx - 7} --line-range :#{@w_r.maxy} #{@selected_safe}`
         syntax_highlight(@w_r.text)
       rescue
         @w_r.pager_cmd  = "cat #{@selected_safe} 2>/dev/null"
@@ -829,7 +833,7 @@ def w_b_exec(cmd) # EXECUTE COMMAND FROM @W_B
   cmd.gsub!(/@t/, @t)
   begin
     begin
-      @w_r.pager_cmd = "#{cmd} | batcat -n --color=always"
+      @w_r.pager_cmd = "#{cmd} | batcat -n --color=always --terminal-width #{@w_r.maxx - 7}"
       @w_r.text = `#{@w_r.pager_cmd}`
     rescue
       @w_r.text = `#{cmd}`
@@ -863,6 +867,7 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     @w_b.update     = true
     @w_r.pager      = 0
     @w_r.pager_more = false
+    lsall_old = @lsall
     loop do # INNER, CORE LOOP 
       system("printf \"\033]0;RTFM: #{Dir.pwd}\007\"") # Set Window title to path 
       # Get files in current directory, set selected item 
@@ -870,7 +875,7 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       @files         = `#{ls_cmd}`.split("\n")
       ls_cmd        += %q[ -lh | awk '{printf "%s%4s%7s", $1,$2,$5"\n"}']
       @fspes         = `#{ls_cmd}`.split("\n").drop(1)
-      @selected      = @files[@index]
+      @lsall == lsall_old ?  @selected = @files[@index] : @index = @files.index(@selected)
       @selected      = "" if @selected == nil
       @selected_safe = "\"#{@selected}\""
       # Safety measure - correct index overflows 
@@ -890,6 +895,7 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       Curses.curs_set(1) # Clear residual cursor
       Curses.curs_set(0) # ...from editing files 
       @tag = false       # Clear tag pattern
+      lsall_old = @lsall
       main_getkey        # Get key from user 
       break if @break    # Break to outer loop, redrawing windows, if user hit 'r'
     end
