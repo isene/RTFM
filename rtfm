@@ -533,8 +533,9 @@ def w_r_show # SHOW CONTENTS IN THE RIGHT WINDOW
     # TEXT 
     elsif File.read(@selected).force_encoding("UTF-8").valid_encoding? and @w_r.pager == 0
       begin # View the file as text if it is utf-8
-        @w_r.pager_cmd = "batcat -n --color=always --terminal-width #{@w_r.maxx - 7} #{@selected_safe}"
-        @w_r.text      = `batcat -n --color=always --terminal-width #{@w_r.maxx - 7} --line-range :#{@w_r.maxy} #{@selected_safe}`
+        @w_r.pager_cmd = "batcat -n --color=always #{@selected_safe} 2>/dev/null"
+        @w_r.text      = `batcat -n --color=always --line-range :#{@w_r.maxy} #{@selected_safe} 2>/dev/null`
+        pager_start
         syntax_highlight(@w_r.text)
       rescue
         @w_r.pager_cmd  = "cat #{@selected_safe} 2>/dev/null"
@@ -859,12 +860,12 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     @w_b = Curses::Window.new(2, 0, maxy - 2, 0)
     @w_l = Curses::Window.new(maxy - 4, maxx / 3 - 1, 2, 1)
     @w_r = Curses::Window.new(maxy - 4, maxx - maxx / 3 - 1, 2, maxx / 3 + 1)
-    @w_r.pager_more = false
+    @w_t.update = true
+    @w_b.update = true
+    @w_l.update = true
     @w_r.pager  = 0
     @w_r.update = true
-    @w_t.update = true
-    @w_l.update = true
-    @w_b.update = true
+    @w_r.pager_more = false
     dir_old     = Dir.pwd
     lsall_old   = @lsall
     loop do # INNER, CORE LOOP 
@@ -898,6 +899,7 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       # Left and right windows (browser & content viewer)
       @w_l.setpos(0,0)
       list_dir(true)
+      #(@w_l.maxy - @w_l.cury).times {@w_l.deleteln()}
       @w_l.refresh
       w_r_show if @w_r.update
       Curses.curs_set(1) # Clear residual cursor
