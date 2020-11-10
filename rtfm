@@ -343,6 +343,14 @@ def main_getkey # GET KEY FROM USER
     @w_r.nohistory = false
     cmd = w_b_getstr(": ", "")
     w_b_exec(cmd)
+  when '@' # Enter "Ruby debug"
+    @w_r.nohistory = true
+    cmd = w_b_getstr("◆ ", "")
+    @w_r.clr
+    @w_r << "Command: #{cmd}\n\n"
+    @w_r.refresh
+    eval(cmd)
+    @w_r.update = false
   when 'ENTER'
     @w_r.update = true
   when 'r' # Refresh all windows 
