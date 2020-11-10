@@ -33,6 +33,7 @@ KEYS
  S-TAB  = Previous page (if you have moved down the document first - ∆ in the top right)
  a      = Show all (also hidden) items
  l      = Show long info per item (show item attributes)
+ G      = Show git status for current directory
  t      = Tag item (toggles)
  Ctrl-t = Add items matching pattern to list of tagged items
  T      = Show currently tagged items in right pane
@@ -218,13 +219,20 @@ def main_getkey # GET KEY FROM USER
       @w_r.pager -= 1
       pager_show
     end
-  when 'a'  # Show all items 
+  when 'a' # Show all items 
     @lsall == "" ? @lsall = "-a" : @lsall = ""
     @w_r.update = true
-  when 'l'  # Show long info for all items 
+  when 'l' # Show long info for all items 
     @lslong = !@lslong
     @w_r.update = true
-  when 't'  # Add item to tagged list 
+  when 'G' # Git status for selected item or current dir
+    if File.exist?(".git")
+      w_r_info(`git status 2>/dev/null`)
+    else
+      w_r_info("This is not a git repository.")
+    end
+    @w_r.update = false
+  when 't' # Add item to tagged list 
     item = "'#{Dir.pwd}/#{@selected}'"
     if @tagged.include?(item)
       @tagged.delete(item)

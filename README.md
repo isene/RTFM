@@ -61,6 +61,7 @@ TAB    | Next page of the preview (if doc long and ∇ in the bottom right)
 S-TAB  | Previous page (if you have moved down the document first - ∆ in the top right)
 a      | Show all (also hidden) items
 l      | Show long info per item (show item attributes)
+G      | Show git status for current directory
 t      | Tag item (toggles)
 Ctrl-t | Add items matching pattern to list of tagged items
 T      | Show currently tagged items in right pane
