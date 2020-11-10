@@ -87,7 +87,8 @@ begin # BASIC SETUP
   @lsall     = ""    # Set "ls -a" to false (toggled by pressing "a" - sets it to "-a")
   @marks     = {}    # Initialize (book)marks hash
   @tagged    = []    # Initialize the tagged array - for collecting all tagged items
-  @directory = {}    # Initialize the directory hash for remembering index for every directory visited
+  @directory = {}    # Initialize the directory hash for remembering directories visited
+  @dirchange = false # Flag indicating a move to a new directory
   @searched  = ""    # Initialize the active searched for items
   @history   = []    # Initialize the command line history array
   @index     = 0     # Set chosen item to first on startup
@@ -174,26 +175,16 @@ def main_getkey # GET KEY FROM USER
     @w_r.update = true
   when 'LEFT'
     var_resets
-    cur_sel = Dir.pwd + "/" + @selected
+    cur_dir = Dir.pwd
     # Store index of this directory before leaving
-    @directory[Dir.pwd] = @index
+    @directory[Dir.pwd] = @selected
     Dir.chdir("..")
-    # Set index to stored value if directory has been visited
-    if @directory.key?(Dir.pwd)
-      @index = @directory[Dir.pwd]
-    else
-      ls_cmd = "ls #{@lsall} --group-directories-first"
-      @files = `#{ls_cmd} 2>/dev/null`.split("\n")
-      begin
-        @index = @files.index(File.basename(File.dirname(cur_sel)))
-      end
-      @index = 0 if @index == nil
-    end
+    @directory[Dir.pwd] = File.basename(cur_dir) unless @directory.key?(Dir.pwd)
     @w_r.update = true
   when 'RIGHT'
     var_resets
     # Store index of this directory before leaving
-    @directory[Dir.pwd] = @index
+    @directory[Dir.pwd] = @selected
     open_selected()
     @w_r.update = true
   when 'PgUP'
@@ -301,9 +292,8 @@ def main_getkey # GET KEY FROM USER
   when 'h' # 
     var_resets
     # Store index of this directory before leaving
-    @directory[Dir.pwd] = @index
+    @directory[Dir.pwd] = @selected
     Dir.chdir
-    @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
     @w_r.update = true
   when "'" # Jump to mark 
     marks_info
@@ -311,9 +301,8 @@ def main_getkey # GET KEY FROM USER
     if m.match(/[\w']/) and @marks[m]
       var_resets
       # Store index of this directory before leaving
-      @directory[Dir.pwd] = @index
+      @directory[Dir.pwd] = @selected
       Dir.chdir(@marks[m]) 
-      @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
     end
     @w_r.update = true
   when '/' # Get search string to mark items that match # 
@@ -334,9 +323,8 @@ def main_getkey # GET KEY FROM USER
         jumpdir = File.dirname(jumpdir)
       end
       # Store index of this directory before leaving
-      @directory[Dir.pwd] = @index
+      @directory[Dir.pwd] = @selected
       Dir.chdir(jumpdir)
-      @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
       @w_r.pager = 0
     end
   when ':' # Enter "command mode" in the bottom window - tries to execute the given command 
@@ -485,8 +473,6 @@ def open_selected() # OPEN SELECTED ITEM (WHEN PRESSING RIGHT)
   if File.directory?(@selected) # Rescue for permission error
     begin
       Dir.chdir(@selected)
-      # Set index to stored value if directory has been visited
-      @directory.key?(Dir.pwd) ? @index = @directory[Dir.pwd] : @index = 0
     rescue
     end
   else
@@ -879,7 +865,8 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     @w_b.update     = true
     @w_r.pager      = 0
     @w_r.pager_more = false
-    lsall_old = @lsall
+    dir_old         = Dir.pwd
+    lsall_old       = @lsall
     loop do # INNER, CORE LOOP 
       system("printf \"\033]0;RTFM: #{Dir.pwd}\007\"") # Set Window title to path 
       # Get files in current directory, set selected item 
@@ -887,13 +874,17 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       @files         = `#{ls_cmd} 2>/dev/null`.split("\n")
       ls_cmd        += %q[ -lh | awk '{printf "%s%4s%7s", $1,$2,$5"\n"}']
       @fspes         = `#{ls_cmd} 2>/dev/null`.split("\n").drop(1)
-      if @lsall == lsall_old
-        @selected = @files[@index]
-      else
-        @index = @files.index(@selected)
+      @index = @files.index(@selected) if @lsall != lsall_old
+      if Dir.pwd != dir_old
+        if @directory.key?(Dir.pwd)
+          @selected  = @directory[Dir.pwd]
+          @index     = @files.index(@selected)
+        else
+          @index = 0
+        end
       end
-      @index         =  0 if @index    == nil
-      @selected      = "" if @selected == nil
+      dir_old = Dir.pwd
+      @selected = @files[@index]
       @selected_safe = "\"#{@selected}\""
       # Safety measure - correct index overflows 
       @min_index = 0
