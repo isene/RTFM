@@ -365,13 +365,16 @@ end
 # TOP WINDOW FUNCTIONS 
 def w_t_info() # SHOW INFO IN @w_t
   @w_t.setpos(0,0)
-  toptext  = " Path: " + Dir.pwd + "/" + @selected
-  toptext += " → #{File.readlink(@selected)}" if File.symlink?(@selected) 
+  toptext  = " Path: " + Dir.pwd + "/"
+  unless @selected == nil
+    toptext += @selected
+    toptext += " → #{File.readlink(@selected)}" if File.symlink?(@selected) 
+  end
   begin
     toptext += " (#{@fspes[@index].gsub(/ .* /, ' ')})" 
   rescue
   end
-  if Dir.exist?(@selected)
+  if Dir.exist?(@selected.to_s)
     begin
       toptext += " [" + Dir.glob(@selected+"/*").count.to_s + " " + Dir.children(@selected).count.to_s + "]"
     rescue
@@ -870,6 +873,10 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     @w_r.pager_more = false
     dir_old     = Dir.pwd
     lsall_old   = @lsall
+    unless @tagged.empty?
+      tagged_info
+      @w_r.update = false
+    end
     loop do # INNER, CORE LOOP 
       system("printf \"\033]0;RTFM: #{Dir.pwd}\007\"") # Set Window title to path 
       # Get files in current directory, set selected item 
