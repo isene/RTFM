@@ -3,7 +3,7 @@
 
 # SCRIPT INFO 
 # Name:       RTFM - Ruby Terminal File Manager
-# Language:   Pure Ruby
+# Language:   Pure Ruby, best viewed in VIM
 # Author:     Geir Isene <g@isene.com>
 # Web_site:   http://isene.com/
 # Github:     https://github.com/isene/RTFM
@@ -16,6 +16,7 @@
 #             obligation to maintain or extend this software. It is provided 
 #             on an 'as is' basis without any expressed or implied warranty.
 
+# PRELIMINARIES
 @help = <<HELPTEXT
 RTFM - [Ruby|Ruddy|Rough] Terminal File Manager (https://github.com/isene/RTFM)
 
@@ -900,7 +901,6 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       # Left and right windows (browser & content viewer)
       @w_l.setpos(0,0)
       list_dir(true)
-      #(@w_l.maxy - @w_l.cury).times {@w_l.deleteln()}
       @w_l.refresh
       w_r_show if @w_r.update
       Curses.curs_set(1) # Clear residual cursor
