@@ -395,6 +395,13 @@ def list_dir(left) # LIST CONTENT OF A DIRECTORY (BOTH LEFT AND RIGHT WINDOWS)
   @files.each.with_index(0) do |str, index|
     left ? str_path = str : str_path = "#{@selected}/#{str}" 
     if index > ix - win.maxy + 3 # Ensure only the items fitting on the screen will be drawn
+      begin # Add items matching @tag to @tagged
+        if str.match(/#{@tag}/) and @tag != false
+          @tagged.push("'#{Dir.pwd}/#{str}'")
+          @tagged.uniq!
+        end
+      rescue
+      end
       # Determine the filetype of the item 
       ftype = ""
       ftype = str.match(/\.([^.]*$)/)[1] if str.match?(/\.([^.]*$)/)
@@ -425,13 +432,6 @@ def list_dir(left) # LIST CONTENT OF A DIRECTORY (BOTH LEFT AND RIGHT WINDOWS)
         else
           str = " " + str
         end
-      end
-      begin # Add items matching @tag to @tagged
-        if str.match(/#{@tag}/) and @tag != false
-          @tagged.push("'#{Dir.pwd}/#{str}'")
-          @tagged.uniq!
-        end
-      rescue
       end
       file_marker = file_marker | Curses::A_REVERSE if @tagged.include?("'#{Dir.pwd}/#{str_path}'")
       file_marker = file_marker | Curses::A_BLINK if str.match(/#{@searched}/) and @searched != ""
@@ -894,12 +894,13 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
         end
       end
       dir_old = Dir.pwd
-      @selected = @files[@index]
-      @selected_safe = "\"#{@selected}\""
       # Safety measure - correct index overflows 
       @min_index = 0
+      @index     = @min_index if @index < @min_index
       @max_index = @files.size - 1
       @index     = @max_index if @index > @max_index
+      @selected = @files[@index]          # Get text of selected item
+      @selected_safe = "\"#{@selected}\"" # Make it safe for commands
       # Top window (info line) 
       w_t_info
       # Bottom window (command line) Before @w_r to avoid image dropping out on startup
