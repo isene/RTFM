@@ -80,7 +80,7 @@ h      | Jump to Home directory
 ;      | Show command history in right pane
 L      | Start 'locate' search for files, then use '#' to jump to desired line/directory
 ENTER  | Refresh the right pane
-r      | Refresh RTFM (recreates all windows in case there is garbage somewhere)
+r      | Refresh RTFM (recreates all windows. Use when resizing windows or in case there is garbage somewhere)
 q      | Quit
 Q      | QUIT (without writing changes to the config file)
 

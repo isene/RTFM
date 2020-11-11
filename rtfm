@@ -54,7 +54,7 @@ KEYS
  ;      = Show command history in right pane
  L      = Start 'locate' search for files, then use '#' to jump to desired line/directory
  ENTER  = Refresh the right pane
- r      = Refresh RTFM (recreates all windows in case there is garbage somewhere)
+ r      = Refresh RTFM (recreates all windows. Use when resizing windows or in case there is garbage somewhere)
  q      = Quit
  Q      = QUIT (without writing changes to the config file)
 
@@ -335,12 +335,16 @@ def main_getkey # GET KEY FROM USER
     cmd = w_b_getstr(": ", "")
     w_b_exec(cmd)
   when '@' # Enter "Ruby debug"
-    @w_r.nohistory = true
+    @w_b.nohistory = true
     cmd = w_b_getstr("◆ ", "")
     @w_r.clr
     @w_r << "Command: #{cmd}\n\n"
     @w_r.refresh
-    eval(cmd)
+    begin
+      eval(cmd)
+    rescue StandardError => e
+      w_r_info("Error: #{e.inspect}")
+    end
     @w_r.update = false
   when 'ENTER'
     @w_r.update = true
@@ -861,6 +865,8 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     # Curses::Window.new(h,w,y,x)
     maxx = Curses.cols
     maxy = Curses.lines
+    @w_n = Curses::Window.new(maxy, maxx, 0, 0)
+    @w_n.clear; @w_n.refresh
     @w_t = Curses::Window.new(1, 0, 0, 0)
     @w_b = Curses::Window.new(2, 0, maxy - 2, 0)
     @w_l = Curses::Window.new(maxy - 4, maxx / 3 - 1, 2, 1)
@@ -868,8 +874,8 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     @w_t.update = true
     @w_b.update = true
     @w_l.update = true
-    @w_r.pager  = 0
     @w_r.update = true
+    @w_r.pager  = 0
     @w_r.pager_more = false
     dir_old     = Dir.pwd
     lsall_old   = @lsall
@@ -917,6 +923,7 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       lsall_old = @lsall
       main_getkey        # Get key from user 
       break if @break    # Break to outer loop, redrawing windows, if user hit 'r'
+      break if Curses.cols != maxx or Curses.lines != maxy # break on terminal resize 
     end
   ensure # On exit: close curses, clear terminal 
     if @write_conf # Write marks to config file
