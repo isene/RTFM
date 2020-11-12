@@ -913,17 +913,18 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       # Safety measure - correct index overflows 
       @min_index = 0
       @max_index = @files.size - 1
-      if @lsall != lsall_old
-        if @index > @max_index
+      if @lsall != lsall_old   # Change in showing all items must be handled
+        if @index > @max_index # If at the bottom of the list
           @index  = @max_index
-        elsif @files.index(@selected) == nil
+        elsif @files.index(@selected) == nil # If item no longer shown
           @index = 0
         else
-          @index = @files.index(@selected)
+          @index = @files.index(@selected) # Set index to the selected item
         end
       end
-      @selected      = @files[@index]       # Get text of selected item
-      @selected_safe = "\"#{@selected}\""   # Make it safe for commands
+      @index  = @max_index if @index > @max_index # If deleted many items
+      @selected      = @files[@index]             # Get text of selected item
+      @selected_safe = "\"#{@selected}\""         # Make it safe for commands
       # Top window (info line) 
       w_t_info
       # Bottom window (command line) Before @w_r to avoid image dropping out on startup
