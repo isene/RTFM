@@ -155,6 +155,7 @@ def getchr # PROCESS KEY PRESSES
     end
   when "", "" then chr = "BACK"
   when "" then chr = "WBACK"
+  when "" then chr = "LDEL"
   when "" then chr = "C-T"
   when "\r" then chr = "ENTER"
   when "\t" then chr = "TAB"
@@ -783,6 +784,9 @@ def w_b_getstr(pretext, text) # A SIMPLE READLINE-LIKE ROUTINE
           @history[stk][pos] = ""
         end
       end
+    when 'LDEL'
+      @history[stk] = ""
+      pos = 0
     when 'TAB' # Tab completion of dirs and files
       p1 = pos - 1
       c  = @history[stk][0..(p1)].sub(/^.* /, '')
