@@ -430,7 +430,7 @@ def list_dir(left) # LIST CONTENT OF A DIRECTORY (BOTH LEFT AND RIGHT WINDOWS)
       file_marker = file_marker | Curses::A_BOLD if bold == 1
       if left
         if index == @index
-          str = "∘" + str
+          str = "∶" + str
           file_marker = file_marker | Curses::A_UNDERLINE 
           wixy = win.cury
         else
