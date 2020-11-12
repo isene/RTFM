@@ -496,7 +496,7 @@ def open_selected() # OPEN SELECTED ITEM (when pressing RIGHT)
             system("xdg-open #{@selected_safe}")
           end
         end
-      Curses.refresh
+      @break = true
     rescue
     end
   end
@@ -871,8 +871,8 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     #@w_n.clear; @w_n.refresh
     @w_t = Curses::Window.new(1, 0, 0, 0)
     @w_b = Curses::Window.new(2, 0, maxy - 2, 0)
-    @w_l = Curses::Window.new(maxy - 4, maxx / 3 - 1, 2, 1)
-    @w_r = Curses::Window.new(maxy - 4, maxx - maxx / 3 - 1, 2, maxx / 3 + 1)
+    @w_l = Curses::Window.new(maxy - 4, maxx / 3 - 1, 2, 0)
+    @w_r = Curses::Window.new(maxy - 4, maxx - maxx / 3 - 1, 2, maxx / 3)
     @w_t.update = true
     @w_b.update = true
     @w_l.update = true
@@ -903,12 +903,12 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       end
       dir_old = Dir.pwd
       # Safety measure - correct index overflows 
-      @min_index = 0
-      @index     = @min_index if @index < @min_index
-      @max_index = @files.size - 1
-      @index     = @max_index if @index > @max_index
-      @selected = @files[@index]          # Get text of selected item
-      @selected_safe = "\"#{@selected}\"" # Make it safe for commands
+      @min_index     = 0
+      @index         = @min_index if @index < @min_index
+      @max_index     = @files.size - 1
+      @index         = @max_index if @index > @max_index
+      @selected      = @files[@index]       # Get text of selected item
+      @selected_safe = "\"#{@selected}\""   # Make it safe for commands
       # Top window (info line) 
       w_t_info
       # Bottom window (command line) Before @w_r to avoid image dropping out on startup
