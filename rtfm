@@ -54,6 +54,7 @@ KEYS
  ;      = Show command history in right pane
  L      = Start 'locate' search for files, then use '#' to jump to desired line/directory
  ENTER  = Refresh the right pane
+ w      = Change the width of the left/right panes (left pane ⇒ ⅓ ⇒ ¼ ⇒ ⅕ ⇒ ⅙ ⇒ ½ ⇒ ⅓)
  r      = Refresh RTFM (recreates all windows. Use when resizing windows or in case there is garbage somewhere)
  q      = Quit
  Q      = QUIT (without writing changes to the config file)
@@ -93,6 +94,7 @@ begin # BASIC SETUP
   @searched  = ""    # Initialize the active searched for items
   @history   = []    # Initialize the command line history array
   @index     = 0     # Set chosen item to first on startup
+  @width     = 3     # Set width of the left pane to the default ⅓ of the terminal width
 
   # Get variables from config file (written back to .rtf.conf upon exit via 'q')
   if File.exist?(Dir.home+'/.rtfm.conf')
@@ -346,8 +348,12 @@ def main_getkey # GET KEY FROM USER
       w_r_info("Error: #{e.inspect}")
     end
     @w_r.update = false
-  when 'ENTER'
+  when 'ENTER' # Refresh right pane
     @w_r.update = true
+  when 'w' # Change width of left/right panes
+    @width += 1
+    @width  = 2 if @width == 7
+    @break = true
   when 'r' # Refresh all windows 
     @break = true
   when 'q' # Exit 
@@ -585,7 +591,7 @@ def w_r_show # SHOW CONTENTS IN THE RIGHT WINDOW
     elsif @selected.match(/\.mpg$|\.mpeg$|\.avi$|\.mov$|\.mkv$|\.mp4$/)
       begin
         tmpfile = "/tmp/" + File.basename(@selected_safe,".*")
-        `ffmpegthumbnailer -s 1000 -i #{@selected_safe} -o /tmp/rtfm_video_tn.jpg`
+        `ffmpegthumbnailer -s 1200 -i #{@selected_safe} -o /tmp/rtfm_video_tn.jpg`
         image_show("/tmp/rtfm_video_tn.jpg")
         @image = true
       rescue
@@ -646,13 +652,13 @@ def image_show(image)# SHOW THE SELECTED IMAGE IN THE RIGHT WINDOW
     term_h      = terminfo.match(/Height: (\d+)/)[1].to_i
     char_w      = term_w / Curses.cols
     char_h      = term_h / Curses.lines
-    img_x       = char_w * (Curses.cols / 3 + 1)
+    img_x       = char_w * (Curses.cols/@width + 1)
     img_y       = char_h * 2
-    img_max_w   = char_w * (2 * Curses.cols / 3 - 2)
-    img_max_h   = char_h * (Curses.lines - 5)
+    img_max_w   = char_w * (Curses.cols - Curses.cols/@width - 2)
+    img_max_h   = char_h * (Curses.lines - 4)
     if image == "clear"
-      img_max_w += 5
-      img_max_h += 5
+      img_max_w += 2
+      img_max_h += 2
       `echo "6;#{img_x};#{img_y};#{img_max_w};#{img_max_h};\n4;\n3;" | #{@w3mimgdisplay}`
     else
       img_w,img_h = `identify -format "%[fx:w]x%[fx:h]" #{image} 2>/dev/null`.split('x')
@@ -861,18 +867,16 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
   @break = false # Initialize @break variable (set if user hits 'r')
   @image = false # Set the image flag to false (set if image is displayed in @w_r)
   @tag   = false # Set pattern tagging to nothing (false)
-  Curses.stdscr.clear
-  Curses.stdscr.refresh
   begin # Create the four windows/panels 
-    # Curses::Window.new(h,w,y,x)
+    Curses.stdscr.clear
+    Curses.stdscr.refresh
     maxx = Curses.cols
     maxy = Curses.lines
-    #@w_n = Curses::Window.new(maxy, maxx, 0, 0)
-    #@w_n.clear; @w_n.refresh
+    # Curses::Window.new(h,w,y,x)
     @w_t = Curses::Window.new(1, 0, 0, 0)
     @w_b = Curses::Window.new(2, 0, maxy - 2, 0)
-    @w_l = Curses::Window.new(maxy - 4, maxx / 3 - 1, 2, 0)
-    @w_r = Curses::Window.new(maxy - 4, maxx - maxx / 3 - 1, 2, maxx / 3)
+    @w_l = Curses::Window.new(maxy - 4, (maxx/@width) - 1, 2, 0)
+    @w_r = Curses::Window.new(maxy - 4, maxx - (maxx/@width), 2, maxx/@width)
     @w_t.update = true
     @w_b.update = true
     @w_l.update = true

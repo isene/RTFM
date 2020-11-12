@@ -80,6 +80,7 @@ h      | Jump to Home directory
 ;      | Show command history in right pane
 L      | Start 'locate' search for files, then use '#' to jump to desired line/directory
 ENTER  | Refresh the right pane
+w      | Change the width of the left/right panes (left pane ⇒ ⅓ ⇒ ¼ ⇒ ⅕ ⇒ ⅙ ⇒ ½ ⇒ ⅓)
 r      | Refresh RTFM (recreates all windows. Use when resizing windows or in case there is garbage somewhere)
 q      | Quit
 Q      | QUIT (without writing changes to the config file)
@@ -110,6 +111,9 @@ of `.rtfm.conf` you can set the following:
 To have long info per item: `@lslong = true` (this is otherwise set to `false`)
 
 To show hidden files: `@lsall = "-a"` (this is otherwise set to `""`)
+
+To change the default width of the left pane to something other than ⅓rd of
+the terminal width: `@width = 5` (would set the left pane width to ⅕th).
 
 To have some commands already prepared for the command history, you can set:
 ```
