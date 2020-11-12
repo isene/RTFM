@@ -156,3 +156,8 @@ I don't expect this program to be used by others. I do this for my own
 enjoyment and because I want a file manager that fits my needs better than any
 others I have found. If you come up with a feature request I feel is cool, I
 may include it. Bug reports are always welcome.
+
+A note to developers: You can hit the "@" key to enter the Ruby debug mode
+where anything you enter in the bottom command window will be sent to the Ruby
+evel() function and output to the right pane. You can for instance issue
+`puts @searched` to se the currently active search pattern. 

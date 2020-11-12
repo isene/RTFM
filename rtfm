@@ -294,7 +294,7 @@ def main_getkey # GET KEY FROM USER
     marks_info
     @w_r.update = false
   when 'M' # Show marks 
-    @marks = @marks.sort
+    @marks = @marks.sort.to_h
     marks_info
     @w_r.update = false
   when ';' # Show command history 
