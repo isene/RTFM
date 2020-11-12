@@ -892,7 +892,6 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       @files  = `#{ls_cmd} 2>/dev/null`.split("\n")
       ls_cmd += %q[ -lh | awk '{printf "%s%4s%7s", $1,$2,$5"\n"}']
       @fspes  = `#{ls_cmd} 2>/dev/null`.split("\n").drop(1)
-      @index  = @files.index(@selected) if @lsall != lsall_old
       if Dir.pwd != dir_old
         if @directory.key?(Dir.pwd)
           @selected = @directory[Dir.pwd]
@@ -903,10 +902,17 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       end
       dir_old = Dir.pwd
       # Safety measure - correct index overflows 
-      @min_index     = 0
-      @index         = @min_index if @index < @min_index
-      @max_index     = @files.size - 1
-      @index         = @max_index if @index > @max_index
+      @min_index = 0
+      @max_index = @files.size - 1
+      if @lsall != lsall_old
+        if @index > @max_index
+          @index  = @max_index
+        elsif @files.index(@selected) == nil
+          @index = 0
+        else
+          @index = @files.index(@selected)
+        end
+      end
       @selected      = @files[@index]       # Get text of selected item
       @selected_safe = "\"#{@selected}\""   # Make it safe for commands
       # Top window (info line) 
