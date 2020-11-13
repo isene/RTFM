@@ -234,7 +234,7 @@ def main_getkey # GET KEY FROM USER
     end
     @w_r.update = false
   when 't' # Add item to tagged list 
-    item = "'#{Dir.pwd}/#{@selected}'"
+    item = "\"#{Dir.pwd}/#{@selected}\""
     if @tagged.include?(item)
       @tagged.delete(item)
     else
@@ -267,7 +267,7 @@ def main_getkey # GET KEY FROM USER
     tagged_info
     w_b_info(" Delete selected and tagged? (press 'd' again to delete)")
     begin
-      @tagged.push("'#{Dir.pwd}/#{@selected}'")
+      @tagged.push("\"#{Dir.pwd}/#{@selected}\"")
       @tagged.uniq!
       deletes = @tagged.join(" ")
       `rm -rf #{deletes}` if STDIN.getc == 'd'
@@ -445,7 +445,7 @@ def list_dir(left) # LIST CONTENT OF A DIRECTORY (BOTH LEFT AND RIGHT WINDOWS)
           str = " " + str
         end
       end
-      file_marker = file_marker | Curses::A_REVERSE if @tagged.include?("'#{Dir.pwd}/#{str_path}'")
+      file_marker = file_marker | Curses::A_REVERSE if @tagged.include?("\"#{Dir.pwd}/#{str_path}\"")
       file_marker = file_marker | Curses::A_BLINK if str.match(/#{@searched}/) and @searched != ""
       File.directory?(str_path) ? dir = "/" : dir = ""
       File.symlink?(str_path) ? link = "@" : link = ""
