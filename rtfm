@@ -53,8 +53,9 @@ KEYS
  :      = Enter "command mode" in bottom window
  ;      = Show command history in right pane
  L      = Start 'locate' search for files, then use '#' to jump to desired line/directory
- ENTER  = Refresh the right pane
  w      = Change the width of the left/right panes (left pane ⇒ ⅓ ⇒ ¼ ⇒ ⅕ ⇒ ⅙ ⇒ ½ ⇒ ⅓)
+ ENTER  = Refresh the right pane
+ -      = Toggle preview in right pane (turn it off for faster traversing of directories)
  r      = Refresh RTFM (recreates all windows. Use when resizing windows or in case there is garbage somewhere)
  q      = Quit
  Q      = QUIT (without writing changes to the config file)
@@ -86,15 +87,19 @@ begin # BASIC SETUP
   Curses.stdscr.keypad = true
 
   # INITIALIZE VARIABLES 
+  # These can be set by user in .rtfm.conf
   @lslong    = false # Set short form ls (toggled by pressing "l")
   @lsall     = ""    # Set "ls -a" to false (toggled by pressing "a" - sets it to "-a")
+  @width     = 3     # Set width of the left pane to the default ⅓ of the terminal width
+  @history   = []    # Initialize the command line history array
+  @preview   = true
+  # These are automatically written on exit
   @marks     = {}    # Initialize (book)marks hash
   @tagged    = []    # Initialize the tagged array - for collecting all tagged items
+  # These should not be set by user in .rtfm.conf
   @directory = {}    # Initialize the directory hash for remembering directories visited
   @searched  = ""    # Initialize the active searched for items
-  @history   = []    # Initialize the command line history array
   @index     = 0     # Set chosen item to first on startup
-  @width     = 3     # Set width of the left pane to the default ⅓ of the terminal width
 
   # Get variables from config file (written back to .rtf.conf upon exit via 'q')
   if File.exist?(Dir.home+'/.rtfm.conf')
@@ -350,11 +355,14 @@ def main_getkey # GET KEY FROM USER
       w_r_info("Error: #{e.inspect}")
     end
     @w_r.update = false
-  when 'ENTER' # Refresh right pane
-    @w_r.update = true
   when 'w' # Change width of left/right panes
     @width += 1
     @width  = 2 if @width == 7
+    @break = true
+  when 'ENTER' # Refresh right pane
+    @w_r.update = true
+  when '-'
+    @preview = !@preview
     @break = true
   when 'r' # Refresh all windows 
     @break = true
@@ -934,7 +942,7 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       @w_l.setpos(0,0)
       list_dir(true)
       @w_l.refresh
-      w_r_show if @w_r.update
+      w_r_show if @w_r.update and @preview
       Curses.curs_set(1) # Clear residual cursor
       Curses.curs_set(0) # ...from editing files 
       @tag = false       # Clear tag pattern
