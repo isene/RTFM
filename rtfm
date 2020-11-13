@@ -903,9 +903,8 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       @w_r.update = false
     end
     loop do # INNER, CORE LOOP 
-      system("printf \"\033]0;RTFM: #{Dir.pwd}\007\"") # Set Window title to path 
-      # Get files in current directory, set selected item 
-      ls_cmd  = "ls #{@lsall} --group-directories-first"
+      system("printf \"\033]0;RTFM: #{Dir.pwd}\007\"")   # Set Window title to path 
+      ls_cmd  = "ls #{@lsall} --group-directories-first" # Get files in current directory 
       @files  = `#{ls_cmd} 2>/dev/null`.split("\n")
       ls_cmd += %q[ -lh | awk '{printf "%s%4s%7s", $1,$2,$5"\n"}']
       @fspes  = `#{ls_cmd} 2>/dev/null`.split("\n").drop(1)
@@ -918,21 +917,13 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
         end
       end
       dir_old = Dir.pwd
-      # Safety measure - correct index overflows 
+      @index     = @files.index(@selected) if @lsall != lsall_old # Change in showing all items must be handled
+      @index     = 0 if @files.index(@selected) == nil            # If item no longer exits or shown
       @min_index = 0
       @max_index = @files.size - 1
-      if @lsall != lsall_old   # Change in showing all items must be handled
-        if @index > @max_index # If at the bottom of the list
-          @index  = @max_index
-        elsif @files.index(@selected) == nil # If item no longer shown
-          @index = 0
-        else
-          @index = @files.index(@selected) # Set index to the selected item
-        end
-      end
-      @index  = @max_index if @index > @max_index # If deleted many items
-      @selected      = @files[@index]             # Get text of selected item
-      @selected_safe = "\"#{@selected}\""         # Make it safe for commands
+      @index     = @max_index if @index > @max_index  # If deleted many items
+      @selected      = @files[@index]                 # Get text of selected item
+      @selected_safe = "\"#{@selected}\""             # Make it safe for commands
       # Top window (info line) 
       w_t_info
       # Bottom window (command line) Before @w_r to avoid image dropping out on startup
