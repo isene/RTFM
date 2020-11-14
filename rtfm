@@ -109,6 +109,8 @@ class Curses::Window # CLASS EXTENSION
   end
   def fill # Fill window with color as set by :bg
     self.setpos(0, 0)
+    self.bg = 0 if self.bg   == nil
+    self.fg = 255 if self.fg == nil
     init_pair(self.fg, self.fg, self.bg)
     blank = " " * self.maxx
     self.maxy.times {self.attron(color_pair(self.fg)) {self << blank}}
@@ -887,7 +889,8 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
   @tag   = false # Set pattern tagging to nothing
   begin # Create the four windows/panels 
     if @border
-      Curses.stdscr.bg(236) # Use for borders
+      Curses.stdscr.bg = 236 # Use for borders
+      Curses.stdscr.fill
     else
       Curses.stdscr.clear
       Curses.stdscr.refresh
