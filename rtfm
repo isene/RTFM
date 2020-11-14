@@ -391,7 +391,6 @@ def main_getkey # GET KEY FROM USER
 end
 # TOP WINDOW FUNCTIONS 
 def w_t_info() # SHOW INFO IN @w_t
-  @w_t.setpos(0,0)
   toptext  = " Path: " + Dir.pwd + "/"
   unless @selected == nil
     toptext += @selected
@@ -408,11 +407,11 @@ def w_t_info() # SHOW INFO IN @w_t
       toptext += " [Denied]"
     end
   end
-  toptext = toptext[1..(@w_t.maxx - 3)] + "…" if toptext.length + 3 > @w_t.maxx 
+  toptext  = toptext[1..(@w_t.maxx - 3)] + "…" if toptext.length + 3 > @w_t.maxx 
   toptext += " " * (@w_t.maxx - toptext.length) if toptext.length < @w_t.maxx
-  init_pair(232, 232, 249)
-  @w_t.attron(color_pair(232) | Curses::A_BOLD) { @w_t << toptext }
-  @w_t.refresh
+  @w_t.clr
+  @w_t.text = toptext
+  @w_t.write
 end
 # LEFT WINDOW FUNCTIONS 
 def list_dir(left) # LIST CONTENT OF A DIRECTORY (BOTH LEFT AND RIGHT WINDOWS)
@@ -738,7 +737,6 @@ def w_b_info(info) # SHOW INFO IN @W_B
   info      = info[1..(@w_b.maxx - 3)] + "…" if info.length + 3 > @w_b.maxx 
   info     += " " * (@w_b.maxx - info.length) if info.length < @w_b.maxx
   @w_b.text = info
-  @w_b.fg, @w_b.bg = 250, 238
   @w_b.write
   @w_b.update = false
 end
@@ -901,6 +899,9 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     @w_b = Curses::Window.new(2, 0, maxy - 1, 0)
     @w_l = Curses::Window.new(maxy - 4, (maxx/@width) - 1, 2, 0)
     @w_r = Curses::Window.new(maxy - 4, maxx - (maxx/@width), 2, maxx/@width)
+    @w_t.fg, @w_t.bg = 232, 249
+    @w_t.attr        = Curses::A_BOLD
+    @w_b.fg, @w_b.bg = 250, 238
     @w_t.update = true
     @w_b.update = true
     @w_l.update = true
