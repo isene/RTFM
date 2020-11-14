@@ -68,14 +68,7 @@ begin # BASIC SETUP
   include  Curses
 
   @w3mimgdisplay = "/usr/lib/w3m/w3mimgdisplay"
-
   STDIN.set_encoding(Encoding::UTF_8) # Set encoding for STDIN 
-
-  ## Set default colors (#, fg, bg) 
-  init_pair(7, 7, 0)           # Default
-  init_pair(232, 232, 249)     # Top Window
-  init_pair(250, 250, 0)       # Bottom Window
-
   LScolors = `echo $LS_COLORS` # Import LS_COLORS 
 
   ## Curses setup 
@@ -87,21 +80,20 @@ begin # BASIC SETUP
   Curses.stdscr.keypad = true
 
   # INITIALIZE VARIABLES 
-  # These can be set by user in .rtfm.conf
+  ## These can be set by user in .rtfm.conf
   @lslong    = false # Set short form ls (toggled by pressing "l")
   @lsall     = ""    # Set "ls -a" to false (toggled by pressing "a" - sets it to "-a")
   @width     = 3     # Set width of the left pane to the default ⅓ of the terminal width
   @history   = []    # Initialize the command line history array
   @preview   = true
-  # These are automatically written on exit
+  ## These are automatically written on exit
   @marks     = {}    # Initialize (book)marks hash
   @tagged    = []    # Initialize the tagged array - for collecting all tagged items
-  # These should not be set by user in .rtfm.conf
+  ## These should not be set by user in .rtfm.conf
   @directory = {}    # Initialize the directory hash for remembering directories visited
   @searched  = ""    # Initialize the active searched for items
   @index     = 0     # Set chosen item to first on startup
-
-  # Get variables from config file (written back to .rtf.conf upon exit via 'q')
+  ## Get variables from config file (written back to .rtf.conf upon exit via 'q')
   if File.exist?(Dir.home+'/.rtfm.conf')
     load(Dir.home+'/.rtfm.conf')
   end
@@ -114,6 +106,14 @@ class Curses::Window # CLASS EXTENSION
     self.refresh
     self.setpos(0, 0)
   end
+  def bg(color)
+    self.setpos(0, 0)
+    init_pair(color, color, color)
+    blank = " " * self.maxx
+    self.maxy.times {self.attron(color_pair(color)) {self << blank}}
+    self.refresh
+    self.setpos(0, 0)
+  end  
   def color_parse(input)
     input.gsub!( /\e\[\d;38;5;(\d+)m/, '%-%\1%-%')
     input.gsub!( /\e\[38;5;(\d+)m/, '%-%\1%-%')
@@ -444,14 +444,12 @@ def list_dir(left) # LIST CONTENT OF A DIRECTORY (BOTH LEFT AND RIGHT WINDOWS)
       init_pair(fg, fg, bg)
       file_marker = color_pair(fg)
       file_marker = file_marker | Curses::A_BOLD if bold == 1
-      if left
-        if index == @index
-          str = "∶" + str
-          file_marker = file_marker | Curses::A_UNDERLINE 
-          wixy = win.cury
-        else
-          str = " " + str
-        end
+      if index == @index and left
+        str = "∶" + str
+        file_marker = file_marker | Curses::A_UNDERLINE 
+        wixy = win.cury
+      else
+        str = " " + str
       end
       file_marker = file_marker | Curses::A_REVERSE if @tagged.include?("\"#{Dir.pwd}/#{str_path}\"")
       file_marker = file_marker | Curses::A_BLINK if str.match(/#{@searched}/) and @searched != ""
@@ -467,7 +465,7 @@ def list_dir(left) # LIST CONTENT OF A DIRECTORY (BOTH LEFT AND RIGHT WINDOWS)
         str = base_name[0..nbl] + "…" + ext_name
       end
       if !left and index == win.maxy - 1 # Add indicator of more at bottom @w_r list 
-        win << "..."
+        win << " ..."
         return
       end
       str += link + dir
@@ -728,12 +726,13 @@ def var_resets # RESET PAGER VARIABLES
 end
 # BOTTOM WINDOW FUNCTIONS 
 def w_b_info(info) # SHOW INFO IN @W_B
-  init_pair(250, 250, 0)
   @w_b.setpos(0,0)
-  @w_b.attron(color_pair(250) | Curses::A_DIM) { @w_b << "─" * @w_b.maxx }
   @w_b.deleteln
-  info = ": for command (use @s for selected item, @t for tagged items)" if info == nil
-  @w_b.attron(color_pair(250) | Curses::A_DIM) { @w_b << info }
+  info  = ": for command (use @s for selected item, @t for tagged items)" if info == nil
+  info  = info[1..(@w_b.maxx - 3)] + "…" if info.length + 3 > @w_b.maxx 
+  info += " " * (@w_b.maxx - info.length) if info.length < @w_b.maxx
+  init_pair(250, 250, 238)
+  @w_b.attron(color_pair(250)) { @w_b << info }
   @w_b.refresh
   @w_b.update = false
 end
@@ -745,10 +744,12 @@ def w_b_getstr(pretext, text) # A SIMPLE READLINE-LIKE ROUTINE
   pos = @history[stk].length
   chr = ""
   while chr != "ENTER"
-    @w_b.setpos(1,0)
-    @w_b << pretext + @history[stk]
-    @w_b.clrtoeol
-    @w_b.setpos(1,pretext.length + pos)
+    @w_b.setpos(0,0)
+    init_pair(250, 250, 238)
+    text = pretext + @history[stk]
+    text += " " * (@w_b.maxx - text.length) if text.length < @w_b.maxx
+    @w_b.attron(color_pair(250)) { @w_b << text }
+    @w_b.setpos(0,pretext.length + pos)
     @w_b.refresh
     chr = getchr
     case chr
@@ -861,9 +862,9 @@ def w_b_exec(cmd) # EXECUTE COMMAND FROM @W_B
   begin
     begin
       @w_r.pager_cmd = "#{cmd} | batcat -n --color=always 2>/dev/null"
-      @w_r.text = `#{@w_r.pager_cmd}`
+      @w_r.text = `#{@w_r.pager_cmd} 2>/dev/null`
     rescue
-      @w_r.text = `#{cmd}`
+      @w_r.text = `#{cmd} 2>/dev/null`
     end
     unless @w_r.text == "" or @w_r.text == nil
       pager_start
@@ -879,15 +880,16 @@ end
 loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
   @break = false # Initialize @break variable (set if user hits 'r')
   @image = false # Set the image flag to false (set if image is displayed in @w_r)
-  @tag   = false # Set pattern tagging to nothing (false)
+  @tag   = false # Set pattern tagging to nothing
   begin # Create the four windows/panels 
+    # Curses.stdscr.bg(236) # Use for borders
     Curses.stdscr.clear
     Curses.stdscr.refresh
     maxx = Curses.cols
     maxy = Curses.lines
     # Curses::Window.new(h,w,y,x)
     @w_t = Curses::Window.new(1, 0, 0, 0)
-    @w_b = Curses::Window.new(2, 0, maxy - 2, 0)
+    @w_b = Curses::Window.new(2, 0, maxy - 1, 0)
     @w_l = Curses::Window.new(maxy - 4, (maxx/@width) - 1, 2, 0)
     @w_r = Curses::Window.new(maxy - 4, maxx - (maxx/@width), 2, maxx/@width)
     @w_t.update = true
@@ -917,8 +919,9 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
         end
       end
       dir_old = Dir.pwd
+      index_old  = @index
       @index     = @files.index(@selected) if @lsall != lsall_old # Change in showing all items must be handled
-      @index     = 0 if @files.index(@selected) == nil            # If item no longer exits or shown
+      @index     = index_old if @files.index(@selected) == nil # If item no longer is shown
       @min_index = 0
       @max_index = @files.size - 1
       @index     = @max_index if @index > @max_index  # If deleted many items
