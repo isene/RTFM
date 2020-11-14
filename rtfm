@@ -862,7 +862,7 @@ def w_b_exec(cmd) # EXECUTE COMMAND FROM @W_B
   begin
     begin
       @w_r.pager_cmd = "#{cmd} | batcat -n --color=always 2>/dev/null"
-      @w_r.text = `#{@w_r.pager_cmd} 2>/dev/null`
+      @w_r.text = `#{@w_r.pager_cmd}`
     rescue
       @w_r.text = `#{cmd} 2>/dev/null`
     end
