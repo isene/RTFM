@@ -122,6 +122,8 @@ To show hidden files: `@lsall = "-a"` (this is otherwise set to `""`)
 To change the default width of the left pane to something other than ⅓rd of
 the terminal width: `@width = 5` (would set the left pane width to ⅕th).
 
+To add borders in RTFM: `@border = true`
+
 To have some commands already prepared for the command history, you can set:
 ```
 @history = ["cat /home/me/MyTodo.txt", "neofetch --stdout"]

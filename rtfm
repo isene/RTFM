@@ -85,6 +85,7 @@ begin # BASIC SETUP
   @lsall     = ""    # Set "ls -a" to false (toggled by pressing "a" - sets it to "-a")
   @width     = 3     # Set width of the left pane to the default ⅓ of the terminal width
   @history   = []    # Initialize the command line history array
+  @border    = false
   @preview   = true
   ## These are automatically written on exit
   @marks     = {}    # Initialize (book)marks hash
@@ -882,9 +883,12 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
   @image = false # Set the image flag to false (set if image is displayed in @w_r)
   @tag   = false # Set pattern tagging to nothing
   begin # Create the four windows/panels 
-    # Curses.stdscr.bg(236) # Use for borders
-    Curses.stdscr.clear
-    Curses.stdscr.refresh
+    if @border
+      Curses.stdscr.bg(236) # Use for borders
+    else
+      Curses.stdscr.clear
+      Curses.stdscr.refresh
+    end
     maxx = Curses.cols
     maxy = Curses.lines
     # Curses::Window.new(h,w,y,x)
