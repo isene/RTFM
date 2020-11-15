@@ -888,13 +888,6 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
   @image = false # Set the image flag to false (set if image is displayed in @w_r)
   @tag   = false # Set pattern tagging to nothing
   begin # Create the four windows/panels 
-    if @border
-      Curses.stdscr.bg = 236 # Use for borders
-      Curses.stdscr.fill
-    else
-      Curses.stdscr.clear
-      Curses.stdscr.refresh
-    end
     maxx = Curses.cols
     maxy = Curses.lines
     # Curses::Window.new(h,w,y,x)
@@ -916,6 +909,13 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     unless @tagged.empty?
       tagged_info
       @w_r.update = false
+    end
+    if @border
+      Curses.stdscr.bg = 236 # Use for borders
+      Curses.stdscr.fill
+    else
+      Curses.stdscr.clear
+      Curses.stdscr.refresh
     end
     loop do # INNER, CORE LOOP 
       system("printf \"\033]0;RTFM: #{Dir.pwd}\007\"")   # Set Window title to path 
