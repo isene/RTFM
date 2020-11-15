@@ -101,6 +101,7 @@ begin # BASIC SETUP
 end
 class Curses::Window # CLASS EXTENSION 
   attr_accessor :fg, :bg, :attr, :text, :update, :pager, :pager_more, :pager_cmd, :locate, :nohistory 
+  # General extensions (see https://github.com/isene/Ruby-Curses-Class-Extension)
   def clr
     self.setpos(0, 0)
     self.maxy.times {self.deleteln()}
@@ -123,15 +124,7 @@ class Curses::Window # CLASS EXTENSION
     self.attron(color_pair(self.fg) | self.attr) { self << self.text }
     self.refresh
   end
-  def color_parse(input)
-    input.gsub!( /\e\[\d;38;5;(\d+)m/, '%-%\1%-%')
-    input.gsub!( /\e\[38;5;(\d+)m/, '%-%\1%-%')
-    input.gsub!( /\e\[0m/, "\t")
-    color_array = input.split("%-%")
-    color_array = color_array.drop(1)
-    output = color_array.each_slice(2).to_a
-    return output
-  end
+  # RTFM specific extensions
 end
 # GENERIC FUNCTIONS 
 def get_ls_color(type) # GET THE COLOR FOR THE FILETYPE FROM IMPORTED LS_COLORS
@@ -140,9 +133,18 @@ def get_ls_color(type) # GET THE COLOR FOR THE FILETYPE FROM IMPORTED LS_COLORS
     color = LScolors.match(/#{type}=\d*;\d*;(\d*)/)[1]
     bold  = 1 if LScolors.match(/#{type}=\d*;\d*;\d*;1/)
   rescue
-    color = 7
+    color = 7 # Default color
   end
   return color.to_i, bold
+end
+def color_parse(input) # PARSE ANSI COLOR SEQUENCES
+  input.gsub!( /\e\[\d;38;5;(\d+)m/, '%-%\1%-%')
+  input.gsub!( /\e\[38;5;(\d+)m/, '%-%\1%-%')
+  input.gsub!( /\e\[0m/, "\t")
+  color_array = input.split("%-%")
+  color_array = color_array.drop(1)
+  output = color_array.each_slice(2).to_a
+  return output
 end
 def getchr # PROCESS KEY PRESSES
   # Note: Curses.getch blanks out @w_t
@@ -392,36 +394,36 @@ def main_getkey # GET KEY FROM USER
   @w_r.update = true if dir != Dir.pwd
 end
 # TOP WINDOW FUNCTIONS 
-def w_t_info() # SHOW INFO IN @w_t
-  toptext  = " Path: " + Dir.pwd + "/"
+def w_t_info # SHOW INFO IN @w_t
+  text  = " Path: " + Dir.pwd + "/"
   unless @selected == nil
-    toptext += @selected
-    toptext += " → #{File.readlink(@selected)}" if File.symlink?(@selected) 
+    text += @selected
+    text += " → #{File.readlink(@selected)}" if File.symlink?(@selected) 
   end
   begin
-    toptext += " (#{@fspes[@index].gsub(/ .* /, ' ')})" 
+    text += " (#{@fspes[@index].gsub(/ .* /, ' ')})" 
   rescue
   end
   if Dir.exist?(@selected.to_s)
     begin
-      toptext += " [" + Dir.glob(@selected+"/*").count.to_s + " " + Dir.children(@selected).count.to_s + "]"
+      text += " [" + Dir.glob(@selected+"/*").count.to_s + " " + Dir.children(@selected).count.to_s + "]"
     rescue
-      toptext += " [Denied]"
+      text += " [Denied]"
     end
   end
-  toptext  = toptext[1..(@w_t.maxx - 3)] + "…" if toptext.length + 3 > @w_t.maxx 
-  toptext += " " * (@w_t.maxx - toptext.length) if toptext.length < @w_t.maxx
+  text  = text[1..(@w_t.maxx - 3)] + "…" if text.length + 3 > @w_t.maxx 
+  text += " " * (@w_t.maxx - text.length) if text.length < @w_t.maxx
   @w_t.clr
-  @w_t.text = toptext
+  @w_t.text = text
   @w_t.write
 end
 # LEFT WINDOW FUNCTIONS 
-def list_dir(left) # LIST CONTENT OF A DIRECTORY (BOTH LEFT AND RIGHT WINDOWS)
-  left ? win = @w_l : win = @w_r
-  left ? ix = @index : ix = 0
+def list_dir(active) # LIST CONTENT OF A DIRECTORY (BOTH active AND RIGHT WINDOWS)
+  active ? win = @w_l : win = @w_r
+  active ? ix = @index : ix = 0
   wixy = 0; wixy_str = ""; wixy_fmk = "" # Rat ass ugly hack to get the last line displyed
   @files.each.with_index(0) do |str, index|
-    left ? str_path = str : str_path = "#{@selected}/#{str}" 
+    active ? str_path = str : str_path = "#{@selected}/#{str}" 
     if index > ix - win.maxy + 3 # Ensure only the items fitting on the screen will be drawn
       begin # Add items matching @tag to @tagged
         if str.match(/#{@tag}/) and @tag != false
@@ -452,7 +454,7 @@ def list_dir(left) # LIST CONTENT OF A DIRECTORY (BOTH LEFT AND RIGHT WINDOWS)
       init_pair(fg, fg, bg)
       file_marker = color_pair(fg)
       file_marker = file_marker | Curses::A_BOLD if bold == 1
-      if index == @index and left
+      if index == @index and active
         str = "∶" + str
         file_marker = file_marker | Curses::A_UNDERLINE 
         wixy = win.cury
@@ -472,7 +474,7 @@ def list_dir(left) # LIST CONTENT OF A DIRECTORY (BOTH LEFT AND RIGHT WINDOWS)
         nbl = win.maxx - 5 - ext_length # nbl: new_base_length
         str = base_name[0..nbl] + "…" + ext_name
       end
-      if !left and index == win.maxy - 1 # Add indicator of more at bottom @w_r list 
+      if !active and index == win.maxy - 1 # Add indicator of more at bottom @w_r list 
         win << " ..."
         return
       end
@@ -487,7 +489,7 @@ def list_dir(left) # LIST CONTENT OF A DIRECTORY (BOTH LEFT AND RIGHT WINDOWS)
     end
   end
   (win.maxy - win.cury).times {win.deleteln()} # Clear to bottom of window
-  if left
+  if active
     init_pair(242, 242, 0)
     if @index > @w_l.maxy - 4
       @w_l.setpos(0, @w_l.maxx - 1)
@@ -648,7 +650,7 @@ def tagged_info # SHOW THE LIST OF TAGGED ITEMS IN @w_r
   w_r_info(info)
 end
 def syntax_highlight(input) # BATCAT SYNTAX HIGHLIGHTING
-  color_ary  = @w_r.color_parse(input)
+  color_ary  = color_parse(input)
   color_ary.each do | pair |
     begin
       fg   = pair[0].to_i
