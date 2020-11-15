@@ -45,6 +45,7 @@ MS doc/xls/ppt              | `catdoc`, `xls2csv` and `catppt` | `apt install ca
 Images                      | `w3m` and `ImageMagick`          | `apt install w3m imagemagick`
 Video (thumbnails)          | `ffmpegthumbnailer`              | `apt install ffmpegthumbnailer`
 
+Install all of the above: `apt install bat poppler-utils odt2txt docx2txt catdoc w3m imagemagick ffmpegthumbnailer`
 
 ## Screenshot
 
