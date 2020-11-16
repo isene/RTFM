@@ -27,8 +27,8 @@ Ctrl-u deletes the line. Issuing ENTER on a blank line has no effect.
 
 In order to run RTFM (without generating [a bunch of
 warnings](https://github.com/isene/RTFM/issues/1)), you need to do a `gem
-install curses` (gets v 1.3.2) instead of installing via `apt install
-ruby-curses` (gets v. 1.2.4-1build1 on Ubuntu 20.04). 
+install curses` (gets version 1.3.2) instead of installing via `apt install
+ruby-curses` (gets version 1.2.4-1build1 on Ubuntu 20.04). 
 
 Content of text files are handled by `cat` - or by `bat` if you want beautiful
 highlighting. Other files are shown via external programs. It is shown if you
@@ -174,4 +174,4 @@ may include it. Bug reports are always welcome.
 A note to developers: You can hit the "@" key to enter the Ruby debug mode
 where anything you enter in the bottom command window will be sent to the Ruby
 evel() function and output to the right pane. You can for instance issue
-`puts @searched` to se the currently active search pattern. 
+`puts @searched` to see the currently active search pattern. 
