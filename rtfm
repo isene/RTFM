@@ -515,9 +515,9 @@ def open_selected() # OPEN SELECTED ITEM (when pressing RIGHT)
         system("$EDITOR #{@selected_safe}")
       else
           begin
-            system("run-mailcap #{@selected_safe}")
+            Thread.new { system("run-mailcap #{@selected_safe}") }
           rescue
-            system("xdg-open #{@selected_safe}")
+            Thread.new { system("xdg-open #{@selected_safe}") }
           end
         end
       @break = true
