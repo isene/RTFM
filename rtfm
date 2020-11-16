@@ -404,6 +404,12 @@ def w_t_info # SHOW INFO IN @w_t
     text += " (#{@fspes[@index].gsub(/ .* /, ' ')})" 
   rescue
   end
+  if @selected.match(/\.jpg$|\.JPG$|\.jpeg$|\.png$|\.bmp$|\.gif$|\.tif$|\.tiff$/)
+    begin
+      text += `identify #{@selected} | awk '{printf " [%s %s %s %s] ", $3,$2,$5,$6}' 2>/dev/null`
+    rescue
+    end
+  end
   if Dir.exist?(@selected.to_s)
     begin
       text += " [" + Dir.glob(@selected+"/*").count.to_s + " " + Dir.children(@selected).count.to_s + "]"
