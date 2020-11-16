@@ -45,7 +45,17 @@ MS doc/xls/ppt              | `catdoc`, `xls2csv` and `catppt` | `apt install ca
 Images                      | `w3m` and `ImageMagick`          | `apt install w3m imagemagick`
 Video (thumbnails)          | `ffmpegthumbnailer`              | `apt install ffmpegthumbnailer`
 
-Install all of the above: `apt install bat poppler-utils odt2txt docx2txt catdoc w3m imagemagick ffmpegthumbnailer`
+Install rtfm from scratch with all of the above on Ubuntu:
+```
+sudo apt update
+sudo apt install ruby-full git libncurses-dev bat poppler-utils odt2txt docx2txt catdoc w3m imagemagick ffmpegthumbnailer
+sudo gem install curses
+git clone https://github.com/isene/RTFM
+cd RTFM
+sudo cp rtfm /usr/bin/
+cp .rtfm.launch ~/
+echo "source ~/.rtfm.launch" >> .zshrc # or .bashrc if you run bash as shell
+```
 
 ## Screenshot
 
