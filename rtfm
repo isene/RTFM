@@ -94,6 +94,14 @@ begin # BASIC SETUP
   @directory = {}    # Initialize the directory hash for remembering directories visited
   @searched  = ""    # Initialize the active searched for items
   @index     = 0     # Set chosen item to first on startup
+  ## File type recognizers
+  @imagefile = /\.jpg$|\.JPG$|\.jpeg$|\.png$|\.bmp$|\.gif$|\.tif$|\.tiff$/
+  @pptfile   = /\.ppt$/
+  @xlsfile   = /\.xls$/
+  @docfile   = /\.doc$/
+  @ooxmlfile = /\.docx$|\.xlsx$|\.pptx$/
+  @oolofile  = /\.odt$|\.odc$|\.odp$|\.odg$/
+  @pdffile   = /\.pdf$|\.ps$/
   ## Get variables from config file (written back to .rtf.conf upon exit via 'q')
   if File.exist?(Dir.home+'/.rtfm.conf')
     load(Dir.home+'/.rtfm.conf')
@@ -404,7 +412,7 @@ def w_t_info # SHOW INFO IN @w_t
     text += " (#{@fspes[@index].gsub(/ .* /, ' ')})" 
   rescue
   end
-  if @selected.match(/\.jpg$|\.JPG$|\.jpeg$|\.png$|\.bmp$|\.gif$|\.tif$|\.tiff$/)
+  if @selected.match(@imagefile)
     begin
       text += `identify #{@selected} | awk '{printf " [%s %s %s %s] ", $3,$2,$5,$6}' 2>/dev/null`
     rescue
@@ -582,33 +590,33 @@ def w_r_show # SHOW CONTENTS IN THE RIGHT WINDOW
         w_r_doc
       end
     # PDF 
-    elsif @selected.match(/\.pdf$|\.ps$/) and @w_r.pager == 0
+    elsif @selected.match(@pdffile) and @w_r.pager == 0
       @w_r.pager_cmd  = "pdftotext #{@selected_safe} - 2>/dev/null | less"
       @w_r.text       = `pdftotext -f 1 -l 4 #{@selected_safe} - 2>/dev/null`
       pager_start 
       @w_r << @w_r.text
     # OPEN/LIBREOFFICE 
-    elsif @selected.match(/\.odt$|\.odc$|\.odp$|\.odg$/) and @w_r.pager == 0
+    elsif @selected.match(@oolofile) and @w_r.pager == 0
       @w_r.pager_cmd  = "odt2txt #{@selected_safe} 2>/dev/null"
       w_r_doc
     # OOXML 
-    elsif @selected.match(/\.docx$|\.xlsx$|\.pptx$/) and @w_r.pager == 0
+    elsif @selected.match(@ooxmlfile) and @w_r.pager == 0
       @w_r.pager_cmd  = "docx2txt #{@selected_safe} - 2>/dev/null"
       w_r_doc
     # MS DOC 
-    elsif @selected.match(/\.doc$/) and @w_r.pager == 0
+    elsif @selected.match(@docfile) and @w_r.pager == 0
       @w_r.pager_cmd  = "catdoc #{@selected_safe} 2>/dev/null"
       w_r_doc
     # MS XLS 
-    elsif @selected.match(/\.xls$/) and @w_r.pager == 0
+    elsif @selected.match(@xlsfile) and @w_r.pager == 0
       @w_r.pager_cmd  = "xls2csv #{@selected_safe} 2>/dev/null"
       w_r_doc
     # MS PPT 
-    elsif @selected.match(/\.ppt$/) and @w_r.pager == 0
+    elsif @selected.match(@pptfile) and @w_r.pager == 0
       @w_r.pager_cmd  = "catppt #{@selected_safe} 2>/dev/null"
       w_r_doc
     # IMAGES 
-    elsif @selected.match(/\.jpg$|\.JPG$|\.jpeg$|\.png$|\.bmp$|\.gif$|\.tif$|\.tiff$/)
+    elsif @selected.match(@imagefile)
       image_show(@selected_safe)
       @image = true
     # VIDEOS (THUMBNAILS) 
