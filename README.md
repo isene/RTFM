@@ -163,7 +163,8 @@ hidden directories and files:
 
 
 ## Screencast
-[![RTFM screencast](/img/screenshot-logo.png)](https://isene.com/x/rtfm-screencast.mp4)
+[![RTFM screencast](/img/screenshot-logo.png)](https://youtu.be/ANUOlDryUng)
+
 
 ## Development
 I don't expect this program to be used by others. I do this for my own
