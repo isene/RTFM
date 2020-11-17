@@ -54,6 +54,7 @@ KEYS
  ;      = Show command history in right pane
  L      = Start 'locate' search for files, then use '#' to jump to desired line/directory
  w      = Change the width of the left/right panes (left pane ⇒ ⅓ ⇒ ¼ ⇒ ⅕ ⇒ ⅙ ⇒ ½ ⇒ ⅓)
+ R      = Reload configuration (~/.rtfm.conf)
  ENTER  = Refresh the right pane
  -      = Toggle preview in right pane (turn it off for faster traversing of directories)
  r      = Refresh RTFM (recreates all windows. Use when resizing windows or in case there is garbage somewhere)
@@ -378,6 +379,12 @@ def main_getkey # GET KEY FROM USER
     @width += 1
     @width  = 2 if @width == 7
     @break = true
+  when 'R' # Reload .rtfm.conf
+    if File.exist?(Dir.home+'/.rtfm.conf')
+      load(Dir.home+'/.rtfm.conf')
+    end
+    w_b_info(" Config reloaded")
+    @w_b.update = false
   when 'ENTER' # Refresh right pane
     @w_r.update = true
   when '-'

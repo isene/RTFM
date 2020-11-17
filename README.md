@@ -97,6 +97,7 @@ h      | Jump to Home directory
 ;      | Show command history in right pane
 L      | Start 'locate' search for files, then use '#' to jump to desired line/directory
 w      | Change the width of the left/right panes (left pane ⇒ ⅓ ⇒ ¼ ⇒ ⅕ ⇒ ⅙ ⇒ ½ ⇒ ⅓)
+R      | Reload configuration (~/.rtfm.conf)
 ENTER  | Refresh the right pane
 \-      | Toggle preview in right pane (turn it off for faster traversing of directories)
 r      | Refresh RTFM (recreates all windows. Use when resizing windows or in case there is garbage somewhere)
