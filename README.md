@@ -161,6 +161,10 @@ hidden directories and files:
 
 `Path: /home/geir/RTFM (drwxrwxr-x 4,0K) [4 8]`
 
+Different file types may have extra self explanatory information included in
+square brackets at the end of the top info line. Image files will have the
+size of the image included while pdf files will have the number of pages. More
+file specific information will be included when I feel like adding such.
 
 ## Screencast
 [![RTFM screencast](/img/screenshot-logo.png)](https://youtu.be/ANUOlDryUng)
