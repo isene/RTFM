@@ -403,7 +403,7 @@ def main_getkey # GET KEY FROM USER
 end
 # TOP WINDOW FUNCTIONS 
 def w_t_info # SHOW INFO IN @w_t
-  text  = " Path: " + Dir.pwd + "/"
+  text  = " " + ENV['USER'] + "@" + `hostname`.chop + ": " + Dir.pwd + "/"
   unless @selected == nil
     text += @selected
     text += " → #{File.readlink(@selected)}" if File.symlink?(@selected) 
