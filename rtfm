@@ -967,6 +967,7 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       @min_index = 0
       @max_index = @files.size - 1
       @index     = @max_index if @index > @max_index  # If deleted many items
+      @index     = 0 if @index < 0
       @selected      = @files[@index]                 # Get text of selected item
       @selected_safe = "\"#{@selected}\""             # Make it safe for commands
       # Top window (info line) 
