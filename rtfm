@@ -267,6 +267,7 @@ def main_getkey # GET KEY FROM USER
     else
       @tagged.push(item)
     end
+    @index += 1
     tagged_info
     @w_r.update = false
   when 'C-T' # Tag items matching a pettern
