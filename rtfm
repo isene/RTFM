@@ -128,6 +128,8 @@ class Curses::Window # CLASS EXTENSION
     self.setpos(0, 0)
   end
   def write # Write context of :text to window with attributes :attr
+    self.bg = 0 if self.bg   == nil
+    self.fg = 255 if self.fg == nil
     init_pair(self.fg, self.fg, self.bg)
     self.attr = 0 if self.attr == nil
     self.attron(color_pair(self.fg) | self.attr) { self << self.text }
@@ -280,8 +282,7 @@ def main_getkey # GET KEY FROM USER
     @w_r.update = false
   when 'p' # Copy tagged items here 
     copy_move_link("copy")
-    tagged_info
-    @w_r.update = false
+    @w_r.update = true
   when 'P' # Move tagged items here 
     copy_move_link("move")
     @w_r.update = true
@@ -915,6 +916,13 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
   @image = false # Set the image flag to false (set if image is displayed in @w_r)
   @tag   = false # Set pattern tagging to nothing
   begin # Create the four windows/panels 
+    if @border
+      Curses.stdscr.bg = 236 # Use for borders
+      Curses.stdscr.fill
+    else
+      Curses.stdscr.clear
+      Curses.stdscr.refresh
+    end
     maxx = Curses.cols
     maxy = Curses.lines
     # Curses::Window.new(h,w,y,x)
@@ -936,13 +944,6 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     unless @tagged.empty?
       tagged_info
       @w_r.update = false
-    end
-    if @border
-      Curses.stdscr.bg = 236 # Use for borders
-      Curses.stdscr.fill
-    else
-      Curses.stdscr.clear
-      Curses.stdscr.refresh
     end
     loop do # INNER, CORE LOOP 
       system("printf \"\033]0;RTFM: #{Dir.pwd}\007\"")   # Set Window title to path 
