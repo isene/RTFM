@@ -144,6 +144,9 @@ To have some commands already prepared for the command history, you can set:
 These variables that you manually add to the top of the config files are
 undisturbed by launching and exiting RTFM.
 
+You can also use `W` inside of RTFM to write all the parameters mentioned
+above to the config file - instead of adding them manually.
+
 To exit RTFM without writing any changes to you marks or list of tagged items,
 exit with `Q`. They will then remain the same as when you launched RTFM for
 that session.
