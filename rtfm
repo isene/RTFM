@@ -54,9 +54,10 @@ KEYS
  L      = Start 'locate' search for files, then use '#' to jump to desired line/directory
  w      = Change the width of the left/right panes (left pane ⇒ ⅓ ⇒ ¼ ⇒ ⅕ ⇒ ⅙ ⇒ ½ ⇒ ⅓)
  R      = Reload configuration (~/.rtfm.conf)
+ W      = Write parameters to ~/.rtfm.conf (@lsall, @lslong, @border, @width, @preview, @tagged, @marks)
  ENTER  = Refresh the right pane
  -      = Toggle preview in right pane (turn it off for faster traversing of directories)
- r      = Refresh RTFM (recreates all windows. Use when resizing windows or in case there is garbage somewhere)
+ r      = Refresh RTFM (recreates all windows. Use on terminal resize or when there is garbage somewhere)
  q      = Quit
  Q      = QUIT (without writing changes to the config file)
 
@@ -386,6 +387,9 @@ def main_getkey # GET KEY FROM USER
     end
     w_b_info(" Config reloaded")
     @w_b.update = false
+  when 'W' # Write all parameters to .rtfm.conf
+    @write_conf_all = true
+    conf_write
   when 'ENTER' # Refresh right pane
     @w_r.update = true
   when '-'
@@ -408,6 +412,41 @@ def main_getkey # GET KEY FROM USER
     @w_r.pager_more = false
   end
   @w_r.update = true if dir != Dir.pwd
+end
+def conf_write
+  if File.exist?(Dir.home+'/.rtfm.conf')
+    conf = File.read(Dir.home+'/.rtfm.conf')
+  else
+    conf = ""
+  end
+  conf.sub!(/^@marks.*{.*}\n/, "") 
+  conf += "@marks = #{@marks}\n"
+  conf.sub!(/^@tagged.*\[.*\]\n/, "")
+  conf += "@tagged = #{@tagged}\n"
+  if @write_conf_all
+    conf.sub!(/^@lslong.*\n/, "") 
+    conf += "@lslong = #{@lslong}\n"
+    conf.sub!(/^@lsall.*\n/, "") 
+    conf += "@lsall = \"#{@lsall}\"\n"
+    conf.sub!(/^@width.*\n/, "") 
+    conf += "@width = #{@width}\n"
+    conf.sub!(/^@border.*\n/, "") 
+    conf += "@border = #{@border}\n"
+    conf.sub!(/^@preview.*\n/, "") 
+    conf += "@preview = #{@preview}\n"
+    w_r_info("Press W again to write this to .rtfm.conf:\n\n" + conf)
+    if getchr == 'W'
+      w_b_info(" Parameters written to .rtfm.conf")
+      @w_b.update = false
+      @w_r.update = true
+    else
+      w_b_info(" Config NOT updated")
+      @w_b.update = false
+      @w_r.update = true
+      return
+    end
+  end
+  File.write(Dir.home+'/.rtfm.conf', conf)
 end
 # TOP WINDOW FUNCTIONS 
 def w_t_info # SHOW INFO IN @w_t
@@ -989,18 +1028,8 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       break if Curses.cols != maxx or Curses.lines != maxy # break on terminal resize 
     end
   ensure # On exit: close curses, clear terminal 
-    if @write_conf # Write marks to config file
-      if File.exist?(Dir.home+'/.rtfm.conf')
-        conf = File.read(Dir.home+'/.rtfm.conf')
-      else
-        conf = ""
-      end
-      conf.sub!(/@marks.*{.*}\n/, "") 
-      conf += "@marks = #{@marks}\n"
-      conf.sub!(/@tagged.*\[.*\]\n/, "")
-      conf += "@tagged = #{@tagged}\n"
-      File.write(Dir.home+'/.rtfm.conf', conf)
-    end
+    @write_conf_all = false
+    conf_write if @write_conf # Write marks to config file
     image_show("clear")
     close_screen
     # If launched via the script "r", return current dir and "r" will cd to that
