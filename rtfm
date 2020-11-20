@@ -450,7 +450,7 @@ def conf_write
 end
 # TOP WINDOW FUNCTIONS 
 def w_t_info # SHOW INFO IN @w_t
-  text  = " " + ENV['USER'] + "@" + `hostname`.chop + ": " + Dir.pwd + "/"
+  text  = " " + ENV['USER'].to_s + "@" + `hostname`.to_s.chop + ": " + Dir.pwd + "/"
   unless @selected == nil
     text += @selected
     text += " → #{File.readlink(@selected)}" if File.symlink?(@selected) 
