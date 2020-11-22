@@ -88,7 +88,7 @@ P      | PUT (move) tagged items here
 s      | Create symlink to tagged items here
 d      | Delete selected item and tagged items. Press 'd' to confirm
 c      | Change/rename selected (adds command to bottom window)
-m      | Mark current dir (persistent). Next letter is the name of the mark [a-zA-Z']. Press '-' and a letter to delete that mark
+m      | Mark current dir (persistent). Next letter is the name of the mark [a-zA-Z']. The special mark "'" jumps to the last directory (makes toggling dirs easy). Press '-' and a letter to delete that mark
 M      | Show marked items in right pane
 '      | Jump to mark (next letter is the name of the mark [a-zA-Z'])
 h      | Jump to Home directory

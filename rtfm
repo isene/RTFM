@@ -44,6 +44,7 @@ KEYS
  d      = Delete selected item and tagged items. Press 'd' to confirm
  c      = Change/rename selected (adds command to bottom window)
  m      = Mark current dir (persistent). Next letter is the name of the mark [a-zA-Z']
+          The special mark "'" jumps to the last directory (makes toggling dirs easy)
           Press '-' and a letter to delete that mark
  M      = Show marked items in right pane
  '      = Jump to mark (next letter is the name of the mark [a-zA-Z'])
@@ -208,12 +209,14 @@ def main_getkey # GET KEY FROM USER
     var_resets
     cur_dir = Dir.pwd
     @directory[Dir.pwd] = @selected # Store this directory before leaving
+    @marks["'"] = Dir.pwd
     Dir.chdir("..")
     @directory[Dir.pwd] = File.basename(cur_dir) unless @directory.key?(Dir.pwd)
     @w_r.update = true
   when 'RIGHT'
     var_resets
     @directory[Dir.pwd] = @selected # Store this directory before leaving
+    @marks["'"] = Dir.pwd
     open_selected()
     @w_r.update = true
   when 'PgUP'
@@ -329,6 +332,7 @@ def main_getkey # GET KEY FROM USER
   when 'h' # 
     var_resets
     @directory[Dir.pwd] = @selected # Store this directory before leaving
+    @marks["'"] = Dir.pwd
     Dir.chdir
     @w_r.update = true
   when "'" # Jump to mark 
@@ -337,7 +341,9 @@ def main_getkey # GET KEY FROM USER
     if m.match(/[\w']/) and @marks[m]
       var_resets
       @directory[Dir.pwd] = @selected # Store this directory before leaving
+      dir_before  = Dir.pwd
       Dir.chdir(@marks[m]) 
+      @marks["'"] = dir_before
     end
     @w_r.update = true
   when '/' # Get search string to mark items that match # 
@@ -358,6 +364,7 @@ def main_getkey # GET KEY FROM USER
         jumpdir = File.dirname(jumpdir)
       end
       @directory[Dir.pwd] = @selected # Store this directory before leaving
+      @marks["'"] = Dir.pwd
       Dir.chdir(jumpdir)
       @w_r.pager = 0
     end
@@ -571,6 +578,7 @@ end
 def open_selected() # OPEN SELECTED ITEM (when pressing RIGHT)
   if File.directory?(@selected) # Rescue for permission error
     begin
+      @marks["'"] = Dir.pwd
       Dir.chdir(@selected)
     rescue
     end
