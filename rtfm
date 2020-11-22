@@ -83,27 +83,28 @@ begin # BASIC SETUP
 
   # INITIALIZE VARIABLES 
   ## These can be set by user in .rtfm.conf
-  @lslong    = false # Set short form ls (toggled by pressing "l")
-  @lsall     = ""    # Set "ls -a" to false (toggled by pressing "a" - sets it to "-a")
-  @width     = 3     # Set width of the left pane to the default ⅓ of the terminal width
-  @history   = []    # Initialize the command line history array
-  @border    = false
-  @preview   = true
+  @lslong     = false # Set short form ls (toggled by pressing "l")
+  @lsall      = ""    # Set "ls -a" to false (toggled by pressing "a" - sets it to "-a")
+  @width      = 3     # Set width of the left pane to the default ⅓ of the terminal width
+  @history    = []    # Initialize the command line history array
+  @border     = false
+  @preview    = true
   ## These are automatically written on exit
-  @marks     = {}    # Initialize (book)marks hash
-  @tagged    = []    # Initialize the tagged array - for collecting all tagged items
+  @marks      = {}    # Initialize (book)marks hash
+  @tagged     = []    # Initialize the tagged array - for collecting all tagged items
   ## These should not be set by user in .rtfm.conf
-  @directory = {}    # Initialize the directory hash for remembering directories visited
-  @searched  = ""    # Initialize the active searched for items
-  @index     = 0     # Set chosen item to first on startup
+  @directory  = {}    # Initialize the directory hash for remembering directories visited
+  @searched   = ""    # Initialize the active searched for items
+  @index      = 0     # Set chosen item to first on startup
+  @marks["'"] = Dir.pwd
   ## File type recognizers
-  @imagefile = /\.jpg$|\.JPG$|\.jpeg$|\.png$|\.bmp$|\.gif$|\.tif$|\.tiff$/
-  @pptfile   = /\.ppt$/
-  @xlsfile   = /\.xls$/
-  @docfile   = /\.doc$/
-  @ooxmlfile = /\.docx$|\.xlsx$|\.pptx$/
-  @oolofile  = /\.odt$|\.odc$|\.odp$|\.odg$/
-  @pdffile   = /\.pdf$|\.ps$/
+  @imagefile  = /\.jpg$|\.JPG$|\.jpeg$|\.png$|\.bmp$|\.gif$|\.tif$|\.tiff$/
+  @pptfile    = /\.ppt$/
+  @xlsfile    = /\.xls$/
+  @docfile    = /\.doc$/
+  @ooxmlfile  = /\.docx$|\.xlsx$|\.pptx$/
+  @oolofile   = /\.odt$|\.odc$|\.odp$|\.odg$/
+  @pdffile    = /\.pdf$|\.ps$/
   ## Get variables from config file (written back to .rtf.conf upon exit via 'q')
   if File.exist?(Dir.home+'/.rtfm.conf')
     load(Dir.home+'/.rtfm.conf')
@@ -342,7 +343,11 @@ def main_getkey # GET KEY FROM USER
       var_resets
       @directory[Dir.pwd] = @selected # Store this directory before leaving
       dir_before  = Dir.pwd
-      Dir.chdir(@marks[m]) 
+      begin
+        Dir.chdir(@marks[m]) 
+      rescue
+        w_b_info(" No such directory")
+      end
       @marks["'"] = dir_before
     end
     @w_r.update = true
@@ -936,10 +941,15 @@ def w_b_exec(cmd) # EXECUTE COMMAND FROM @W_B
   # Subsitute any '@s' with the selected item, @t with tagged items
   # 'rm @s' deletes the selected item, 'rm @t' deletes tagged items
   return if cmd == ""
-  @s = "'#{Dir.pwd}/#{@selected}'"
+  @s = "\"#{Dir.pwd}/#{@selected}\""
   cmd.gsub!(/@s/, @s)
   @t = @tagged.join(" ")
   cmd.gsub!(/@t/, @t)
+  if cmd.match(/^cd /)
+    cmd.sub!(/^cd (\S*).*/, '\1')
+    Dir.chdir(cmd) if Dir.exist?(cmd)
+    return
+  end
   begin
     begin
       @w_r.pager_cmd = "#{cmd} | batcat -n --color=always 2>/dev/null"
