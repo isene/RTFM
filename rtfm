@@ -503,7 +503,6 @@ def list_dir(active) # LIST CONTENT OF A DIRECTORY (BOTH active AND RIGHT WINDOW
   else
     win = @w_r
   end
-  wixy = 0; wixy_str = ""; wixy_fmk = 0 # Rat ass ugly hack to get the last line displyed
   while ix < @files.size and t < win.maxy do
     str = @files[ix]
     active ? str_path = str : str_path = "#{@selected}/#{str}" 
@@ -561,15 +560,10 @@ def list_dir(active) # LIST CONTENT OF A DIRECTORY (BOTH active AND RIGHT WINDOW
       return
     end
     str += link + dir
-    if ix == @w_l.maxy - 1 - wixy + @index
-      wixy_str = str
-      wixy_fmk = file_marker
-    end
     win.attron(file_marker) { win << str } # Implement color/bold to the item
     win.clrtoeol
     win << "\n"
-    ix += 1
-    t  += 1
+    ix += 1; t  += 1
   end
   (win.maxy - win.cury).times {win.deleteln()} # Clear to bottom of window
   if active
