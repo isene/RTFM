@@ -496,86 +496,90 @@ def w_t_info # SHOW INFO IN @w_t
 end
 # LEFT WINDOW FUNCTIONS 
 def list_dir(active) # LIST CONTENT OF A DIRECTORY (BOTH active AND RIGHT WINDOWS)
-  active ? win = @w_l : win = @w_r
-  active ? ix = @index : ix = 0
-  wixy = 0; wixy_str = ""; wixy_fmk = "" # Rat ass ugly hack to get the last line displyed
-  @files.each.with_index(0) do |str, index|
+  ix = 0; t = 0
+  if active 
+    win = @w_l
+    ix = @index - @w_l.maxy/2 if @index > @w_l.maxy/2 and @files.size > @w_l.maxy
+  else
+    win = @w_r
+  end
+  wixy = 0; wixy_str = ""; wixy_fmk = 0 # Rat ass ugly hack to get the last line displyed
+  while ix < @files.size and t < win.maxy do
+    str = @files[ix]
     active ? str_path = str : str_path = "#{@selected}/#{str}" 
-    if index > ix - win.maxy + 3 # Ensure only the items fitting on the screen will be drawn
-      begin # Add items matching @tag to @tagged
-        if str.match(/#{@tag}/) and @tag != false
-          @tagged.push("\"#{Dir.pwd}/#{str}\"")
-          @tagged.uniq!
-        end
-      rescue
+    begin # Add items matching @tag to @tagged
+      if str.match(/#{@tag}/) and @tag != false
+        @tagged.push("\"#{Dir.pwd}/#{str}\"")
+        @tagged.uniq!
       end
-      # Determine the filetype of the item 
-      ftype = ""
-      ftype = str.match(/\.([^.]*$)/)[1] if str.match?(/\.([^.]*$)/)
-      # Set special filetypes (sequence matters)
-      ftype = "bd" if File.blockdev?(str_path)
-      ftype = "cd" if File.chardev?(str_path)
-      ftype = "pi" if File.pipe?(str_path)
-      ftype = "st" if File.sticky?(str_path)
-      ftype = "so" if File.socket?(str_path)
-      ftype = "ex" if File.executable?(str_path)
-      ftype = "di" if File.directory?(str_path)
-      ftype = "ln" if File.symlink?(str_path) 
-      begin
-        File.stat(str_path) # Checking if not an orphaned link
-      rescue
-        ftype = "or"        # Set to orphant if no link target
-      end
-      fg = 7; bold = 0; bg = 0 # Set default color
-      fg, bold = get_ls_color(ftype) unless ftype == "" # Color from LS_COLORS
-      init_pair(fg, fg, bg)
-      file_marker = color_pair(fg)
-      file_marker = file_marker | Curses::A_BOLD if bold == 1
-      if index == @index and active
-        str = "∶" + str
-        file_marker = file_marker | Curses::A_UNDERLINE 
-        wixy = win.cury
-      else
-        str = " " + str
-      end
-      file_marker = file_marker | Curses::A_REVERSE if @tagged.include?("\"#{Dir.pwd}/#{str_path}\"")
-      file_marker = file_marker | Curses::A_BLINK if str.match(/#{@searched}/) and @searched != ""
-      File.directory?(str_path) ? dir = "/" : dir = ""
-      File.symlink?(str_path) ? link = "@" : link = ""
-      str = @fspes[index] + "  " + str if @lslong
-      if str.length > win.maxx - 4
-        base_name   = File.basename(str, ".*")
-        base_length = base_name.length
-        ext_name    = File.extname(str)
-        ext_length  = ext_name.length
-        nbl = win.maxx - 5 - ext_length # nbl: new_base_length
-        str = base_name[0..nbl] + "…" + ext_name
-      end
-      if !active and index == win.maxy - 1 # Add indicator of more at bottom @w_r list 
-        win << " ..."
-        return
-      end
-      str += link + dir
-      if index == @w_l.maxy - 1 - wixy + @index
-        wixy_str = str
-        wixy_fmk = file_marker
-      end
-      win.attron(file_marker) { win << str } # Implement color/bold to the item
-      win.clrtoeol
-      win << "\n"
+    rescue
     end
+    # Determine the filetype of the item 
+    ftype = ""
+    ftype = str.match(/\.([^.]*$)/)[1] if str.match?(/\.([^.]*$)/)
+    # Set special filetypes (sequence matters)
+    ftype = "bd" if File.blockdev?(str_path)
+    ftype = "cd" if File.chardev?(str_path)
+    ftype = "pi" if File.pipe?(str_path)
+    ftype = "st" if File.sticky?(str_path)
+    ftype = "so" if File.socket?(str_path)
+    ftype = "ex" if File.executable?(str_path)
+    ftype = "di" if File.directory?(str_path)
+    ftype = "ln" if File.symlink?(str_path) 
+    begin
+      File.stat(str_path) # Checking if not an orphaned link
+    rescue
+      ftype = "or"        # Set to orphant if no link target
+    end
+    fg = 7; bold = 0; bg = 0 # Set default color
+    fg, bold = get_ls_color(ftype) unless ftype == "" # Color from LS_COLORS
+    init_pair(fg, fg, bg)
+    file_marker = color_pair(fg)
+    file_marker = file_marker | Curses::A_BOLD if bold == 1
+    if ix == @index and active
+      str = "∶" + str
+      file_marker = file_marker | Curses::A_UNDERLINE 
+      wixy = win.cury
+    else
+      str = " " + str
+    end
+    file_marker = file_marker | Curses::A_REVERSE if @tagged.include?("\"#{Dir.pwd}/#{str_path}\"")
+    file_marker = file_marker | Curses::A_BLINK if str.match(/#{@searched}/) and @searched != ""
+    File.directory?(str_path) ? dir = "/" : dir = ""
+    File.symlink?(str_path) ? link = "@" : link = ""
+    str = @fspes[ix] + "  " + str if @lslong
+    if str.length > win.maxx - 4
+      base_name   = File.basename(str, ".*")
+      base_length = base_name.length
+      ext_name    = File.extname(str)
+      ext_length  = ext_name.length
+      nbl = win.maxx - 5 - ext_length # nbl: new_base_length
+      str = base_name[0..nbl] + "…" + ext_name
+    end
+    if !active and ix == win.maxy - 1 # Add indicator of more at bottom @w_r list 
+      win << " ..."
+      return
+    end
+    str += link + dir
+    if ix == @w_l.maxy - 1 - wixy + @index
+      wixy_str = str
+      wixy_fmk = file_marker
+    end
+    win.attron(file_marker) { win << str } # Implement color/bold to the item
+    win.clrtoeol
+    win << "\n"
+    ix += 1
+    t  += 1
   end
   (win.maxy - win.cury).times {win.deleteln()} # Clear to bottom of window
   if active
     init_pair(242, 242, 0)
-    if @index > @w_l.maxy - 4
+    if @index > @w_l.maxy/2
       @w_l.setpos(0, @w_l.maxx - 1)
       @w_l.attron(color_pair(242) | Curses::A_DIM) { @w_l << "∆" }
     end
-    if @files.length > @w_l.maxy - 1 and @files.length > @index + 3
-      @w_l.setpos(@w_l.maxy - 1, 0)
-      @w_l.attron(wixy_fmk) { @w_l << wixy_str }
-      @w_l.setpos(@w_l.maxy - 1, @w_l.maxx - 1)
+    if @files.length > @w_l.maxy - 1 and @files.length > @index + @w_l.maxy/2 - 1
+      @w_l.setpos(@w_l.maxy - 2, @w_l.maxx - 1)
       @w_l.attron(color_pair(242) | Curses::A_DIM) { @w_l << "∇" }
     end
   end
@@ -984,8 +988,8 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     maxy = Curses.lines
     # Curses::Window.new(h,w,y,x)
     @w_t = Curses::Window.new(1, 0, 0, 0)
-    @w_b = Curses::Window.new(2, 0, maxy - 1, 0)
-    @w_l = Curses::Window.new(maxy - 4, (maxx/@width) - 1, 2, 0)
+    @w_b = Curses::Window.new(1, 0, maxy - 1, 0)
+    @w_l = Curses::Window.new(maxy - 3, (maxx/@width) - 1, 2, 0)
     @w_r = Curses::Window.new(maxy - 4, maxx - (maxx/@width), 2, maxx/@width)
     @w_t.fg, @w_t.bg = 232, 249
     @w_t.attr        = Curses::A_BOLD
