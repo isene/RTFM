@@ -637,7 +637,7 @@ def w_r_show # SHOW CONTENTS IN THE RIGHT WINDOW
     elsif File.directory?(@selected)
       ls_cmd  = "ls #{@lsall} #{@selected_safe} --group-directories-first"
       @files  = `#{ls_cmd} 2>/dev/null`.split("\n")
-      ls_cmd += %q[ -lhgG --time-style="long-iso" | awk '{printf "%s%12s%6s%6s%5s", $1,$4,$5,$3,$2 "\n"}']
+      ls_cmd += %q[ -lhgGH --time-style="long-iso" | awk '{printf "%s%12s%6s%6s%5s", $1,$4,$5,$3,$2 "\n"}']
       @fspes  = `#{ls_cmd} 2>/dev/null`.split("\n").drop(1)
       list_dir(false)
     # TEXT 
