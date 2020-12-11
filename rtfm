@@ -468,7 +468,7 @@ def w_t_info # SHOW INFO IN @w_t
     text += " → #{File.readlink(@selected)}" if File.symlink?(@selected) 
   end
   begin
-    text += " (#{@fspes[@index].gsub(/ .* /, ' ')})" 
+    text += " (#{@fspes[@index]})" 
   rescue
   end
   begin
@@ -635,10 +635,10 @@ def w_r_show # SHOW CONTENTS IN THE RIGHT WINDOW
     if @w_r.pager > 0
       pager_show 
     elsif File.directory?(@selected)
-      ls_cmd = "ls #{@lsall} #{@selected_safe} --group-directories-first"
+      ls_cmd  = "ls #{@lsall} #{@selected_safe} --group-directories-first"
       @files  = `#{ls_cmd} 2>/dev/null`.split("\n")
-      ls_cmd   += %q[ -lh | awk '{printf "%s%4s%7s", $1,$2,$5"\n"}']
-      @fspes    = `#{ls_cmd} 2>/dev/null`.split("\n").drop(1)
+      ls_cmd += %q[ -lhgG --time-style="long-iso" | awk '{printf "%s%12s%6s%6s%5s", $1,$4,$5,$3,$2 "\n"}']
+      @fspes  = `#{ls_cmd} 2>/dev/null`.split("\n").drop(1)
       list_dir(false)
     # TEXT 
     elsif File.read(@selected).force_encoding("UTF-8").valid_encoding? and @w_r.pager == 0
@@ -1004,7 +1004,7 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       system("printf \"\033]0;RTFM: #{Dir.pwd}\007\"")   # Set Window title to path 
       ls_cmd  = "ls #{@lsall} --group-directories-first" # Get files in current directory 
       @files  = `#{ls_cmd} 2>/dev/null`.split("\n")
-      ls_cmd += %q[ -lh | awk '{printf "%s%4s%7s", $1,$2,$5"\n"}']
+      ls_cmd += %q[ -lhgG --time-style="long-iso" | awk '{printf "%s%12s%6s%6s%5s", $1,$4,$5,$3,$2 "\n"}']
       @fspes  = `#{ls_cmd} 2>/dev/null`.split("\n").drop(1)
       if Dir.pwd != dir_old
         if @directory.key?(Dir.pwd)

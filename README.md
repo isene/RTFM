@@ -1,6 +1,13 @@
 # RTFM - Ruby Terminal File Manager
 
 
+## What?
+RTFM is a file manager for the terminal written in Ruby. It lets you browse
+directories and view the content of directories and files. You can delete,
+rename, copy and move files as well as a range of other features. Read on for
+what it can do.
+
+
 ## Why?
 RTFM parses your LS_COLORS to ensure color consistency with the terminal experience.
 
