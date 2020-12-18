@@ -58,7 +58,7 @@ Video (thumbnails)          | `ffmpegthumbnailer`              | `apt install ff
 Install rtfm from scratch with all of the above on Ubuntu:
 ```
 sudo apt update
-sudo apt install ruby-full git libncurses-dev bat poppler-utils odt2txt docx2txt catdoc w3m imagemagick ffmpegthumbnailer
+sudo apt install ruby-full git libncurses-dev x11-utils xdotool bat poppler-utils odt2txt docx2txt catdoc w3m imagemagick ffmpegthumbnailer
 sudo gem install curses
 git clone https://github.com/isene/RTFM
 cd RTFM
