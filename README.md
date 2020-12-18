@@ -32,6 +32,9 @@ Ctrl-h to delete previous character, Ctrl-w to delete previous word, TAB to
 complete directories and file names and ENTER to issue the command, while
 Ctrl-u deletes the line. Issuing ENTER on a blank line has no effect.
 
+There are two basic prerequisites needed: `x11-utils` and `xdotool`. On
+Ubuntu these would be installed via `apt-get install x11-utils xdotool`.
+
 In order to run RTFM (without generating [a bunch of
 warnings](https://github.com/isene/RTFM/issues/1)), you need to do a `gem
 install curses` (gets version 1.3.2) instead of installing via `apt install
