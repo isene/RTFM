@@ -90,7 +90,7 @@ a      | Show all (also hidden) items
 l      | Show long info per item (show item attributes)
 G      | Show git status for current directory
 t      | Tag item (toggles)
-Ctrl-t | Add items matching pattern to list of tagged items
+Ctrl-t | Add items matching pattern to list of tagged items (Ctrl-t and then . will tagg all items)
 T      | Show currently tagged items in right pane
 u      | Untag all tagged items
 p      | Put (copy) tagged items here
