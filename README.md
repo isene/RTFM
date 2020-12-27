@@ -151,6 +151,11 @@ To have some commands already prepared for the command history, you can set:
 ```
 @history = ["cat /home/me/MyTodo.txt", "neofetch --stdout"]
 ```
+To open files with `run-mailcap` instead of `open-xdg` set:
+```
+@runmailcap = true
+```
+
 These variables that you manually add to the top of the config files are
 undisturbed by launching and exiting RTFM.
 
