@@ -590,7 +590,7 @@ def open_selected() # OPEN SELECTED ITEM (when pressing RIGHT)
   else
     begin
       if File.read(@selected).force_encoding("UTF-8").valid_encoding?
-        Thread.new { system("exec $TERMCMD -e $EDITOR #{@selected_safe}") }
+        system("exec $EDITOR #{@selected_safe}")
       else
           if @runmailcap
             Thread.new { system("run-mailcap #{@selected_safe}") }
