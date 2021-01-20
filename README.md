@@ -106,6 +106,7 @@ h      | Jump to Home directory
 :      | Enter "command mode" in bottom window
 ;      | Show command history in right pane
 L      | Start 'locate' search for files, then use '#' to jump to desired line/directory
+f      | Follow symlink to the directory where the target resides
 w      | Change the width of the left/right panes (left pane ⇒ ⅓ ⇒ ¼ ⇒ ⅕ ⇒ ⅙ ⇒ ½ ⇒ ⅓)
 R      | Reload configuration (~/.rtfm.conf)
 W      | Write parameters to ~/.rtfm.conf (@lsall, @lslong, @border, @width, @preview, @tagged, @marks)

@@ -53,6 +53,7 @@ KEYS
  :      = Enter "command mode" in bottom window
  ;      = Show command history in right pane
  L      = Start 'locate' search for files, then use '#' to jump to desired line/directory
+ f      = Follow symlink to the directory where the target resides
  w      = Change the width of the left/right panes (left pane ⇒ ⅓ ⇒ ¼ ⇒ ⅕ ⇒ ⅙ ⇒ ½ ⇒ ⅓)
  R      = Reload configuration (~/.rtfm.conf)
  W      = Write parameters to ~/.rtfm.conf (@lsall, @lslong, @border, @width, @preview, @tagged, @marks)
@@ -374,6 +375,11 @@ def main_getkey # GET KEY FROM USER
       @marks["'"] = Dir.pwd
       Dir.chdir(jumpdir)
       @w_r.pager = 0
+    end
+  when 'f' # Follow symlink
+    @marks["'"] = Dir.pwd
+    if File.symlink?(@selected) 
+      Dir.chdir(File.dirname(File.readlink(@selected)))
     end
   when ':' # Enter "command mode" in the bottom window - tries to execute the given command 
     @w_r.nohistory = false
