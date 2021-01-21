@@ -88,9 +88,10 @@ TAB    | Next page of the preview (if doc long and ∇ in the bottom right)
 S-TAB  | Previous page (if you have moved down the document first - ∆ in the top right)
 a      | Show all (also hidden) items
 l      | Show long info per item (show item attributes)
+o      | Change the order/sorting of directories (circular toggle)
 G      | Show git status for current directory
 t      | Tag item (toggles)
-Ctrl-t | Add items matching pattern to list of tagged items (Ctrl-t and then . will tagg all items)
+Ctrl-t | Add items matching a pattern to list of tagged items (Ctrl-t and then . will tag all items)
 T      | Show currently tagged items in right pane
 u      | Untag all tagged items
 p      | Put (copy) tagged items here
@@ -142,6 +143,12 @@ of `.rtfm.conf` you can set the following:
 To have long info per item: `@lslong = true` (this is otherwise set to `false`)
 
 To show hidden files: `@lsall = "-a"` (this is otherwise set to `""`)
+
+To set any additional 'ls' switches, set the variable `@lsuser`. To not list
+any files containg the word "test", you could do this:
+```
+@lsuser = "--ignore=test"
+```
 
 To change the default width of the left pane to something other than ⅓rd of
 the terminal width: `@width = 5` (would set the left pane width to ⅕th).

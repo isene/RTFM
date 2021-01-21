@@ -17,7 +17,7 @@
 
 # PRELIMINARIES
 @help = <<HELPTEXT
-RTFM - [Ruby|Ruddy|Rough] Terminal File Manager (https://github.com/isene/RTFM)
+RTFM - Ruby Terminal File Manager (https://github.com/isene/RTFM)
 
 KEYS
  ?      = Show this help text
@@ -33,9 +33,10 @@ KEYS
  S-TAB  = Previous page (if you have moved down the document first - ∆ in the top right)
  a      = Show all (also hidden) items
  l      = Show long info per item (show item attributes)
+ o      = Change the order/sorting of directories (circular toggle)
  G      = Show git status for current directory
  t      = Tag item (toggles)
- Ctrl-t = Add items matching pattern to list of tagged items (Ctrl-t and then . will tagg all items)
+ Ctrl-t = Add items matching a pattern to list of tagged items (Ctrl-t and then . will tag all items)
  T      = Show currently tagged items in right pane
  u      = Untag all tagged items
  p      = Put (copy) tagged items here
@@ -87,6 +88,8 @@ begin # BASIC SETUP
   ## These can be set by user in .rtfm.conf
   @lslong     = false # Set short form ls (toggled by pressing "l")
   @lsall      = ""    # Set "ls -a" to false (toggled by pressing "a" - sets it to "-a")
+  @lsorder    = ""    # Change the order/sorting by pressing 'o' (circular toggle)
+  @lsuser     = ""    # Set this variable in .rtfm.conf to any 'ls' switch you want to customize directory listings
   @width      = 3     # Set width of the left pane to the default ⅓ of the terminal width
   @history    = []    # Initialize the command line history array
   @border     = false
@@ -254,6 +257,21 @@ def main_getkey # GET KEY FROM USER
       @w_r.pager -= 1
       pager_show
     end
+  when 'o'
+    case @lsorder
+    when ""
+      @lsorder = "-S"
+      w_b_info(" Sorting by size, largest first")
+    when "-S"
+      @lsorder = "-t"
+      w_b_info(" Sorting by modification time")
+    when "-t"
+      @lsorder = "-X"
+      w_b_info(" Sorting by extension (alphabetically)")
+    when "-X"
+      @lsorder = ""
+      w_b_info(" Normal sorting")
+    end
   when 'a' # Show all items 
     @lsall == "" ? @lsall = "-a" : @lsall = ""
     @w_r.update = true
@@ -377,6 +395,7 @@ def main_getkey # GET KEY FROM USER
       @w_r.pager = 0
     end
   when 'f' # Follow symlink
+    @directory[Dir.pwd] = @selected # Store this directory before leaving
     @marks["'"] = Dir.pwd
     if File.symlink?(@selected) 
       Dir.chdir(File.dirname(File.readlink(@selected)))
@@ -643,7 +662,7 @@ def w_r_show # SHOW CONTENTS IN THE RIGHT WINDOW
     if @w_r.pager > 0
       pager_show 
     elsif File.directory?(@selected)
-      ls_cmd  = "ls #{@lsall} #{@selected_safe} --group-directories-first"
+      ls_cmd  = "ls #{@lsall} #{@selected_safe} --group-directories-first #{@lsorder}"
       @files  = `#{ls_cmd} 2>/dev/null`.split("\n")
       ls_cmd += %q[ -lhgGH --time-style="long-iso" | awk '{printf "%s%12s%6s%6s%5s", $1,$4,$5,$3,$2 "\n"}']
       @fspes  = `#{ls_cmd} 2>/dev/null`.split("\n").drop(1)
@@ -1010,7 +1029,7 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     end
     loop do # INNER, CORE LOOP 
       system("printf \"\033]0;RTFM: #{Dir.pwd}\007\"")   # Set Window title to path 
-      ls_cmd  = "ls #{@lsall} --group-directories-first" # Get files in current directory 
+      ls_cmd  = "ls #{@lsall} --group-directories-first #{@lsorder}" # Get files in current directory 
       @files  = `#{ls_cmd} 2>/dev/null`.split("\n")
       ls_cmd += %q[ -lhgG --time-style="long-iso" | awk '{printf "%s%12s%6s%6s%5s", $1,$4,$5,$3,$2 "\n"}']
       @fspes  = `#{ls_cmd} 2>/dev/null`.split("\n").drop(1)
