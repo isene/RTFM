@@ -662,7 +662,7 @@ def w_r_show # SHOW CONTENTS IN THE RIGHT WINDOW
     if @w_r.pager > 0
       pager_show 
     elsif File.directory?(@selected)
-      ls_cmd  = "ls #{@lsall} #{@selected_safe} --group-directories-first #{@lsorder}"
+      ls_cmd  = "ls #{@lsall} #{@selected_safe} --group-directories-first #{@lsorder} #{@lsuser}"
       @files  = `#{ls_cmd} 2>/dev/null`.split("\n")
       ls_cmd += %q[ -lhgGH --time-style="long-iso" | awk '{printf "%s%12s%6s%6s%5s", $1,$4,$5,$3,$2 "\n"}']
       @fspes  = `#{ls_cmd} 2>/dev/null`.split("\n").drop(1)
@@ -1029,7 +1029,7 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     end
     loop do # INNER, CORE LOOP 
       system("printf \"\033]0;RTFM: #{Dir.pwd}\007\"")   # Set Window title to path 
-      ls_cmd  = "ls #{@lsall} --group-directories-first #{@lsorder}" # Get files in current directory 
+      ls_cmd  = "ls #{@lsall} --group-directories-first #{@lsorder} #{@lsuser}" # Get files in current directory 
       @files  = `#{ls_cmd} 2>/dev/null`.split("\n")
       ls_cmd += %q[ -lhgG --time-style="long-iso" | awk '{printf "%s%12s%6s%6s%5s", $1,$4,$5,$3,$2 "\n"}']
       @fspes  = `#{ls_cmd} 2>/dev/null`.split("\n").drop(1)
