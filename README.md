@@ -76,8 +76,10 @@ echo "source ~/.rtfm.launch" >> .zshrc # or .bashrc if you run bash as shell
 
 These are the set of keys to move around and do actions within RTFM:
 
-BASIC KEYS | 
---------|------------------------------------------------------------------
+###Basic keys 
+
+Key    | Description
+-------|------------------------------------------------------------------
 ?      | Show this help text
 r      | Refresh RTFM (recreates all windows. Use on terminal resize or when there is garbage somewhere)
 R      | Reload configuration (~/.rtfm.conf)
@@ -85,9 +87,11 @@ W      | Write parameters to ~/.rtfm.conf (@lsall, @lslong, @border, @width, @pr
 q      | Quit
 Q      | QUIT (without writing changes to the config file)
 
-MOTION |
---------|------------------------------------------------------------------
-DOWN   | Go one item down in left pane (rounds to top)
+### Motion
+
+Key    | Description
+-------|------------------------------------------------------------------
+DOWN   |  Go one item down in left pane (rounds to top)
 UP     | Go one item up in left pane (rounds to bottom)
 LEFT   | Go up one directory level
 RIGHT  | Enter directory or open file (using run-mailcap or xdg-open)
@@ -96,8 +100,10 @@ PgUp   | Go one page up in left pane
 END    | Go to last item in left pane
 HOME   | Go to first item in left pane
 
-JUMPING AND MARKS |
---------|------------------------------------------------------------------
+### Jumping and marks
+
+Key    | Description
+-------|------------------------------------------------------------------
 m      | Mark current dir (persistent). Next letter is the name of the mark [a-zA-Z'] The special mark "'" jumps to the last directory (makes toggling dirs easy) Press '-' and a letter to delete that mark
 M      | Show marked items in right pane
 '      | Jump to mark (next letter is the name of the mark [a-zA-Z'])
@@ -105,38 +111,48 @@ h      | Jump to Home directory
 f      | Follow symlink to the directory where the target resides
 L      | Start 'locate' search for files, then use '#' to jump to desired line/directory
 
-TAGGING |
---------|------------------------------------------------------------------
+### Tagging
+
+Key    | Description
+-------|------------------------------------------------------------------
 t      | Tag item (toggles)
 Ctrl-t | Add items matching a pattern to list of tagged items (Ctrl-t and then . will tag all items)
 T      | Show currently tagged items in right pane
 u      | Untag all tagged items
 
-MANIPULATE ITEMS |
---------|------------------------------------------------------------------
+### Manipulate items
+
+Key    | Description
+-------|------------------------------------------------------------------
 p      | Put (copy) tagged items here
 P      | PUT (move) tagged items here
 s      | Create symlink to tagged items here
 d      | Delete selected item and tagged items. Press 'd' to confirm
 c      | Change/rename selected (adds command to bottom window)
 
-DIRECTORY VIEWS |
---------|------------------------------------------------------------------
+### Directory views
+
+Key    | Description
+-------|------------------------------------------------------------------
 a      | Show all (also hidden) items
 l      | Show long info per item (show item attributes)
 o      | Change the order/sorting of directories (circular toggle)
 G      | Show git status for current directory
 
-RIGHT PANE |
---------|------------------------------------------------------------------
+### Right pane
+
+Key    | Description
+-------|------------------------------------------------------------------
 ENTER  | Refresh the right pane
 TAB    | Next page of the preview (if doc long and ∇ in the bottom right)
 S-TAB  | Previous page (if you have moved down the document first - ∆ in the top right)
 w      | Change the width of the left/right panes (left pane ⇒ ⅓ ⇒ ¼ ⇒ ⅕ ⇒ ⅙ ⇒ ½ ⇒ ⅓)
 -      | Toggle preview in right pane (turn it off for faster traversing of directories)
 
-ADDITINAL COMMANDS |
---------|------------------------------------------------------------------
+### Additinal commands
+
+Key    | Description
+-------|------------------------------------------------------------------
 /      | Enter search string in bottom window to highlight matching items
 :      | Enter "command mode" in bottom window
 ;      | Show command history in right pane
