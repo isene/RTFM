@@ -76,7 +76,7 @@ echo "source ~/.rtfm.launch" >> .zshrc # or .bashrc if you run bash as shell
 
 These are the set of keys to move around and do actions within RTFM:
 
-###Basic keys 
+### Basic keys 
 
 Key    | Description
 -------|------------------------------------------------------------------
