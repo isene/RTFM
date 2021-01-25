@@ -64,6 +64,7 @@ DIRECTORY VIEWS
  a      = Show all (also hidden) items
  l      = Show long info per item (show item attributes)
  o      = Change the order/sorting of directories (circular toggle)
+ i      = Invert/reverse the sorting
  G      = Show git status for current directory
 
 RIGHT PANE
@@ -100,9 +101,11 @@ begin # BASIC SETUP
 
   # INITIALIZE VARIABLES 
   ## These can be set by user in .rtfm.conf
+  @lsbase     = "--group-directories-first" # Basic ls setup
   @lslong     = false # Set short form ls (toggled by pressing "l")
   @lsall      = ""    # Set "ls -a" to false (toggled by pressing "a" - sets it to "-a")
   @lsorder    = ""    # Change the order/sorting by pressing 'o' (circular toggle)
+  @lsinvert   = ""    # Set to "-r" to reverse/invert sorting order
   @lsuser     = ""    # Set this variable in .rtfm.conf to any 'ls' switch you want to customize directory listings
   @width      = 3     # Set width of the left pane to the default ⅓ of the terminal width
   @history    = []    # Initialize the command line history array
@@ -216,15 +219,36 @@ def main_getkey # GET KEY FROM USER
   dir = Dir.pwd
   chr = getchr
   case chr
+  # BASIC KEYS
   when '?' # Show helptext in right window 
     w_r_info(@help)
-  when 'UP'
-    var_resets
-    @index = @index <= @min_index ? @max_index : @index - 1
-    @w_r.update = true
+  when 'r' # Refresh all windows 
+    @break = true
+  when 'R' # Reload .rtfm.conf
+    if File.exist?(Dir.home+'/.rtfm.conf')
+      load(Dir.home+'/.rtfm.conf')
+    end
+    w_b_info(" Config reloaded")
+    @w_b.update = false
+  when 'W' # Write all parameters to .rtfm.conf
+    @write_conf_all = true
+    conf_write
+  when 'q' # Exit 
+    system("printf \"\033]0;#{Dir.pwd}\007\"")
+    @write_conf = true
+    exit 0
+  when 'Q' # Exit without writing to .rtfm.conf
+    system("printf \"\033]0;#{Dir.pwd}\007\"")
+    @write_conf = false
+    exit 0
+  # MOTION
   when 'DOWN'
     var_resets
     @index = @index >= @max_index ? @min_index : @index + 1
+    @w_r.update = true
+  when 'UP'
+    var_resets
+    @index = @index <= @min_index ? @max_index : @index - 1
     @w_r.update = true
   when 'LEFT'
     var_resets
@@ -240,65 +264,86 @@ def main_getkey # GET KEY FROM USER
     @marks["'"] = Dir.pwd
     open_selected()
     @w_r.update = true
-  when 'PgUP'
-    var_resets
-    @index -= @w_l.maxy - 2
-    @index = @min_index if @index < @min_index
-    @w_r.update = true
   when 'PgDOWN'
     var_resets
     @index += @w_l.maxy - 2
     @index = @max_index if @index > @max_index
     @w_r.update = true
-  when 'HOME'
+  when 'PgUP'
     var_resets
-    @index = @min_index
+    @index -= @w_l.maxy - 2
+    @index = @min_index if @index < @min_index
     @w_r.update = true
   when 'END'
     var_resets
     @index = @max_index
     @w_r.update = true
-  when 'TAB' # Start paging
-    if @w_r.pager == 1 and @w_r.pager_cmd != ""
-      @w_r.text = `#{@w_r.pager_cmd}` 
-    end
-    if @w_r.pager_more
-      @w_r.pager += 1
-      pager_show 
-    end
-  when 'S-TAB' # Up one page
-    if @w_r.pager > 1
-      @w_r.pager -= 1
-      pager_show
-    end
-  when 'o'
-    case @lsorder
-    when ""
-      @lsorder = "-S"
-      w_b_info(" Sorting by size, largest first")
-    when "-S"
-      @lsorder = "-t"
-      w_b_info(" Sorting by modification time")
-    when "-t"
-      @lsorder = "-X"
-      w_b_info(" Sorting by extension (alphabetically)")
-    when "-X"
-      @lsorder = ""
-      w_b_info(" Normal sorting")
-    end
-  when 'a' # Show all items 
-    @lsall == "" ? @lsall = "-a" : @lsall = ""
+  when 'HOME'
+    var_resets
+    @index = @min_index
     @w_r.update = true
-  when 'l' # Show long info for all items 
-    @lslong = !@lslong
-    @w_r.update = true
-  when 'G' # Git status for selected item or current dir
-    if File.exist?(".git")
-      w_r_info(`git status 2>/dev/null`)
-    else
-      w_r_info("This is not a git repository.")
+  # JUMPING AND MARKS
+  when 'm' # Set mark 
+    marks_info
+    m = STDIN.getc
+    if m.match(/[\w']/)
+      @marks[m] = Dir.pwd
+    elsif m == "-"
+      r = STDIN.getc
+      @marks.delete(r)
     end
+    marks_info
     @w_r.update = false
+  when 'M' # Show marks 
+    @marks = @marks.sort.to_h
+    marks_info
+    @w_r.update = false
+  when "'" # Jump to mark 
+    marks_info
+    m = STDIN.getc
+    if m.match(/[\w']/) and @marks[m]
+      var_resets
+      @directory[Dir.pwd] = @selected # Store this directory before leaving
+      dir_before  = Dir.pwd
+      begin
+        Dir.chdir(@marks[m]) 
+      rescue
+        w_b_info(" No such directory")
+      end
+      @marks["'"] = dir_before
+    end
+    @w_r.update = true
+  when 'h' # 
+    var_resets
+    @directory[Dir.pwd] = @selected # Store this directory before leaving
+    @marks["'"] = Dir.pwd
+    Dir.chdir
+    @w_r.update = true
+  when 'f' # Follow symlink
+    @directory[Dir.pwd] = @selected # Store this directory before leaving
+    @marks["'"] = Dir.pwd
+    if File.symlink?(@selected) 
+      Dir.chdir(File.dirname(File.readlink(@selected)))
+    end
+  when 'L' # Run 'locate' and let user jump to a result (by '#') 
+    cmd = w_b_getstr(": ", "locate ")
+    w_b_exec(cmd)
+    @w_r.locate = true
+  when '#' # Jump to the line number in list of matches to 'locate' 
+    if @w_r.locate
+      jumpnr   = w_b_getstr("# ", "").to_i
+      jumpline = @w_r.text.lines[jumpnr - 1]
+      jumpdir  = jumpline[/\/[^\e]*/]
+      unless Dir.exist?(jumpdir) 
+        @searched = File.basename(jumpdir)
+        jumpdir = File.dirname(jumpdir)
+      end
+      @directory[Dir.pwd] = @selected # Store this directory before leaving
+      @marks["'"] = Dir.pwd
+      Dir.chdir(jumpdir)
+      @w_r.pager = 0
+    end
+  # TAGGING
   when 't' # Add item to tagged list 
     item = "\"#{Dir.pwd}/#{@selected}\""
     if @tagged.include?(item)
@@ -320,6 +365,7 @@ def main_getkey # GET KEY FROM USER
     @tagged = []
     tagged_info
     @w_r.update = false
+  # MANIPULATE ITEMS
   when 'p' # Copy tagged items here 
     copy_move_link("copy")
     @w_r.update = true
@@ -348,76 +394,80 @@ def main_getkey # GET KEY FROM USER
     cmd = w_b_getstr(": ", "mv \"#{@selected}\" \"#{@selected}\"")
     w_b_exec(cmd)
     @w_r.update = true
-  when 'm' # Set mark 
-    marks_info
-    m = STDIN.getc
-    if m.match(/[\w']/)
-      @marks[m] = Dir.pwd
-    elsif m == "-"
-      r = STDIN.getc
-      @marks.delete(r)
-    end
-    marks_info
-    @w_r.update = false
-  when 'M' # Show marks 
-    @marks = @marks.sort.to_h
-    marks_info
-    @w_r.update = false
-  when ';' # Show command history 
-    w_r_info("Command history (latest on top):\n\n" + @history.join("\n"))
-  when 'h' # 
-    var_resets
-    @directory[Dir.pwd] = @selected # Store this directory before leaving
-    @marks["'"] = Dir.pwd
-    Dir.chdir
+  # DIRECTORY VIEWS
+  when 'a' # Show all items 
+    @lsall == "" ? @lsall = "-a" : @lsall = ""
     @w_r.update = true
-  when "'" # Jump to mark 
-    marks_info
-    m = STDIN.getc
-    if m.match(/[\w']/) and @marks[m]
-      var_resets
-      @directory[Dir.pwd] = @selected # Store this directory before leaving
-      dir_before  = Dir.pwd
-      begin
-        Dir.chdir(@marks[m]) 
-      rescue
-        w_b_info(" No such directory")
-      end
-      @marks["'"] = dir_before
+  when 'l' # Show long info for all items 
+    @lslong = !@lslong
+    @w_r.update = true
+  when 'o'
+    case @lsorder
+    when ""
+      @lsorder = "-S"
+      w_b_info(" Sorting by size, largest first")
+    when "-S"
+      @lsorder = "-t"
+      w_b_info(" Sorting by modification time")
+    when "-t"
+      @lsorder = "-X"
+      w_b_info(" Sorting by extension (alphabetically)")
+    when "-X"
+      @lsorder = ""
+      w_b_info(" Normal sorting")
     end
     @w_r.update = true
+  when 'i'
+    case @lsinvert
+    when ""
+      @lsinvert = "-r"
+      w_b_info(" Sorting inverted")
+    when "-r"
+      @lsinvert = ""
+      w_b_info(" Sorting NOT inverted")
+    end
+    @w_r.update = true
+  when 'G' # Git status for selected item or current dir
+    if File.exist?(".git")
+      w_r_info(`git status 2>/dev/null`)
+    else
+      w_r_info("This is not a git repository.")
+    end
+    @w_r.update = false
+  # RIGHT PANE
+  when 'ENTER' # Refresh right pane
+    @w_r.update = true
+  when 'TAB' # Start paging
+    if @w_r.pager == 1 and @w_r.pager_cmd != ""
+      @w_r.text = `#{@w_r.pager_cmd}` 
+    end
+    if @w_r.pager_more
+      @w_r.pager += 1
+      pager_show 
+    end
+  when 'S-TAB' # Up one page
+    if @w_r.pager > 1
+      @w_r.pager -= 1
+      pager_show
+    end
+  when 'w' # Change width of left/right panes
+    @width += 1
+    @width  = 2 if @width == 7
+    @break = true
+  when '-'
+    @preview = !@preview
+    @break = true
+  # ADDITIONAL COMMANDS
   when '/' # Get search string to mark items that match # 
     @w_b.nohistory = true
     @searched = w_b_getstr("/ ", "")
     @w_r.update = true
-  when 'L' # Run 'locate' and let user jump to a result (by '#') 
-    cmd = w_b_getstr(": ", "locate ")
-    w_b_exec(cmd)
-    @w_r.locate = true
-  when '#' # Jump to the line number in list of matches to 'locate' 
-    if @w_r.locate
-      jumpnr   = w_b_getstr("# ", "").to_i
-      jumpline = @w_r.text.lines[jumpnr - 1]
-      jumpdir  = jumpline[/\/[^\e]*/]
-      unless Dir.exist?(jumpdir) 
-        @searched = File.basename(jumpdir)
-        jumpdir = File.dirname(jumpdir)
-      end
-      @directory[Dir.pwd] = @selected # Store this directory before leaving
-      @marks["'"] = Dir.pwd
-      Dir.chdir(jumpdir)
-      @w_r.pager = 0
-    end
-  when 'f' # Follow symlink
-    @directory[Dir.pwd] = @selected # Store this directory before leaving
-    @marks["'"] = Dir.pwd
-    if File.symlink?(@selected) 
-      Dir.chdir(File.dirname(File.readlink(@selected)))
-    end
   when ':' # Enter "command mode" in the bottom window - tries to execute the given command 
     @w_r.nohistory = false
     cmd = w_b_getstr(": ", "")
     w_b_exec(cmd)
+  when ';' # Show command history 
+    w_r_info("Command history (latest on top):\n\n" + @history.join("\n"))
   when '@' # Enter "Ruby debug"
     @w_b.nohistory = true
     cmd = w_b_getstr("◆ ", "")
@@ -430,34 +480,6 @@ def main_getkey # GET KEY FROM USER
       w_r_info("Error: #{e.inspect}")
     end
     @w_r.update = false
-  when 'w' # Change width of left/right panes
-    @width += 1
-    @width  = 2 if @width == 7
-    @break = true
-  when 'R' # Reload .rtfm.conf
-    if File.exist?(Dir.home+'/.rtfm.conf')
-      load(Dir.home+'/.rtfm.conf')
-    end
-    w_b_info(" Config reloaded")
-    @w_b.update = false
-  when 'W' # Write all parameters to .rtfm.conf
-    @write_conf_all = true
-    conf_write
-  when 'ENTER' # Refresh right pane
-    @w_r.update = true
-  when '-'
-    @preview = !@preview
-    @break = true
-  when 'r' # Refresh all windows 
-    @break = true
-  when 'q' # Exit 
-    system("printf \"\033]0;#{Dir.pwd}\007\"")
-    @write_conf = true
-    exit 0
-  when 'Q' # Exit without writing to .rtfm.conf
-    system("printf \"\033]0;#{Dir.pwd}\007\"")
-    @write_conf = false
-    exit 0
   end
   if @w_r.update == true
     @w_r.locate     = false
@@ -676,7 +698,7 @@ def w_r_show # SHOW CONTENTS IN THE RIGHT WINDOW
     if @w_r.pager > 0
       pager_show 
     elsif File.directory?(@selected)
-      ls_cmd  = "ls #{@lsall} #{@selected_safe} --group-directories-first #{@lsorder} #{@lsuser}"
+      ls_cmd  = "ls #{@selected_safe} #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}"
       @files  = `#{ls_cmd} 2>/dev/null`.split("\n")
       ls_cmd += %q[ -lhgGH --time-style="long-iso" | awk '{printf "%s%12s%6s%6s%5s", $1,$4,$5,$3,$2 "\n"}']
       @fspes  = `#{ls_cmd} 2>/dev/null`.split("\n").drop(1)
@@ -1043,7 +1065,7 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     end
     loop do # INNER, CORE LOOP 
       system("printf \"\033]0;RTFM: #{Dir.pwd}\007\"")   # Set Window title to path 
-      ls_cmd  = "ls #{@lsall} --group-directories-first #{@lsorder} #{@lsuser}" # Get files in current directory 
+      ls_cmd  = "ls #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}" # Get files in current directory 
       @files  = `#{ls_cmd} 2>/dev/null`.split("\n")
       ls_cmd += %q[ -lhgG --time-style="long-iso" | awk '{printf "%s%12s%6s%6s%5s", $1,$4,$5,$3,$2 "\n"}']
       @fspes  = `#{ls_cmd} 2>/dev/null`.split("\n").drop(1)

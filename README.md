@@ -91,7 +91,7 @@ Q      | QUIT (without writing changes to the config file)
 
 Key    | Description
 -------|------------------------------------------------------------------
-DOWN   |  Go one item down in left pane (rounds to top)
+DOWN   | Go one item down in left pane (rounds to top)
 UP     | Go one item up in left pane (rounds to bottom)
 LEFT   | Go up one directory level
 RIGHT  | Enter directory or open file (using run-mailcap or xdg-open)
@@ -137,6 +137,7 @@ Key    | Description
 a      | Show all (also hidden) items
 l      | Show long info per item (show item attributes)
 o      | Change the order/sorting of directories (circular toggle)
+i      | Invert/reverse the sorting
 G      | Show git status for current directory
 
 ### Right pane
