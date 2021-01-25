@@ -416,7 +416,8 @@ def main_getkey # GET KEY FROM USER
       @lsorder = ""
       w_b_info(" Normal sorting")
     end
-    @w_r.update = true
+    @w_r.update  = true
+    @orderchange = true
   when 'i'
     case @lsinvert
     when ""
@@ -426,7 +427,8 @@ def main_getkey # GET KEY FROM USER
       @lsinvert = ""
       w_b_info(" Sorting NOT inverted")
     end
-    @w_r.update = true
+    @w_r.update  = true
+    @orderchange = true
   when 'G' # Git status for selected item or current dir
     if File.exist?(".git")
       w_r_info(`git status 2>/dev/null`)
@@ -1030,9 +1032,10 @@ end
 
 # MAIN PROGRAM 
 loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
-  @break = false # Initialize @break variable (set if user hits 'r')
-  @image = false # Set the image flag to false (set if image is displayed in @w_r)
-  @tag   = false # Set pattern tagging to nothing
+  @break        = false # Initialize @break variable (set if user hits 'r')
+  @image        = false # Set the image flag to false (set if image is displayed in @w_r)
+  @tag          = false # Set pattern tagging to nothing
+  @orderchange  = false
   begin # Create the four windows/panels 
     if @border
       Curses.stdscr.bg = 236 # Use for borders
@@ -1077,9 +1080,13 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
           @index    = 0
         end
       end
-      dir_old = Dir.pwd
+      dir_old    = Dir.pwd
       @index     = 0 if @index == nil
       index_old  = @index
+      if @orderchange # Change in ordering must be handled
+        @index        = @files.index(@selected)
+        @orderchange  = false
+      end
       @index     = @files.index(@selected) if @lsall != lsall_old # Change in showing all items must be handled
       @index     = index_old if @files.index(@selected) == nil    # If item no longer is shown
       @min_index = 0
