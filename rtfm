@@ -834,6 +834,7 @@ def image_show(image)# SHOW THE SELECTED IMAGE IN THE RIGHT WINDOW
       `echo "0;1;#{img_x};#{img_y};#{img_w};#{img_h};;;;;\"#{image}\"\n4;\n3;" | #{@w3mimgdisplay} 2>/dev/null`
     end
   rescue
+    @w_r.clr
     @w_r << "Error showing image"
   end
 end
