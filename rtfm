@@ -806,7 +806,7 @@ end
 def image_show(image)# SHOW THE SELECTED IMAGE IN THE RIGHT WINDOW
   # Pass "clear" to clear the window for previous image
   begin
-    terminfo    = `xwininfo -id $(xdotool getactivewindow) 2>/dev/null`
+    terminfo    = `xwininfo -id $(xdotool getactivewindow 2>/dev/null) 2>/dev/null`
     term_w      = terminfo.match(/Width: (\d+)/)[1].to_i
     term_h      = terminfo.match(/Height: (\d+)/)[1].to_i
     char_w      = term_w / Curses.cols
