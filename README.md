@@ -138,6 +138,7 @@ a      | Show all (also hidden) items
 l      | Show long info per item (show item attributes)
 o      | Change the order/sorting of directories (circular toggle)
 i      | Invert/reverse the sorting
+O      | Show the Ordering in the bottom window (the full ls command)
 G      | Show git status for current directory
 
 ### Right pane

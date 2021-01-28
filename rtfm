@@ -65,6 +65,7 @@ DIRECTORY VIEWS
  l      = Show long info per item (show item attributes)
  o      = Change the order/sorting of directories (circular toggle)
  i      = Invert/reverse the sorting
+ O      = Show the Ordering in the bottom window (the full ls command)
  G      = Show git status for current directory
 
 RIGHT PANE
@@ -401,7 +402,7 @@ def main_getkey # GET KEY FROM USER
   when 'l' # Show long info for all items 
     @lslong = !@lslong
     @w_r.update = true
-  when 'o'
+  when 'o' # Circular toggle the order/sorting of directory views
     case @lsorder
     when ""
       @lsorder = "-S"
@@ -418,7 +419,7 @@ def main_getkey # GET KEY FROM USER
     end
     @w_r.update  = true
     @orderchange = true
-  when 'i'
+  when 'i' # Invert the order/sorting of directory views
     case @lsinvert
     when ""
       @lsinvert = "-r"
@@ -429,6 +430,8 @@ def main_getkey # GET KEY FROM USER
     end
     @w_r.update  = true
     @orderchange = true
+  when 'O' # Show the Ordering in the bottom window (the full ls command)
+    w_b_info(" Full ls command: ls <@s> #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}")
   when 'G' # Git status for selected item or current dir
     if File.exist?(".git")
       w_r_info(`git status 2>/dev/null`)
