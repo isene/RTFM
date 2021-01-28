@@ -223,6 +223,7 @@ def main_getkey # GET KEY FROM USER
   # BASIC KEYS
   when '?' # Show helptext in right window 
     w_r_info(@help)
+    @w_b.update = true
   when 'r' # Refresh all windows 
     @break = true
   when 'R' # Reload .rtfm.conf
@@ -230,10 +231,10 @@ def main_getkey # GET KEY FROM USER
       load(Dir.home+'/.rtfm.conf')
     end
     w_b_info(" Config reloaded")
-    @w_b.update = false
   when 'W' # Write all parameters to .rtfm.conf
     @write_conf_all = true
     conf_write
+    @w_b.update = true
   when 'q' # Exit 
     system("printf \"\033]0;#{Dir.pwd}\007\"")
     @write_conf = true
@@ -247,10 +248,12 @@ def main_getkey # GET KEY FROM USER
     var_resets
     @index = @index >= @max_index ? @min_index : @index + 1
     @w_r.update = true
+    @w_b.update = true
   when 'UP'
     var_resets
     @index = @index <= @min_index ? @max_index : @index - 1
     @w_r.update = true
+    @w_b.update = true
   when 'LEFT'
     var_resets
     cur_dir = Dir.pwd
@@ -259,30 +262,36 @@ def main_getkey # GET KEY FROM USER
     Dir.chdir("..")
     @directory[Dir.pwd] = File.basename(cur_dir) unless @directory.key?(Dir.pwd)
     @w_r.update = true
+    @w_b.update = true
   when 'RIGHT'
     var_resets
     @directory[Dir.pwd] = @selected # Store this directory before leaving
     @marks["'"] = Dir.pwd
     open_selected()
     @w_r.update = true
+    @w_b.update = true
   when 'PgDOWN'
     var_resets
     @index += @w_l.maxy - 2
     @index = @max_index if @index > @max_index
     @w_r.update = true
+    @w_b.update = true
   when 'PgUP'
     var_resets
     @index -= @w_l.maxy - 2
     @index = @min_index if @index < @min_index
     @w_r.update = true
+    @w_b.update = true
   when 'END'
     var_resets
     @index = @max_index
     @w_r.update = true
+    @w_b.update = true
   when 'HOME'
     var_resets
     @index = @min_index
     @w_r.update = true
+    @w_b.update = true
   # JUMPING AND MARKS
   when 'm' # Set mark 
     marks_info
@@ -295,10 +304,12 @@ def main_getkey # GET KEY FROM USER
     end
     marks_info
     @w_r.update = false
+    @w_b.update = true
   when 'M' # Show marks 
     @marks = @marks.sort.to_h
     marks_info
     @w_r.update = false
+    @w_b.update = true
   when "'" # Jump to mark 
     marks_info
     m = STDIN.getc
@@ -314,22 +325,26 @@ def main_getkey # GET KEY FROM USER
       @marks["'"] = dir_before
     end
     @w_r.update = true
+    @w_b.update = true
   when 'h' # 
     var_resets
     @directory[Dir.pwd] = @selected # Store this directory before leaving
     @marks["'"] = Dir.pwd
     Dir.chdir
     @w_r.update = true
+    @w_b.update = true
   when 'f' # Follow symlink
     @directory[Dir.pwd] = @selected # Store this directory before leaving
     @marks["'"] = Dir.pwd
     if File.symlink?(@selected) 
       Dir.chdir(File.dirname(File.readlink(@selected)))
     end
+    @w_b.update = true
   when 'L' # Run 'locate' and let user jump to a result (by '#') 
     cmd = w_b_getstr(": ", "locate ")
     w_b_exec(cmd)
     @w_r.locate = true
+    @w_b.update = true
   when '#' # Jump to the line number in list of matches to 'locate' 
     if @w_r.locate
       jumpnr   = w_b_getstr("# ", "").to_i
@@ -344,6 +359,7 @@ def main_getkey # GET KEY FROM USER
       Dir.chdir(jumpdir)
       @w_r.pager = 0
     end
+    @w_b.update = true
   # TAGGING
   when 't' # Add item to tagged list 
     item = "\"#{Dir.pwd}/#{@selected}\""
@@ -355,27 +371,34 @@ def main_getkey # GET KEY FROM USER
     @index += 1
     tagged_info
     @w_r.update = false
+    @w_b.update = true
   when 'C-T' # Tag items matching a pettern
     @w_b.nohistory = true
     @tag = w_b_getstr("~ ", "")
     @w_r.update = true
+    @w_b.update = true
   when 'T' # Show tagged list 
     tagged_info
     @w_r.update = false
+    @w_b.update = true
   when 'u' # Clear tagged list 
     @tagged = []
     tagged_info
     @w_r.update = false
+    @w_b.update = true
   # MANIPULATE ITEMS
   when 'p' # Copy tagged items here 
     copy_move_link("copy")
     @w_r.update = true
+    @w_b.update = true
   when 'P' # Move tagged items here 
     copy_move_link("move")
     @w_r.update = true
+    @w_b.update = true
   when 's' # Create symlink to tagged items here 
     copy_move_link("link")
     @w_r.update = true
+    @w_b.update = true
   when 'd' # Delete items tagged and @selected 
     tagged_info
     w_b_info(" Delete selected and tagged? (press 'd' again to delete)")
@@ -399,9 +422,11 @@ def main_getkey # GET KEY FROM USER
   when 'a' # Show all items 
     @lsall == "" ? @lsall = "-a" : @lsall = ""
     @w_r.update = true
+    @w_b.update = true
   when 'l' # Show long info for all items 
     @lslong = !@lslong
     @w_r.update = true
+    @w_b.update = true
   when 'o' # Circular toggle the order/sorting of directory views
     case @lsorder
     when ""
@@ -431,7 +456,7 @@ def main_getkey # GET KEY FROM USER
     @w_r.update  = true
     @orderchange = true
   when 'O' # Show the Ordering in the bottom window (the full ls command)
-    w_b_info(" Full ls command: ls <@s> #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}")
+    w_b_info(" Full 'ls' command: ls <@s> #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}")
   when 'G' # Git status for selected item or current dir
     if File.exist?(".git")
       w_r_info(`git status 2>/dev/null`)
@@ -439,9 +464,11 @@ def main_getkey # GET KEY FROM USER
       w_r_info("This is not a git repository.")
     end
     @w_r.update = false
+    @w_b.update = true
   # RIGHT PANE
   when 'ENTER' # Refresh right pane
     @w_r.update = true
+    @w_b.update = true
   when 'TAB' # Start paging
     if @w_r.pager == 1 and @w_r.pager_cmd != ""
       @w_r.text = `#{@w_r.pager_cmd} 2>/dev/null` 
@@ -450,18 +477,22 @@ def main_getkey # GET KEY FROM USER
       @w_r.pager += 1
       pager_show 
     end
+    @w_b.update = true
   when 'S-TAB' # Up one page
     if @w_r.pager > 1
       @w_r.pager -= 1
       pager_show
     end
+    @w_b.update = true
   when 'w' # Change width of left/right panes
     @width += 1
     @width  = 2 if @width == 7
     @break = true
+    @w_b.update = true
   when '-'
     @preview = !@preview
     @break = true
+    @w_b.update = true
   # ADDITIONAL COMMANDS
   when '/' # Get search string to mark items that match # 
     @w_b.nohistory = true
@@ -473,6 +504,7 @@ def main_getkey # GET KEY FROM USER
     w_b_exec(cmd)
   when ';' # Show command history 
     w_r_info("Command history (latest on top):\n\n" + @history.join("\n"))
+    @w_b.update = true
   when '@' # Enter "Ruby debug"
     @w_b.nohistory = true
     cmd = w_b_getstr("◆ ", "")
@@ -517,11 +549,9 @@ def conf_write
     w_r_info("Press W again to write this to .rtfm.conf:\n\n" + conf)
     if getchr == 'W'
       w_b_info(" Parameters written to .rtfm.conf")
-      @w_b.update = false
       @w_r.update = true
     else
       w_b_info(" Config NOT updated")
-      @w_b.update = false
       @w_r.update = true
       return
     end
@@ -1103,7 +1133,6 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       w_t_info
       # Bottom window (command line) Before @w_r to avoid image dropping out on startup
       w_b_info(nil) if @w_b.update
-      @w_b.update = true
       # Left and right windows (browser & content viewer)
       @w_l.setpos(0,0)
       list_dir(true)
