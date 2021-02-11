@@ -236,7 +236,6 @@ def main_getkey # GET KEY FROM USER
     conf_write
     @w_b.update = true
   when 'q' # Exit 
-    system("printf \"\033]0;#{Dir.pwd}\007\"")
     @write_conf = true
     exit 0
   when 'Q' # Exit without writing to .rtfm.conf
