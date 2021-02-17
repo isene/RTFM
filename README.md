@@ -50,7 +50,8 @@ File type                   | Requirements                     | Installation
 Syntax highlighting of text | `bat`                            | `apt install bat`
 PDFs                        | `pdftotext`                      | `apt install poppler-utils`
 LibreOffice                 | `odt2txt`                        | `apt install odt2txt`
-OOXML                       | `docx2txt`                       | `apt install docx2txt`
+OOXML (except xlsx)         | `docx2txt`                       | `apt install docx2txt`
+MS xlsx                     | `ssconvert`                      | `apt install gnumeric`
 MS doc/xls/ppt              | `catdoc`, `xls2csv` and `catppt` | `apt install catdoc`
 Images                      | `w3m` and `ImageMagick`          | `apt install w3m imagemagick`
 Video (thumbnails)          | `ffmpegthumbnailer`              | `apt install ffmpegthumbnailer`

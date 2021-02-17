@@ -126,7 +126,8 @@ begin # BASIC SETUP
   @pptfile    = /\.ppt$/
   @xlsfile    = /\.xls$/
   @docfile    = /\.doc$/
-  @ooxmlfile  = /\.docx$|\.xlsx$|\.pptx$/
+  @xlsxfile   = /\.xlsx$/
+  @ooxmlfile  = /\.docx$|\.pptx$/
   @oolofile   = /\.odt$|\.odc$|\.odp$|\.odg$/
   @pdffile    = /\.pdf$|\.ps$/
   ## Get variables from config file (written back to .rtf.conf upon exit via 'q')
@@ -761,6 +762,10 @@ def w_r_show # SHOW CONTENTS IN THE RIGHT WINDOW
     # OOXML 
     elsif @selected.match(@ooxmlfile) and @w_r.pager == 0
       @w_r.pager_cmd  = "docx2txt #{@selected_safe} - 2>/dev/null"
+      w_r_doc
+    # MS XLSX
+    elsif @selected.match(@xlsxfile) and @w_r.pager == 0
+      @w_r.pager_cmd  = "ssconvert -O 'separator=   ' -T Gnumeric_stf:stf_assistant #{@selected_safe} fd://1 2>/dev/null"
       w_r_doc
     # MS DOC 
     elsif @selected.match(@docfile) and @w_r.pager == 0
