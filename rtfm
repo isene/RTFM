@@ -126,8 +126,9 @@ begin # BASIC SETUP
   @pptfile    = /\.ppt$/
   @xlsfile    = /\.xls$/
   @docfile    = /\.doc$/
+  @docxfile   = /\.docx$/
   @xlsxfile   = /\.xlsx$/
-  @ooxmlfile  = /\.docx$|\.pptx$/
+  @pptxfile   = /\.pptx$/
   @oolofile   = /\.odt$|\.odc$|\.odp$|\.odg$/
   @pdffile    = /\.pdf$|\.ps$/
   ## Get variables from config file (written back to .rtf.conf upon exit via 'q')
@@ -759,13 +760,17 @@ def w_r_show # SHOW CONTENTS IN THE RIGHT WINDOW
     elsif @selected.match(@oolofile) and @w_r.pager == 0
       @w_r.pager_cmd  = "odt2txt #{@selected_safe} 2>/dev/null"
       w_r_doc
-    # OOXML 
-    elsif @selected.match(@ooxmlfile) and @w_r.pager == 0
+    # MS DOCX
+    elsif @selected.match(@docxfile) and @w_r.pager == 0
       @w_r.pager_cmd  = "docx2txt #{@selected_safe} - 2>/dev/null"
       w_r_doc
     # MS XLSX
     elsif @selected.match(@xlsxfile) and @w_r.pager == 0
       @w_r.pager_cmd  = "ssconvert -O 'separator=   ' -T Gnumeric_stf:stf_assistant #{@selected_safe} fd://1 2>/dev/null"
+      w_r_doc
+    # MS PPTX
+    elsif @selected.match(@pptxfile) and @w_r.pager == 0
+      @w_r.pager_cmd  = %Q[unzip -qc #{@selected_safe} | ruby -e '$stdin.each_line { |i| i.force_encoding("ISO-8859-1").scan(/<a:t>(.+?)<\\/a:t>/).each { |j| puts(j) } }']
       w_r_doc
     # MS DOC 
     elsif @selected.match(@docfile) and @w_r.pager == 0
