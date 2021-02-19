@@ -32,7 +32,7 @@ MOTION
  UP     = Go one item up in left pane (rounds to bottom)
  LEFT   = Go up one directory level
  RIGHT  = Enter directory or open file (using run-mailcap or xdg-open)
-          Use the key 'b' to force open using xdg-open or run-mailcap - used for opening html files
+          Use the key 'x' to force open using xdg-open (or run-mailcap) - used for opening html files
           in a browser rather than editing the file in your text editor
  PgDown = Go one page down in left pane
  PgUp   = Go one page up in left pane
@@ -275,7 +275,7 @@ def main_getkey # GET KEY FROM USER
     open_selected()
     @w_r.update = true
     @w_b.update = true
-  when 'b'   # Force open with file opener (used to open HTML files in browser)
+  when 'x'   # Force open with file opener (used to open HTML files in browser)
     var_resets
     @directory[Dir.pwd] = @selected # Store this directory before leaving
     @marks["'"] = Dir.pwd
