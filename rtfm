@@ -79,8 +79,10 @@ ADDITINAL COMMANDS
  /      = Enter search string in bottom window to highlight matching items
  :      = Enter "command mode" in bottom window
  ;      = Show command history in right pane
+ y      = Copy path of selected item to primary selection (for pasting with middle mouse button)
+ Y      = Copy path of selected item to clipboard
 
-COPYRIGHT: Geir Isene, 2020. No rights reserved. See http://isene.com for more.
+COPYRIGHT: Geir Isene, 2020-1. No rights reserved. See http://isene.com for more.
 HELPTEXT
 begin # BASIC SETUP
   require 'fileutils'
@@ -506,6 +508,20 @@ def main_getkey # GET KEY FROM USER
   when ';' # Show command history 
     w_r_info("Command history (latest on top):\n\n" + @history.join("\n"))
     @w_b.update = true
+  when 'y', 'Y'
+    if @selected == nil
+      w_b_info(" No selected item path to copy")
+    else
+      path = Dir.pwd + "/" + @selected
+      if chr == 'Y'
+        clip = "xclip -selection clipboard" 
+        w_b_info(" Path copied to clipboard")
+      else
+        clip = "xclip"
+        w_b_info(" Path copied to primary selection (paste with middle mouse button)")
+      end
+      system("echo -n '#{path}' | #{clip}")
+    end
   when '@' # Enter "Ruby debug"
     @w_b.nohistory = true
     cmd = w_b_getstr("◆ ", "")
