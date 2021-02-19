@@ -32,6 +32,8 @@ MOTION
  UP     = Go one item up in left pane (rounds to bottom)
  LEFT   = Go up one directory level
  RIGHT  = Enter directory or open file (using run-mailcap or xdg-open)
+          Use the key 'b' to force open using xdg-open or run-mailcap - used for opening html files
+          in a browser rather than editing the file in your text editor
  PgDown = Go one page down in left pane
  PgUp   = Go one page up in left pane
  END    = Go to last item in left pane
@@ -273,6 +275,13 @@ def main_getkey # GET KEY FROM USER
     open_selected()
     @w_r.update = true
     @w_b.update = true
+  when 'b'   # Force open with file opener (used to open HTML files in browser)
+    var_resets
+    @directory[Dir.pwd] = @selected # Store this directory before leaving
+    @marks["'"] = Dir.pwd
+    open_selected(true)
+    @w_r.update = true
+    @w_b.update = true
   when 'PgDOWN'
     var_resets
     @index += @w_l.maxy - 2
@@ -419,7 +428,11 @@ def main_getkey # GET KEY FROM USER
     end
   when 'c' # Change/rename selected @selected 
     cmd = w_b_getstr(": ", "mv \"#{@selected}\" \"#{@selected}\"")
-    w_b_exec(cmd)
+    begin
+      w_b_exec(cmd + " 2>/dev/null")
+    rescue StandardError => err
+      w_b_info(err.to_s)
+    end
     @w_r.update = true
   # DIRECTORY VIEWS
   when 'a' # Show all items 
@@ -693,7 +706,7 @@ def list_dir(active) # LIST CONTENT OF A DIRECTORY (BOTH active AND RIGHT WINDOW
     end
   end
 end
-def open_selected() # OPEN SELECTED ITEM (when pressing RIGHT)
+def open_selected(html = nil) # OPEN SELECTED ITEM (when pressing RIGHT)
   if File.directory?(@selected) # Rescue for permission error
     begin
       @marks["'"] = Dir.pwd
@@ -702,13 +715,13 @@ def open_selected() # OPEN SELECTED ITEM (when pressing RIGHT)
     end
   else
     begin
-      if File.read(@selected).force_encoding("UTF-8").valid_encoding?
+      if File.read(@selected).force_encoding("UTF-8").valid_encoding? and not html
         system("exec $EDITOR #{@selected_safe}")
       else
           if @runmailcap
-            Thread.new { system("run-mailcap #{@selected_safe}") }
+            Thread.new { system("run-mailcap #{@selected_safe} 2>/dev/null") }
           else
-            Thread.new { system("xdg-open #{@selected_safe}") }
+            Thread.new { system("xdg-open #{@selected_safe} 2>/dev/null") }
           end
         end
       @break = true
@@ -786,7 +799,7 @@ def w_r_show # SHOW CONTENTS IN THE RIGHT WINDOW
       w_r_doc
     # MS PPTX
     elsif @selected.match(@pptxfile) and @w_r.pager == 0
-      @w_r.pager_cmd  = %Q[unzip -qc #{@selected_safe} | ruby -e '$stdin.each_line { |i| i.force_encoding("ISO-8859-1").scan(/<a:t>(.+?)<\\/a:t>/).each { |j| puts(j) } }']
+      @w_r.pager_cmd  = %Q[unzip -qc #{@selected_safe} | ruby -e '$stdin.each_line { |i| i.force_encoding("ISO-8859-1").scan(/<a:t>(.+?)<\\/a:t>/).each { |j| puts(j) } }' 2>/dev/null]
       w_r_doc
     # MS DOC 
     elsif @selected.match(@docfile) and @w_r.pager == 0

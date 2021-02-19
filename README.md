@@ -96,7 +96,7 @@ Key    | Description
 DOWN   | Go one item down in left pane (rounds to top)
 UP     | Go one item up in left pane (rounds to bottom)
 LEFT   | Go up one directory level
-RIGHT  | Enter directory or open file (using run-mailcap or xdg-open)
+RIGHT  | Enter directory or open file (using xdg-open or run-mailcap). Use the key 'b' to force open using xdg-open or run-mailcap (used for opening html files in a browser rather than editing the file in your text editor)
 PgDown | Go one page down in left pane
 PgUp   | Go one page up in left pane
 END    | Go to last item in left pane
