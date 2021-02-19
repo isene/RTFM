@@ -160,6 +160,8 @@ Key    | Description
 /      | Enter search string in bottom window to highlight matching items
 :      | Enter "command mode" in bottom window
 ;      | Show command history in right pane
+y      | Copy path of selected item to primary selection (for pasting with middle mouse button)
+Y      | Copy path of selected item to clipboard
 
 
 ## A convenient shell function
