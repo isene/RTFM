@@ -381,8 +381,7 @@ def main_getkey # GET KEY FROM USER
       @tagged.push(item)
     end
     @index += 1
-    tagged_info
-    @w_r.update = false
+    @w_r.update = true
     @w_b.update = true
   when 'C-T' # Tag items matching a pettern
     @w_b.nohistory = true
@@ -887,7 +886,8 @@ def image_show(image)# SHOW THE SELECTED IMAGE IN THE RIGHT WINDOW
     img_max_w   = char_w * (Curses.cols - Curses.cols/@width - 2)
     img_max_h   = char_h * (Curses.lines - 4)
     if image == "clear"
-      img_max_w += 2
+      img_x     -= char_w
+      img_max_w += char_w + 2
       img_max_h += 2
       `echo "6;#{img_x};#{img_y};#{img_max_w};#{img_max_h};\n4;\n3;" | #{@w3mimgdisplay} 2>/dev/null`
     else
