@@ -916,9 +916,7 @@ def pager_start # START PAGING
   end
 end
 def pager_show # SHOW THE CURRENT PAGE CONTENT
-  @w_r.clr
-  image_show("clear") if @image
-  @image == false
+  @w_r.setpos(0,0)
   beg_l = (@w_r.pager - 1) * (@w_r.maxy - 5)
   end_l = beg_l + @w_r.maxy - 2
   input = @w_r.text.lines[beg_l..end_l].join() + "\n"
@@ -928,6 +926,7 @@ def pager_show # SHOW THE CURRENT PAGE CONTENT
   else
     @w_r << input
   end
+  (@w_r.maxy - @w_r.cury).times {@w_r.deleteln()} # Clear to bottom of window
   pager_add_markers
   @w_r.refresh
 end
@@ -1181,6 +1180,8 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       @tag = false       # Clear tag pattern
       lsall_old = @lsall
       main_getkey        # Get key from user 
+      image_show("clear") if @image
+      @image == false
       break if @break    # Break to outer loop, redrawing windows, if user hit 'r'
       break if Curses.cols != maxx or Curses.lines != maxy # break on terminal resize 
     end
