@@ -482,6 +482,8 @@ def main_getkey # GET KEY FROM USER
     @w_b.update = true
   # RIGHT PANE
   when 'ENTER' # Refresh right pane
+    @w_r.clr # First clear the window, then clear any previously showing image
+    image_show("clear") if @image; @image = false
     @w_r.update = true
     @w_b.update = true
   when 'TAB' # Start paging
@@ -755,9 +757,10 @@ def copy_move_link(type) # COPY OR MOVE TAGGED ITEMS (COPY IF "keep == true")
 end
 # RIGHT WINDOW FUNCTIONS 
 def w_r_show # SHOW CONTENTS IN THE RIGHT WINDOW
-  @w_r.clr                      # First clear the window
-  image_show("clear") if @image # Then clear any previously showing image
-  @image == false
+  if @w_r.update
+    @w_r.clr # First clear the window, then clear any previously showing image
+    image_show("clear") if @image; @image = false
+  end
   begin # Determine the specific programs to open/show content 
     if @w_r.pager > 0
       pager_show 
@@ -843,6 +846,7 @@ def w_r_info(info) # SHOW INFO IN THE RIGHT WINDOW
   pager_start
   pager_show
   @w_r.update = false
+  image_show("clear") if @image; @image = false
 end
 def marks_info # SHOW MARKS IN RIGHT WINDOW
   info = "Marks:\n"
@@ -1180,8 +1184,6 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       @tag = false       # Clear tag pattern
       lsall_old = @lsall
       main_getkey        # Get key from user 
-      image_show("clear") if @image
-      @image == false
       @w_r.update = true
       break if @break    # Break to outer loop, redrawing windows, if user hit 'r'
       break if Curses.cols != maxx or Curses.lines != maxy # break on terminal resize 
