@@ -1184,7 +1184,6 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       @tag = false       # Clear tag pattern
       lsall_old = @lsall
       main_getkey        # Get key from user 
-      @w_r.update = true
       break if @break    # Break to outer loop, redrawing windows, if user hit 'r'
       break if Curses.cols != maxx or Curses.lines != maxy # break on terminal resize 
     end
