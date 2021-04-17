@@ -610,7 +610,7 @@ def w_t_info # SHOW INFO IN @w_t
   end
   begin
     if @selected.match(@imagefile)
-      text += `identify #{@selected_safe} | awk '{printf " [%s %s %s %s] ", $3,$2,$5,$6}' 2>/dev/null`
+      text += `identify #{@selected_safe} | awk '{printf " [%s %s %s %s] ", $3,$2,$5,$6}' 2>/dev/null` if find_executable 'identify'
     elsif @selected.match(@pdffile)
       info  = `pdfinfo #{@selected_safe} 2>/dev/null`
       text += " [" + info.match(/Pages:.*?(\d+)/)[1] 
