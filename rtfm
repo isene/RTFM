@@ -89,17 +89,20 @@ HELPTEXT
 begin # BASIC SETUP
   require 'fileutils'
   require 'io/console'
-  require 'mkmf'
   require 'curses'
   include  Curses
 
-  if find_executable '/usr/lib/w3m/w3mimgdisplay'
+  def cmd?(command)
+    system("which #{command} > /dev/null 2>&1")
+  end
+
+  if cmd?('/usr/lib/w3m/w3mimgdisplay')
     @w3mimgdisplay = "/usr/lib/w3m/w3mimgdisplay"
     @showimage = true
   else
     @showimage = false
   end
-  @showimage = false unless (find_executable 'xwininfo' and find_executable 'xdotool')
+  @showimage = false unless (cmd?('xwininf') and cmd?('xdotool'))
 
   STDIN.set_encoding(Encoding::UTF_8) # Set encoding for STDIN 
   LScolors = `echo $LS_COLORS` # Import LS_COLORS 
@@ -610,7 +613,7 @@ def w_t_info # SHOW INFO IN @w_t
   end
   begin
     if @selected.match(@imagefile)
-      text += `identify #{@selected_safe} | awk '{printf " [%s %s %s %s] ", $3,$2,$5,$6}' 2>/dev/null` if find_executable 'identify'
+      text += `identify #{@selected_safe} | awk '{printf " [%s %s %s %s] ", $3,$2,$5,$6}' 2>/dev/null` if cmd?('identify')
     elsif @selected.match(@pdffile)
       info  = `pdfinfo #{@selected_safe} 2>/dev/null`
       text += " [" + info.match(/Pages:.*?(\d+)/)[1] 
