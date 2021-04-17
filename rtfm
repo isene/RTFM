@@ -89,10 +89,18 @@ HELPTEXT
 begin # BASIC SETUP
   require 'fileutils'
   require 'io/console'
+  require 'mkmf'
   require 'curses'
   include  Curses
 
-  @w3mimgdisplay = "/usr/lib/w3m/w3mimgdisplay"
+  if find_executable '/usr/lib/w3m/w3mimgdisplay'
+    @w3mimgdisplay = "/usr/lib/w3m/w3mimgdisplay"
+    @showimage = true
+  else
+    @showimage = false
+  end
+  @showimage = false unless (find_executable 'xwininfo' and find_executable 'xdotool')
+
   STDIN.set_encoding(Encoding::UTF_8) # Set encoding for STDIN 
   LScolors = `echo $LS_COLORS` # Import LS_COLORS 
 
@@ -879,6 +887,7 @@ def syntax_highlight(input) # BATCAT SYNTAX HIGHLIGHTING
 end
 def image_show(image)# SHOW THE SELECTED IMAGE IN THE RIGHT WINDOW
   # Pass "clear" to clear the window for previous image
+  return unless @showimage
   begin
     terminfo    = `xwininfo -id $(xdotool getactivewindow 2>/dev/null) 2>/dev/null`
     term_w      = terminfo.match(/Width: (\d+)/)[1].to_i
