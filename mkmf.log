@@ -1,0 +1,12 @@
+find_executable: checking for /usr/lib/w3m/w3mimgdisplay... -------------------- yes
+
+--------------------
+
+find_executable: checking for xwininfo... -------------------- yes
+
+--------------------
+
+find_executable: checking for xdotool... -------------------- yes
+
+--------------------
+
