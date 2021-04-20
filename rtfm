@@ -102,7 +102,7 @@ begin # BASIC SETUP
   else
     @showimage = false
   end
-  @showimage = false unless (cmd?('xwininf') and cmd?('xdotool'))
+  @showimage = false unless (cmd?('xwininfo') and cmd?('xdotool'))
 
   STDIN.set_encoding(Encoding::UTF_8) # Set encoding for STDIN 
   LScolors = `echo $LS_COLORS` # Import LS_COLORS 
