@@ -95,7 +95,6 @@ begin # BASIC SETUP
   def cmd?(command)
     system("which #{command} > /dev/null 2>&1")
   end
-
   if cmd?('/usr/lib/w3m/w3mimgdisplay')
     @w3mimgdisplay = "/usr/lib/w3m/w3mimgdisplay"
     @showimage = true
