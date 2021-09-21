@@ -69,6 +69,8 @@ DIRECTORY VIEWS
  i      = Invert/reverse the sorting
  O      = Show the Ordering in the bottom window (the full ls command)
  G      = Show git status for current directory
+ H      = Do a cryptographic hash of the current directory with subdirs
+          If a previous hash was made, compare and report if there has been any change
 
 RIGHT PANE
  ENTER  = Refresh the right pane
@@ -89,6 +91,7 @@ HELPTEXT
 begin # BASIC SETUP
   require 'fileutils'
   require 'io/console'
+  require 'date'
   require 'curses'
   include  Curses
 
@@ -129,6 +132,7 @@ begin # BASIC SETUP
   @runmailcap = false # Set to 'true' in .rtfm.conf if you want to use run-mailcap instead of xdg-open
   ## These are automatically written on exit
   @marks      = {}    # Initialize (book)marks hash
+  @hash       = {}    # Initialize the sha directory hashing
   @tagged     = []    # Initialize the tagged array - for collecting all tagged items
   ## These should not be set by user in .rtfm.conf
   @directory  = {}    # Initialize the directory hash for remembering directories visited
@@ -348,7 +352,7 @@ def main_getkey # GET KEY FROM USER
     end
     @w_r.update = true
     @w_b.update = true
-  when 'h' # 
+  when 'h' # Go to home dir
     var_resets
     @directory[Dir.pwd] = @selected # Store this directory before leaving
     @marks["'"] = Dir.pwd
@@ -490,6 +494,29 @@ def main_getkey # GET KEY FROM USER
     end
     @w_r.update = false
     @w_b.update = true
+  when 'H' # Compare with previous hash status or write hash status if no existing hash
+    hashcmd = "\(find #{Dir.pwd} -type f -print0  | sort -z | xargs -0 sha1sum; find #{Dir.pwd}"\
+              " \\( -type f -o -type d \\) -print0 | sort -z | xargs -0 stat -c '%n %a'\) | sha1sum | cut -c -40"
+    begin
+      hashdir = `#{hashcmd}`.chomp
+    rescue StandardError => e
+      w_r_info("Error: #{e.inspect}")
+    end
+    hashtime = DateTime.now.strftime "%Y-%m-%d %H:%M"
+    if @hash.include?(Dir.pwd)
+      if @hash[Dir.pwd][1] == hashdir
+        w_b_info(" Hash for #{Dir.pwd} has NOT changed since #{hashtime} (#{hashdir})")
+      else
+        w_b_info(" Hash for #{Dir.pwd} has CHANGED since #{hashtime} (#{@hash[Dir.pwd][1]} -> #{hashdir})")
+        @hash[Dir.pwd] = [hashtime, hashdir]
+      end
+    else
+      hashtime = DateTime.now.strftime "%Y-%m-%d %H:%M"
+      @hash[Dir.pwd] = [hashtime, hashdir]
+      w_b_info(" New hash for #{Dir.pwd}: #{hashtime}: #{hashdir}")
+    end
+    @w_r.update = true
+    @w_b.update = false
   # RIGHT PANE
   when 'ENTER' # Refresh right pane
     @w_r.clr # First clear the window, then clear any previously showing image
@@ -574,6 +601,8 @@ def conf_write
   end
   conf.sub!(/^@marks.*{.*}\n/, "") 
   conf += "@marks = #{@marks}\n"
+  conf.sub!(/^@hash.*{.*}\n/, "") 
+  conf += "@hash = #{@hash}\n"
   conf.sub!(/^@tagged.*\[.*\]\n/, "")
   conf += "@tagged = #{@tagged}\n"
   if @write_conf_all
