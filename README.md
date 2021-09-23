@@ -3,9 +3,11 @@
 
 ## What?
 RTFM is a file manager for the terminal written in Ruby. It lets you browse
-directories and view the content of directories and files. You can delete,
-rename, copy and move files as well as a range of other features. Read on for
-what it can do.
+directories and view the content of directories and files. Files are syntax
+highlighted, images are shown in the terminal, videos are thumbnailed, etc.
+You can bookmark and jump around easily, delete, rename, copy, symlink and
+move files. RTFM has a a wide range of other features. Read on for what it can
+do.
 
 
 ## Why?
@@ -253,5 +255,5 @@ may include it. Bug reports are always welcome.
 
 A note to developers: You can hit the "@" key to enter the Ruby debug mode
 where anything you enter in the bottom command window will be sent to the Ruby
-evel() function and output to the right pane. You can for instance issue
+eval() function and output to the right pane. You can for instance issue
 `puts @searched` to see the currently active search pattern. 
