@@ -1,4 +1,12 @@
 # This function starts RTFM and will cd to the exit dir
+#
+# Add this line to your .bashrc or .zshrc to make RTFM exit to the
+# current directory by launching the file manager via r in the terminal:
+#    source ~/.rtfm.launch
+# ... and place the file .rtfm.launch in your home directory.
+# With this, you can jump around in your directory structure via RTFM, exit to 
+# the desired directory, do work in the terminal and go back into RTFM via r.
+
 function r { 
 	f=$(mktemp)
     (
