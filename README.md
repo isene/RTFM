@@ -1,6 +1,5 @@
 # RTFM - Ruby Terminal File Manager
 
-
 ## What?
 RTFM is a file manager for the terminal written in Ruby. It lets you browse
 directories and view the content of directories and files. Files are syntax
@@ -34,8 +33,13 @@ Ctrl-h to delete previous character, Ctrl-w to delete previous word, TAB to
 complete directories and file names and ENTER to issue the command, while
 Ctrl-u deletes the line. Issuing ENTER on a blank line has no effect.
 
+## Installation
+
+You can install RTFM by simply coloning this repo and put the file `rtfm` in
+your "bin" directory. Or you can simply run `gem install rtfm-filemanager`.
+
 There are two basic prerequisites needed: `x11-utils` and `xdotool`. On
-Ubuntu these would be installed via `apt-get install x11-utils xdotool`.
+Ubuntu these would be installed via `apt install x11-utils xdotool`.
 
 In order to run RTFM (without generating [a bunch of
 warnings](https://github.com/isene/RTFM/issues/1)), you need to do a `gem

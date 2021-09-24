@@ -88,6 +88,35 @@ ADDITINAL COMMANDS
 
 COPYRIGHT: Geir Isene, 2020-1. No rights reserved. See http://isene.com for more.
 HELPTEXT
+
+@firstrun = <<FIRSTRUN
+
+Welcome to RTFM - the Ruby Terminal File Manager. This help text is shown on the first run.
+To benefit fully from all the features, you need to install some auxilliary software.
+On Ubuntu Linux you would use "apt install":
+
+Basic requirments is "x11-utils" and "xdotool":           apt install x11-utils xdotool
+Syntax highlighting of text uses "bat":                   apt install bat
+Viewing PDFs uses "pdftotext":                            apt install poppler-utils
+Viewing LibreOffice docs uses "odt2txt":                  apt install odt2txt
+Viewing MS docx	uses "docx2txt":                          apt install docx2txt
+Viewing MS pptx	uses "unzip":                             apt install unzip
+Viewing MS xlsx uses "ssconvert":                         apt install gnumeric
+Viewing MS doc/xls/ppt uses "catdoc, xls2csv and catppt": apt install catdoc
+Viewing Images uses "w3m and ImageMagick":                apt install w3m imagemagick
+Viewing Video thumbnails uses "ffmpegthumbnailer"         apt install ffmpegthumbnailer
+
+FIRSTRUN
+
+unless File.exist?(Dir.home+'/.rtfm.conf')
+  puts @firstrun
+  puts "... hit ENTER to show the RTFM help text."
+  STDIN.gets
+  puts @help
+  puts "\n... hit ENTER to start RTFM. Enjoy :-)"
+  STDIN.gets
+end
+
 begin # BASIC SETUP
   require 'fileutils'
   require 'io/console'
