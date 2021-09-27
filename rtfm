@@ -81,7 +81,7 @@ RIGHT PANE
 
 ADDITINAL COMMANDS
  /      = Enter search string in bottom window to highlight matching items
- :      = Enter "command mode" in bottom window
+ :      = Enter "command mode" in bottom window (press ENTER to execute, press Ctrl-G to escape)
  ;      = Show command history in right pane
  y      = Copy path of selected item to primary selection (for pasting with middle mouse button)
  Y      = Copy path of selected item to clipboard
@@ -259,6 +259,7 @@ def getchr # PROCESS KEY PRESSES
   when "" then chr = "WBACK"
   when "" then chr = "LDEL"
   when "" then chr = "C-T"
+  when "" then chr = "C-G"
   when "\r" then chr = "ENTER"
   when "\t" then chr = "TAB"
   when /./  then chr = c
@@ -1045,6 +1046,12 @@ def w_b_getstr(pretext, text) # A SIMPLE READLINE-LIKE ROUTINE
     @w_b.setpos(0,pretext.length + pos)
     @w_b.refresh
     chr = getchr
+    if chr == "C-G"
+      Curses.curs_set(0)
+      Curses.noecho
+      @w_b.update = true
+      return "" 
+    end
     case chr
     when 'UP'
       unless @w_b.nohistory
