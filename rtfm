@@ -81,6 +81,7 @@ RIGHT PANE
 
 ADDITINAL COMMANDS
  /      = Enter search string in bottom window to highlight matching items
+ g      = Run 'grep' to show files that contains the MATCH in current directory
  :      = Enter "command mode" in bottom window (press ENTER to execute, press Ctrl-G to escape)
  ;      = Show command history in right pane
  y      = Copy path of selected item to primary selection (for pasting with middle mouse button)
@@ -396,6 +397,9 @@ def main_getkey # GET KEY FROM USER
       Dir.chdir(File.dirname(File.readlink(@selected)))
     end
     @w_b.update = true
+  when 'g' # Run 'grep' in the current directory
+    cmd = w_b_getstr(": ", "grep -s MATCH *")
+    w_b_exec(cmd)
   when 'L' # Run 'locate' and let user jump to a result (by '#') 
     cmd = w_b_getstr(": ", "locate ")
     w_b_exec(cmd)

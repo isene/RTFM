@@ -165,6 +165,7 @@ w      | Change the width of the left/right panes (left pane ⇒ ⅓ ⇒ ¼ ⇒ 
 Key    | Description
 -------|------------------------------------------------------------------
 /      | Enter search string in bottom window to highlight matching items
+g      | Run 'grep' to show files that contains the MATCH in current directory
 :      | Enter "command mode" in bottom window (press ENTER to execute, press Ctrl-G to escape)
 ;      | Show command history in right pane
 y      | Copy path of selected item to primary selection (for pasting with middle mouse button)
