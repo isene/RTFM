@@ -23,7 +23,7 @@ BASIC KEYS
  ?      = Show this help text
  r      = Refresh RTFM (recreates all windows. Use on terminal resize or when there is garbage somewhere)
  R      = Reload configuration (~/.rtfm.conf)
- W      = Write parameters to ~/.rtfm.conf (@lsall, @lslong, @border, @width, @preview, @tagged, @marks)
+ W      = Write parameters to ~/.rtfm.conf (@lsall, @lslong, @lsorder, @border, @width, @preview, @tagged, @marks)
  q      = Quit
  Q      = QUIT (without writing changes to the config file)
 
@@ -644,6 +644,8 @@ def conf_write
     conf += "@lslong = #{@lslong}\n"
     conf.sub!(/^@lsall.*\n/, "") 
     conf += "@lsall = \"#{@lsall}\"\n"
+    conf.sub!(/^@lsorder.*\n/, "") 
+    conf += "@lsorder = \"#{@lsorder}\"\n"
     conf.sub!(/^@width.*\n/, "") 
     conf += "@width = #{@width}\n"
     conf.sub!(/^@border.*\n/, "") 
