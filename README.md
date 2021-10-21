@@ -91,7 +91,7 @@ Key    | Description
 ?      | Show this help text
 r      | Refresh RTFM (recreates all windows. Use on terminal resize or when there is garbage somewhere)
 R      | Reload configuration (~/.rtfm.conf)
-W      | Write parameters to ~/.rtfm.conf (@lsall, @lslong, @lsorder, @border, @width, @preview, @tagged, @marks)
+W      | Write parameters to ~/.rtfm.conf (@lsall, @lslong, @lsorder, @lsinvert, @border, @width, @preview, @tagged, @marks)
 q      | Quit
 Q      | QUIT (without writing changes to the config file)
 
