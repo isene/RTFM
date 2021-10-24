@@ -626,7 +626,10 @@ def main_getkey # GET KEY FROM USER
     @w_r.pager      = 0
     @w_r.pager_more = false
   end
-  @w_r.update = true if dir != Dir.pwd
+  begin
+    @w_r.update = true if dir != Dir.pwd
+  rescue
+  end
 end
 def conf_write
   if File.exist?(Dir.home+'/.rtfm.conf')
@@ -1227,6 +1230,11 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       @w_r.update = false
     end
     loop do # INNER, CORE LOOP 
+      begin # Jump to home dir if current dir is externally removed
+        Dir.pwd
+      rescue
+        Dir.chdir
+      end
       system("printf \"\033]0;RTFM: #{Dir.pwd}\007\"")   # Set Window title to path 
       ls_cmd  = "ls #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}" # Get files in current directory 
       @files  = `#{ls_cmd} 2>/dev/null`.split("\n")
@@ -1278,7 +1286,10 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     image_show("clear")
     close_screen
     # If launched via the script "r", return current dir and "r" will cd to that
-    File.write(ARGV[0], Dir.pwd) if ARGV[0] and ARGV[0].match(/\/tmp\/tmp/)
+    begin
+      File.write(ARGV[0], Dir.pwd) if ARGV[0] and ARGV[0].match(/\/tmp\/tmp/)
+    rescue
+    end
   end
 end
 
