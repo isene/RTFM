@@ -72,6 +72,7 @@ DIRECTORY VIEWS
  G      = Show git status for current directory
  H      = Do a cryptographic hash of the current directory with subdirs
           If a previous hash was made, compare and report if there has been any change
+ S      = Show comprehensive system info (system, CPU, filesystem, latest dmesg messages)
 
 RIGHT PANE
  ENTER  = Refresh the right pane
@@ -123,6 +124,7 @@ begin # BASIC SETUP
   require 'fileutils'
   require 'io/console'
   require 'date'
+  require 'timeout'
   require 'curses'
   include  Curses
 
@@ -552,6 +554,25 @@ def main_getkey # GET KEY FROM USER
     end
     @w_r.update = true
     @w_b.update = false
+  when 'S' # Show comprehensive system info
+    @w_r.pager_cmd = ""
+    @w_r.text  = `uname -o`.chop + "  "
+    @w_r.text += `uname -r`.chop + "  "
+    @w_r.text += `uname -v`.chop + "  "
+    @w_r.text += `uname -p` + "\n"
+    @w_r.text += `free -h`  + "\n"
+    @w_r.text += "CPUs = " + `nproc`.chop + "  "
+    cpuinfo    = `lscpu`
+    @w_r.text += cpuinfo[/^.*Model name:\s*(.*)/, 1] + "  "
+    @w_r.text += "Max: " + cpuinfo[/^.*CPU max MHz:\s*(.*)/, 1][/(.*),.*/, 1] + "MHz  "
+    @w_r.text += "Min: " + cpuinfo[/^.*CPU min MHz:\s*(.*)/, 1][/(.*),.*/, 1] + "MHz  "
+    @w_r.text += "\n\n"
+    @w_r.text += `df -H`
+    @w_r.text += "\nDMESG:\n"
+    @w_r.text += `dmesg | tail -10`
+    pager_start
+    pager_show
+    @w_r.update = false
   # RIGHT PANE
   when 'ENTER' # Refresh right pane
     @w_r.clr # First clear the window, then clear any previously showing image
@@ -1177,17 +1198,19 @@ def w_b_exec(cmd) # EXECUTE COMMAND FROM @W_B
     return
   end
   begin
-    begin
-      @w_r.pager_cmd = "#{cmd} | batcat -n --color=always 2>/dev/null"
-      @w_r.text = `#{@w_r.pager_cmd} 2>/dev/null`
-    rescue
-      @w_r.text = `#{cmd} 2>/dev/null`
-    end
-    unless @w_r.text == "" or @w_r.text == nil
-      pager_start
-      pager_show
-      @w_r.update = false
-    end
+    status = Timeout::timeout(5) {
+      begin
+        @w_r.pager_cmd = "#{cmd} | batcat -n --color=always 2>/dev/null"
+        @w_r.text = `#{@w_r.pager_cmd} 2>/dev/null`
+      rescue
+        @w_r.text = `#{cmd} 2>/dev/null`
+      end
+      unless @w_r.text == "" or @w_r.text == nil
+        pager_start
+        pager_show
+        @w_r.update = false
+      end
+    }
   rescue
     w_b_info(" Failed to execute command (#{cmd})")
   end

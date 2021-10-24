@@ -149,6 +149,7 @@ i      | Invert/reverse the sorting
 O      | Show the Ordering in the bottom window (the full ls command)
 G      | Show git status for current directory
 H      | Do a cryptographic hash of the current directory with subdirs. If a previous hash was made, compare and report if there has been any change
+S      | Show comprehensive system info (system, CPU, filesystem, latest dmesg messages)
 
 ### Right pane
 
