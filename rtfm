@@ -276,6 +276,7 @@ def main_getkey # GET KEY FROM USER
   case chr
   # BASIC KEYS
   when '?' # Show helptext in right window 
+    @w_r.fg = 249
     w_r_info(@help)
     @w_b.update = true
   when 'r' # Refresh all windows 
@@ -367,6 +368,7 @@ def main_getkey # GET KEY FROM USER
     @w_b.update = true
   when 'M' # Show marks 
     @marks = @marks.sort.to_h
+    @w_r.fg = 147
     marks_info
     @w_r.update = false
     @w_b.update = true
@@ -440,6 +442,7 @@ def main_getkey # GET KEY FROM USER
     @w_r.update = true
     @w_b.update = true
   when 'T' # Show tagged list 
+    @w_r.fg = 196
     tagged_info
     @w_r.update = false
     @w_b.update = true
@@ -524,6 +527,7 @@ def main_getkey # GET KEY FROM USER
   when 'O' # Show the Ordering in the bottom window (the full ls command)
     w_b_info(" Full 'ls' command: ls <@s> #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}")
   when 'G' # Git status for selected item or current dir
+    @w_r.fg = 214
     if File.exist?(".git")
       w_r_info(`git status 2>/dev/null`)
     else
@@ -532,6 +536,7 @@ def main_getkey # GET KEY FROM USER
     @w_r.update = false
     @w_b.update = true
   when 'H' # Compare with previous hash status or write hash status if no existing hash
+    @w_r.fg = 213
     hashcmd = "\(find #{Dir.pwd} -type f -print0  | sort -z | xargs -0 sha1sum; find #{Dir.pwd}"\
               " \\( -type f -o -type d \\) -print0 | sort -z | xargs -0 stat -c '%n %a'\) | sha1sum | cut -c -40"
     begin
@@ -556,22 +561,22 @@ def main_getkey # GET KEY FROM USER
     @w_b.update = false
   when 'S' # Show comprehensive system info
     @w_r.pager_cmd = ""
-    @w_r.text  = `uname -o`.chop + "  "
-    @w_r.text += `uname -r`.chop + "  "
-    @w_r.text += `uname -v`.chop + "  "
-    @w_r.text += `uname -p` + "\n"
-    @w_r.text += `free -h`  + "\n"
-    @w_r.text += "CPUs = " + `nproc`.chop + "  "
+    systext  = `uname -o`.chop + "  "
+    systext += `uname -r`.chop + "  "
+    systext += `uname -v`.chop + "  "
+    systext += `uname -p` + "\n"
+    systext += `free -h`  + "\n"
+    systext += "CPUs = " + `nproc`.chop + "  "
     cpuinfo    = `lscpu`
-    @w_r.text += cpuinfo[/^.*Model name:\s*(.*)/, 1] + "  "
-    @w_r.text += "Max: " + cpuinfo[/^.*CPU max MHz:\s*(.*)/, 1][/(.*),.*/, 1] + "MHz  "
-    @w_r.text += "Min: " + cpuinfo[/^.*CPU min MHz:\s*(.*)/, 1][/(.*),.*/, 1] + "MHz  "
-    @w_r.text += "\n\n"
-    @w_r.text += `df -H`
-    @w_r.text += "\nDMESG:\n"
-    @w_r.text += `dmesg | tail -10`
-    pager_start
-    pager_show
+    systext += cpuinfo[/^.*Model name:\s*(.*)/, 1] + "  "
+    systext += "Max: " + cpuinfo[/^.*CPU max MHz:\s*(.*)/, 1][/(.*),.*/, 1] + "MHz  "
+    systext += "Min: " + cpuinfo[/^.*CPU min MHz:\s*(.*)/, 1][/(.*),.*/, 1] + "MHz  "
+    systext += "\n\n"
+    systext += `df -H`
+    systext += "\nDMESG:\n"
+    systext += `dmesg | tail -10`
+    @w_r.fg    = 155
+    w_r_info(systext)
     @w_r.update = false
   # RIGHT PANE
   when 'ENTER' # Refresh right pane
@@ -951,7 +956,7 @@ def w_r_info(info) # SHOW INFO IN THE RIGHT WINDOW
   image_show("clear") if @image; @image = false
 end
 def marks_info # SHOW MARKS IN RIGHT WINDOW
-  info = "Marks:\n"
+  info = "MARKS:\n"
   unless @marks.empty?
     @marks.each do |mark, dir|
       info += "#{mark} = #{dir}\n"
@@ -962,7 +967,7 @@ def marks_info # SHOW MARKS IN RIGHT WINDOW
   w_r_info(info)
 end
 def tagged_info # SHOW THE LIST OF TAGGED ITEMS IN @w_r
-  info = "Tagged:\n"
+  info = "TAGGED:\n"
   @tagged.empty? ? info += "(None)" : info += @tagged.join("\n")
   w_r_info(info)
 end
@@ -1031,7 +1036,13 @@ def pager_show # SHOW THE CURRENT PAGE CONTENT
   if @w_r.pager_cmd.match(/batcat/)
     syntax_highlight(input)
   else
-    @w_r << input
+    if @w_r.fg == nil
+      init_pair(255, 255, 0)
+      @w_r.fg = 255
+    else 
+      init_pair(@w_r.fg, @w_r.fg, 0)
+    end
+    @w_r.attron(color_pair(@w_r.fg)) { @w_r << input }
   end
   (@w_r.maxy - @w_r.cury).times {@w_r.deleteln()} # Clear to bottom of window
   pager_add_markers
@@ -1294,7 +1305,10 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       @w_l.setpos(0,0)
       list_dir(true)
       @w_l.refresh
-      w_r_show if @w_r.update and @preview
+      if @w_r.update and @preview
+        w_r_show
+        @w_r.fg = 255
+      end
       Curses.curs_set(1) # Clear residual cursor
       Curses.curs_set(0) # ...from editing files 
       @tag = false       # Clear tag pattern
