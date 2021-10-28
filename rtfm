@@ -188,7 +188,7 @@ begin # BASIC SETUP
   end
 end
 class Curses::Window # CLASS EXTENSION 
-  attr_accessor :fg, :bg, :attr, :text, :update, :pager, :pager_more, :pager_cmd, :locate, :nohistory 
+  attr_accessor :fg, :bg, :attr, :text, :update, :pager, :pager_more, :pager_cmd, :locate, :nohistory
   # General extensions (see https://github.com/isene/Ruby-Curses-Class-Extension)
   def clr
     self.setpos(0, 0)
@@ -228,12 +228,12 @@ def get_ls_color(type) # GET THE COLOR FOR THE FILETYPE FROM IMPORTED LS_COLORS
   return color.to_i, bold
 end
 def color_parse(input) # PARSE ANSI COLOR SEQUENCES
-  input.gsub!( /\e\[\d;38;5;(\d+)m/, '%-%\1%-%')
-  input.gsub!( /\e\[38;5;(\d+)m/, '%-%\1%-%')
+  #input.gsub!( /\e\[\d;38;5;(\d+)m/, '¤¤\1¤¤')
+  input.gsub!( /\e\[38;5;(\d+);*(\d*)m/, '¤¤\1¤¤\2¤¤')
   input.gsub!( /\e\[0m/, "\t")
-  color_array = input.split("%-%")
+  color_array = input.split("¤¤")
   color_array = color_array.drop(1)
-  output = color_array.each_slice(2).to_a
+  output = color_array.each_slice(3).to_a
   return output
 end
 def getchr # PROCESS KEY PRESSES
@@ -561,22 +561,28 @@ def main_getkey # GET KEY FROM USER
     @w_b.update = false
   when 'S' # Show comprehensive system info
     @w_r.pager_cmd = ""
-    systext  = `uname -o`.chop + "  "
-    systext += `uname -r`.chop + "  "
-    systext += `uname -v`.chop + "  "
-    systext += `uname -p` + "\n"
-    systext += `free -h`  + "\n"
-    systext += "CPUs = " + `nproc`.chop + "  "
-    cpuinfo    = `lscpu`
-    systext += cpuinfo[/^.*Model name:\s*(.*)/, 1] + "  "
-    systext += "Max: " + cpuinfo[/^.*CPU max MHz:\s*(.*)/, 1][/(.*),.*/, 1] + "MHz  "
-    systext += "Min: " + cpuinfo[/^.*CPU min MHz:\s*(.*)/, 1][/(.*),.*/, 1] + "MHz  "
-    systext += "\n\n"
-    systext += `df -H`
-    systext += "\nDMESG:\n"
-    systext += `dmesg | tail -10`
-    @w_r.fg    = 155
-    w_r_info(systext)
+    uname    = `uname -o`.chop + "  "
+    uname   += `uname -r`.chop + "  "
+    uname   += `uname -v`.chop + "  "
+    uname   += `uname -p` + "\n"
+    text     = [[253, 1, uname]]
+    mem      = `free -h`  + "\n"
+    text    += [[229, 0, mem]]
+    cpu      = "CPUs = " + `nproc`.chop + "  "
+    cpuinfo  = `lscpu`
+    cpu     += cpuinfo[/^.*Model name:\s*(.*)/, 1] + "  "
+    cpu     += "Max: " + cpuinfo[/^.*CPU max MHz:\s*(.*)/, 1][/(.*),.*/, 1] + "MHz  "
+    cpu     += "Min: " + cpuinfo[/^.*CPU min MHz:\s*(.*)/, 1][/(.*),.*/, 1] + "MHz  "
+    cpu     += "\n\n"
+    text    += [[154, 0, cpu]]
+    disk     = `df -H`
+    text    += [[123, 0, disk]]
+    dmesg    = "\nDMESG:\n"
+    dmesg   += `dmesg | tail -10`
+    text    += [[213, 0, dmesg]]
+    @w_r.text= ansifix(text)
+    pager_start
+    pager_show
     @w_r.update = false
   # RIGHT PANE
   when 'ENTER' # Refresh right pane
@@ -695,6 +701,16 @@ def conf_write
     end
   end
   File.write(Dir.home+'/.rtfm.conf', conf)
+end
+def ansifix(text) # Format [[fg, attr, text]]
+  output = ""
+  text.each do |e|
+    ansi    = "\e[38;5;#{e[0]}"
+    ansi   += ";1" if e[1] == 1
+    ansi   += "m"
+    output += ansi + e[2].gsub(/\n/, "\n#{ansi}")
+  end
+  return output
 end
 # TOP WINDOW FUNCTIONS 
 def w_t_info # SHOW INFO IN @w_t
@@ -971,15 +987,17 @@ def tagged_info # SHOW THE LIST OF TAGGED ITEMS IN @w_r
   @tagged.empty? ? info += "(None)" : info += @tagged.join("\n")
   w_r_info(info)
 end
-def syntax_highlight(input) # BATCAT SYNTAX HIGHLIGHTING
+def syntax_highlight(input) # SYNTAX HIGHLIGHTING FROM ANSI COLOR CODES
   color_ary  = color_parse(input)
   color_ary.each do | pair |
     begin
       fg   = pair[0].to_i
-      text = pair[1]
+      atr  = pair[1].to_i
+      atr == 1 ? atr = Curses::A_BOLD : atr = 0
+      text = pair[2]
       text.gsub!(/\t/, '')
       init_pair(fg, fg, 0)
-      @w_r.attron(color_pair(fg)) { @w_r << text }
+      @w_r.attron(color_pair(fg) | atr) { @w_r << text }
     rescue
     end
   end
@@ -1033,7 +1051,8 @@ def pager_show # SHOW THE CURRENT PAGE CONTENT
   end_l = beg_l + @w_r.maxy - 2
   input = @w_r.text.lines[beg_l..end_l].join() + "\n"
   input.lines.count > @w_r.maxy - 2 ? @w_r.pager_more = true : @w_r.pager_more = false
-  if @w_r.pager_cmd.match(/batcat/)
+  #if @w_r.pager_cmd.match(/batcat/)
+  if @w_r.text.match(/^\e\[/)
     syntax_highlight(input)
   else
     if @w_r.fg == nil
