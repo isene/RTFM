@@ -572,14 +572,15 @@ def main_getkey # GET KEY FROM USER
     cpuinfo  = `lscpu`
     cpu     += cpuinfo[/^.*Model name:\s*(.*)/, 1] + "  "
     cpu     += "Max: " + cpuinfo[/^.*CPU max MHz:\s*(.*)/, 1][/(.*),.*/, 1] + "MHz  "
-    cpu     += "Min: " + cpuinfo[/^.*CPU min MHz:\s*(.*)/, 1][/(.*),.*/, 1] + "MHz  "
-    cpu     += "\n\n"
+    cpu     += "Min: " + cpuinfo[/^.*CPU min MHz:\s*(.*)/, 1][/(.*),.*/, 1] + "MHz\n\n"
     text    += [[154, 0, cpu]]
-    disk     = `df -H`
-    text    += [[123, 0, disk]]
+    ps       = `ps -eo comm,pid,user,pcpu,pmem,stat --sort -pcpu,-pmem | head` + "\n"
+    text    += [[195, 0, ps]]
+    disk     = `df -H | head -8`
+    text    += [[172, 0, disk]]
     dmesg    = "\nDMESG:\n"
-    dmesg   += `dmesg | tail -10`
-    text    += [[213, 0, dmesg]]
+    dmesg   += `dmesg | tail -6`
+    text    += [[219, 0, dmesg]]
     @w_r.text= ansifix(text)
     pager_start
     pager_show
