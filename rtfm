@@ -228,7 +228,7 @@ def get_ls_color(type) # GET THE COLOR FOR THE FILETYPE FROM IMPORTED LS_COLORS
   return color.to_i, bold
 end
 def color_parse(input) # PARSE ANSI COLOR SEQUENCES
-  #input.gsub!( /\e\[\d;38;5;(\d+)m/, '¤¤\1¤¤')
+  input.gsub!( /\e\[\d;38;5;(\d+);*(\d*)m/, '¤¤\1¤¤\2¤¤')
   input.gsub!( /\e\[38;5;(\d+);*(\d*)m/, '¤¤\1¤¤\2¤¤')
   input.gsub!( /\e\[0m/, "\t")
   color_array = input.split("¤¤")
