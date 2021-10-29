@@ -566,14 +566,14 @@ def main_getkey # GET KEY FROM USER
     uname   += `uname -v`.chop + "  "
     uname   += `uname -p` + "\n"
     text     = [[253, 1, uname]]
-    mem      = `free -h`  + "\n"
-    text    += [[229, 0, mem]]
     cpu      = "CPUs = " + `nproc`.chop + "  "
     cpuinfo  = `lscpu`
     cpu     += cpuinfo[/^.*Model name:\s*(.*)/, 1] + "  "
     cpu     += "Max: " + cpuinfo[/^.*CPU max MHz:\s*(.*)/, 1][/(.*),.*/, 1] + "MHz  "
     cpu     += "Min: " + cpuinfo[/^.*CPU min MHz:\s*(.*)/, 1][/(.*),.*/, 1] + "MHz\n\n"
     text    += [[154, 0, cpu]]
+    mem      = `free -h`  + "\n"
+    text    += [[229, 0, mem]]
     ps       = `ps -eo comm,pid,user,pcpu,pmem,stat --sort -pcpu,-pmem | head` + "\n"
     text    += [[195, 0, ps]]
     disk     = `df -H | head -8`
@@ -581,10 +581,7 @@ def main_getkey # GET KEY FROM USER
     dmesg    = "\nDMESG:\n"
     dmesg   += `dmesg | tail -6`
     text    += [[219, 0, dmesg]]
-    @w_r.text= ansifix(text)
-    pager_start
-    pager_show
-    @w_r.update = false
+    w_r_info(ansifix(text))
   # RIGHT PANE
   when 'ENTER' # Refresh right pane
     @w_r.clr # First clear the window, then clear any previously showing image
