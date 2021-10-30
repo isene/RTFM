@@ -1049,7 +1049,6 @@ def pager_show # SHOW THE CURRENT PAGE CONTENT
   end_l = beg_l + @w_r.maxy - 2
   input = @w_r.text.lines[beg_l..end_l].join() + "\n"
   input.lines.count > @w_r.maxy - 2 ? @w_r.pager_more = true : @w_r.pager_more = false
-  #if @w_r.pager_cmd.match(/batcat/)
   if @w_r.text.match(/^\e\[/)
     syntax_highlight(input)
   else
@@ -1059,7 +1058,8 @@ def pager_show # SHOW THE CURRENT PAGE CONTENT
     else 
       init_pair(@w_r.fg, @w_r.fg, 0)
     end
-    @w_r.attron(color_pair(@w_r.fg)) { @w_r << input }
+    @w_r.attr = 0 if @w_r.attr == nil
+    @w_r.attron(color_pair(@w_r.fg) | @w_r.attr) { @w_r << input }
   end
   (@w_r.maxy - @w_r.cury).times {@w_r.deleteln()} # Clear to bottom of window
   pager_add_markers
