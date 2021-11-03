@@ -560,28 +560,32 @@ def main_getkey # GET KEY FROM USER
     @w_r.update = true
     @w_b.update = false
   when 'S' # Show comprehensive system info
-    @w_r.pager_cmd = ""
-    uname    = `uname -o`.chop + "  "
-    uname   += `uname -r`.chop + "  "
-    uname   += `uname -v`.chop + "  "
-    uname   += `uname -p` + "\n"
-    text     = [[253, 1, uname]]
-    cpu      = "CPUs = " + `nproc`.chop + "  "
-    cpuinfo  = `lscpu`
-    cpu     += cpuinfo[/^.*Model name:\s*(.*)/, 1] + "  "
-    cpu     += "Max: " + cpuinfo[/^.*CPU max MHz:\s*(.*)/, 1][/(.*),.*/, 1] + "MHz  "
-    cpu     += "Min: " + cpuinfo[/^.*CPU min MHz:\s*(.*)/, 1][/(.*),.*/, 1] + "MHz\n\n"
-    text    += [[154, 0, cpu]]
-    mem      = `free -h`  + "\n"
-    text    += [[229, 0, mem]]
-    ps       = `ps -eo comm,pid,user,pcpu,pmem,stat --sort -pcpu,-pmem | head` + "\n"
-    text    += [[195, 0, ps]]
-    disk     = `df -H | head -8`
-    text    += [[172, 0, disk]]
-    dmesg    = "\nDMESG:\n"
-    dmesg   += `dmesg | tail -6`
-    text    += [[219, 0, dmesg]]
-    w_r_info(ansifix(text))
+    begin
+      @w_r.pager_cmd = ""
+      uname    = `uname -o`.chop + "  "
+      uname   += `uname -r`.chop + "  "
+      uname   += `uname -v`.chop + "  "
+      uname   += `uname -p` + "\n"
+      text     = [[253, 1, uname]]
+      cpu      = "CPUs = " + `nproc`.chop + "  "
+      cpuinfo  = `lscpu`
+      cpu     += cpuinfo[/^.*Model name:\s*(.*)/, 1] + "  "
+      cpu     += "Max: " + cpuinfo[/^.*CPU max MHz:\s*(.*)/, 1][/(.*),.*/, 1] + "MHz  "
+      cpu     += "Min: " + cpuinfo[/^.*CPU min MHz:\s*(.*)/, 1][/(.*),.*/, 1] + "MHz\n\n"
+      text    += [[154, 0, cpu]]
+      mem      = `free -h`  + "\n"
+      text    += [[229, 0, mem]]
+      ps       = `ps -eo comm,pid,user,pcpu,pmem,stat --sort -pcpu,-pmem | head` + "\n"
+      text    += [[195, 0, ps]]
+      disk     = `df -H | head -8`
+      text    += [[172, 0, disk]]
+      dmesg    = "\nDMESG:\n"
+      dmesg   += `dmesg | tail -6`
+      text    += [[219, 0, dmesg]]
+      w_r_info(ansifix(text))
+    rescue
+      w_r_info("Unable to show system info")
+    end
   # RIGHT PANE
   when 'ENTER' # Refresh right pane
     @w_r.clr # First clear the window, then clear any previously showing image
