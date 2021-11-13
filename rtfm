@@ -46,6 +46,8 @@ JUMPING AND MARKS
           Press '-' and a letter to delete that mark
  M      = Show marked items in right pane
  '      = Jump to mark (next letter is the name of the mark [a-zA-Z'])
+ j      = Jump to the item in the left pane that matches the entry
+ J      = Jump to the next matched item (as entered via 'j') if any
  h      = Jump to Home directory
  f      = Follow symlink to the directory where the target resides
  L      = Start 'locate' search for files, then use '#' to jump to desired line/directory
@@ -170,6 +172,7 @@ begin # BASIC SETUP
   ## These should not be set by user in .rtfm.conf
   @directory  = {}    # Initialize the directory hash for remembering directories visited
   @searched   = ""    # Initialize the active searched for items
+  @jump       = ""    # Initialize the "jump-to-file"
   @index      = 0     # Set chosen item to first on startup
   @marks["'"] = Dir.pwd
   ## File type recognizers
@@ -617,7 +620,21 @@ def main_getkey # GET KEY FROM USER
     @break = true
     @w_b.update = true
   # ADDITIONAL COMMANDS
-  when '/' # Get search string to mark items that match # 
+  when 'j' # Get the jump-to-file in the current dir from input
+    @w_b.nohistory = true
+    @jump = w_b_getstr("Jump to: ", @jump)
+    l = `ls #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}`.split
+    m = l.each_index.select{|n| l[n] =~ /#{@jump}/}
+    i = m.find { |n| n > @index }
+    @index = i if i > @index unless i == nil
+    @w_r.update = true
+  when 'J'
+    l = `ls #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}`.split
+    m = l.each_index.select{|n| l[n] =~ /#{@jump}/}
+    i = m.find { |n| n > @index }
+    @index = i if i > @index unless i == nil
+    @w_r.update = true
+  when '/' # Get search string to mark items that match the input 
     @w_b.nohistory = true
     @searched = w_b_getstr("/ ", "")
     @w_r.update = true
