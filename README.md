@@ -115,6 +115,8 @@ Key    | Description
 m      | Mark current dir (persistent). Next letter is the name of the mark [a-zA-Z'] The special mark "'" jumps to the last directory (makes toggling dirs easy) Press '-' and a letter to delete that mark
 M      | Show marked items in right pane
 '      | Jump to mark (next letter is the name of the mark [a-zA-Z'])
+j      | Jump to the item in the left pane that matches the entry
+J      | Jump to the next matched item (as entered via 'j') if any
 h      | Jump to Home directory
 f      | Follow symlink to the directory where the target resides
 L      | Start 'locate' search for files, then use '#' to jump to desired line/directory
