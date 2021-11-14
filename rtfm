@@ -1372,8 +1372,8 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       @tag = false       # Clear tag pattern
       lsall_old = @lsall
       main_getkey        # Get key from user 
-      break if @break    # Break to outer loop, redrawing windows, if user hit 'r'
       break if Curses.cols != maxx or Curses.lines != maxy # break on terminal resize 
+      break if @break    # Break to outer loop, redrawing windows, if user hit 'r'
     end
   ensure # On exit: close curses, clear terminal 
     @write_conf_all = false
