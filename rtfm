@@ -48,6 +48,7 @@ JUMPING AND MARKS
  '      = Jump to mark (next letter is the name of the mark [a-zA-Z'])
  /      = Enter search string in bottom window to highlight matching items and jump to the first match
  n      = Jump to the next item matched by '/'
+ N      = Jump to the previous item matched by '/'
  h      = Jump to Home directory
  f      = Follow symlink to the directory where the target resides
  L      = Start 'locate' search for files, then use '#' to jump to desired line/directory
@@ -631,7 +632,13 @@ def main_getkey # GET KEY FROM USER
     l = `ls #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}`.split
     m = l.each_index.select{|n| l[n] =~ /#{@searched}/}
     i = m.find { |n| n > @index }
-    @index = i if i > @index unless i == nil
+    @index = i unless i == nil
+    @w_r.update = true
+  when 'N'
+    l = `ls #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}`.split
+    m = l.each_index.select{|n| l[n] =~ /#{@searched}/}.reverse
+    i = m.find { |n| n < @index }
+    @index = i unless i == nil
     @w_r.update = true
   when ':' # Enter "command mode" in the bottom window - tries to execute the given command 
     @w_r.nohistory = false
