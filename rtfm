@@ -672,14 +672,17 @@ def main_getkey # GET KEY FROM USER
   when '@' # Enter "Ruby debug"
     @w_b.nohistory = true
     cmd = w_b_getstr("◆ ", "")
+    @w_b.clr
+    @w_b.refresh
+    @w_b.update = true
     @w_r.clr
-    @w_r << "Command: #{cmd}\n\n"
-    @w_r.refresh
+    info = "Command: #{cmd}\n\n"
     begin
-      eval(cmd)
+      info += eval(cmd).to_s
     rescue StandardError => e
-      w_r_info("Error: #{e.inspect}")
+      info += "Error: #{e.inspect}"
     end
+    w_r_info(info)
     @w_r.update = false
   end
   if @w_r.update == true
@@ -993,12 +996,19 @@ def w_r_doc # GET FULL CONTENT TO PAGE
   @w_r << @w_r.text
 end
 def w_r_info(info) # SHOW INFO IN THE RIGHT WINDOW
+  image_show("clear") if @image; @image = false
+  @w_r.clr
+  @w_r. refresh
+  w_r_width = Curses.cols - (Curses.cols/@width) - 1
+  info = info.split("\n")
+  l = []
+  info.each{ |e| l << e.scan(/.{,#{w_r_width}}/)[0..-2] }
+  info = l.join("\n")
   @w_r.text      = info
   @w_r.pager_cmd = ""
   pager_start
   pager_show
   @w_r.update = false
-  image_show("clear") if @image; @image = false
 end
 def marks_info # SHOW MARKS IN RIGHT WINDOW
   info = "MARKS:\n"
