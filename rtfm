@@ -632,13 +632,21 @@ def main_getkey # GET KEY FROM USER
     l = `ls #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}`.split
     m = l.each_index.select{|n| l[n] =~ /#{@searched}/}
     i = m.find { |n| n > @index }
-    @index = i unless i == nil
+    if i == nil
+      @index = m.first
+    else
+      @index = i
+    end
     @w_r.update = true
   when 'N'
     l = `ls #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}`.split
     m = l.each_index.select{|n| l[n] =~ /#{@searched}/}.reverse
     i = m.find { |n| n < @index }
-    @index = i unless i == nil
+    if i == nil
+      @index = m.first
+    else
+      @index = i
+    end
     @w_r.update = true
   when ':' # Enter "command mode" in the bottom window - tries to execute the given command 
     @w_r.nohistory = false
