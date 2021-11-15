@@ -624,9 +624,9 @@ def main_getkey # GET KEY FROM USER
     @searched = w_b_getstr("/ ", "")
     l = `ls #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}`.split
     m = l.each_index.select{|n| l[n] =~ /#{@searched}/}
+    @index = 0 unless m == []
     i = m.find { |n| n > @index }
     @index = i if i > @index unless i == nil
-    @index = 0 if @searched == ""
     @w_r.update = true
   when 'n'
     l = `ls #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}`.split
