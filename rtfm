@@ -1306,6 +1306,9 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     @w_b = Curses::Window.new(1, 0, maxy - 1, 0)
     @w_l = Curses::Window.new(maxy - 3, (maxx/@width) - 1, 2, 0)
     @w_r = Curses::Window.new(maxy - 4, maxx - (maxx/@width), 2, maxx/@width)
+    @w_p = Curses::Window.new(1, maxx - (maxx/@width), maxy - 2, maxx/@width)
+    @w_p.fg, @w_p.bg = 255, 0
+    @w_p.refresh
     @w_t.fg, @w_t.bg = 232, 249
     @w_t.attr        = Curses::A_BOLD
     @w_b.fg, @w_b.bg = 250, 238
