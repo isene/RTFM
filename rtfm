@@ -324,6 +324,7 @@ def main_getkey # GET KEY FROM USER
     @directory[Dir.pwd] = @selected # Store this directory before leaving
     @marks["'"] = Dir.pwd
     open_selected()
+    @change_tag = true
     @w_r.update = true
     @w_b.update = true
   when 'x'   # Force open with file opener (used to open HTML files in browser)
@@ -331,6 +332,7 @@ def main_getkey # GET KEY FROM USER
     @directory[Dir.pwd] = @selected # Store this directory before leaving
     @marks["'"] = Dir.pwd
     open_selected(true)
+    @change_tag = true
     @w_r.update = true
     @w_b.update = true
   when 'PgDOWN'
@@ -401,7 +403,10 @@ def main_getkey # GET KEY FROM USER
     @directory[Dir.pwd] = @selected # Store this directory before leaving
     @marks["'"] = Dir.pwd
     if File.symlink?(@selected) 
-      Dir.chdir(File.dirname(File.readlink(@selected)))
+      begin
+        Dir.chdir(File.dirname(File.readlink(@selected)))
+      rescue
+      end
     end
     @w_b.update = true
   when 'g' # Run 'grep' in the current directory
@@ -564,11 +569,22 @@ def main_getkey # GET KEY FROM USER
   when 'S' # Show comprehensive system info
     begin
       @w_r.pager_cmd = ""
-      uname    = `uname -o`.chop + "  "
-      uname   += `uname -r`.chop + "  "
-      uname   += `uname -v`.chop + "  "
-      uname   += `uname -p` + "\n"
+      uname    = `uname -o`.chomp + "  "
+      uname   += `uname -r`.chomp + "  "
+      uname   += `uname -v`.chomp + "  "
+      uname   += `uname -p`.chomp + "  "
+      uname   += `awk -F '"' '/PRETTY/ {print $2}' /etc/os-release` + "\n"
       text     = [[253, 1, uname]]
+      system   = "Shell & Terminal: " + `echo $SHELL`.sub(/.*\//, '').chomp + ", " + `echo $TERM`.chomp + "   "
+      packages = `pacman -Q | wc -l`.chomp
+      packages = `dpkg-query -l | grep -c '^.i'`.chomp if packages == "0"
+      packages = "Unrecognized" if packages == "0"
+      system  += "Packages: " + packages + "\n"
+      system  += "Desktop: " + `awk '/^DesktopNames/' /usr/share/xsessions/* | sed 's/DesktopNames=//g' | \\
+                  sed 's/\\;/\\n/g' | sed '/^$/d' | sort -u | sed ':a;N;$!ba;s/\\n/, /g'`.chomp + "/"
+      system  += `grep 'gtk-theme-name' ~/.config/gtk-3.0/* | sed 's/gtk-theme-name=//g' | \\
+                  sed 's/-/ /g'`.sub(/.*:/, '') + "\n"
+      text    += [[251, 0, system]]
       cpu      = "CPUs = " + `nproc`.chop + "  "
       cpuinfo  = `lscpu`
       cpu     += cpuinfo[/^.*Model name:\s*(.*)/, 1] + "  "
@@ -594,7 +610,7 @@ def main_getkey # GET KEY FROM USER
     image_show("clear") if @image; @image = false
     @w_r.update = true
     @w_b.update = true
-  when 'TAB' # Start paging
+  when 'TAB' # Start paging/Down one page
     if @w_r.pager == 1 and @w_r.pager_cmd != ""
       @w_r.text = `#{@w_r.pager_cmd} 2>/dev/null` 
     end
@@ -627,7 +643,7 @@ def main_getkey # GET KEY FROM USER
     @index = m[0] unless m == []
     @index = 0 if @searched == ""
     @w_r.update = true
-  when 'n'
+  when 'n' # Jump to next occurence of search (after '/')
     l = `ls #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}`.split
     m = l.each_index.select{|n| l[n] =~ /#{@searched}/}
     i = m.find { |n| n > @index }
@@ -637,7 +653,7 @@ def main_getkey # GET KEY FROM USER
       @index = i
     end
     @w_r.update = true
-  when 'N'
+  when 'N' # Jump to previous occurence of search (after '/')
     l = `ls #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}`.split
     m = l.each_index.select{|n| l[n] =~ /#{@searched}/}.reverse
     i = m.find { |n| n < @index }
@@ -654,7 +670,7 @@ def main_getkey # GET KEY FROM USER
   when ';' # Show command history 
     w_r_info("Command history (latest on top):\n\n" + @history.join("\n"))
     @w_b.update = true
-  when 'y', 'Y'
+  when 'y', 'Y' # Copy path of selected item
     if @selected == nil
       w_b_info(" No selected item path to copy")
     else
@@ -1279,6 +1295,7 @@ def w_b_exec(cmd) # EXECUTE COMMAND FROM @W_B
         pager_show
         @w_r.update = false
       end
+      @change_tag = true
     }
   rescue
     w_b_info(" Failed to execute command (#{cmd})")
@@ -1312,9 +1329,7 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     @w_t.fg, @w_t.bg = 232, 249
     @w_t.attr        = Curses::A_BOLD
     @w_b.fg, @w_b.bg = 250, 238
-    @w_t.update = true
     @w_b.update = true
-    @w_l.update = true
     @w_r.update = true
     @w_r.pager  = 0
     @w_r.pager_more = false
@@ -1324,13 +1339,14 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       tagged_info
       @w_r.update = false
     end
+    @change     = true
+    @change_tag = true
     loop do # INNER, CORE LOOP 
       begin # Jump to home dir if current dir is externally removed
         Dir.pwd
       rescue
         Dir.chdir
       end
-      system("printf \"\033]0;RTFM: #{Dir.pwd}\007\"")   # Set Window title to path 
       ls_cmd  = "ls #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}" # Get files in current directory 
       @files  = `#{ls_cmd} 2>/dev/null`.split("\n")
       ls_cmd += %q[ -lhgG --time-style="long-iso" | awk '{printf "%s%12s%6s%6s%5s", $1,$4,$5,$3,$2 "\n"}']
@@ -1350,28 +1366,33 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
         @index        = @files.index(@selected)
         @orderchange  = false
       end
-      @index     = @files.index(@selected) if @lsall != lsall_old # Change in showing all items must be handled
-      @index     = index_old if @files.index(@selected) == nil    # If item no longer is shown
-      @min_index = 0
-      @max_index = @files.size - 1
-      @index     = @max_index if @index > @max_index  # If deleted many items
-      @index     = 0 if @index < 0
-      @selected      = @files[@index]                 # Get text of selected item
-      @selected_safe = "\"#{@selected}\""             # Make it safe for commands
-      # Top window (info line) 
-      w_t_info
+      @index          = @files.index(@selected) if @lsall != lsall_old # Change in showing all items must be handled
+      @index          = index_old if @files.index(@selected) == nil    # If item no longer is shown
+      @min_index      = 0
+      @max_index      = @files.size - 1
+      @index          = @max_index if @index > @max_index  # If deleted many items
+      @index          = 0 if @index < 0
+      @selected       = @files[@index]                     # Get text of selected item
+      sel_old         = @selected_safe
+      @selected_safe  = "\"#{@selected}\""                 # Make it safe for commands
+      @selected_safe == sel_old ? @change = false : @change = true
+      @change         = true if @change_tag; @change_tag = false
+      if @change
+        system("printf \"\033]0;RTFM: #{Dir.pwd}\007\"")   # Set Window title to path 
+        # Top window (info line) 
+        w_t_info
+        @w_l.setpos(0,0)
+        list_dir(true)
+        @w_l.refresh
+      end
       # Bottom window (command line) Before @w_r to avoid image dropping out on startup
       w_b_info(nil) if @w_b.update
       # Left and right windows (browser & content viewer)
-      @w_l.setpos(0,0)
-      list_dir(true)
-      @w_l.refresh
       if @w_r.update and @preview
         w_r_show
         @w_r.fg = 255
       end
-      Curses.curs_set(1) # Clear residual cursor
-      Curses.curs_set(0) # ...from editing files 
+      Curses.curs_set(1); Curses.curs_set(0) # Clear residual cursor from editing files 
       @tag = false       # Clear tag pattern
       lsall_old = @lsall
       main_getkey        # Get key from user 
