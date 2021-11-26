@@ -573,6 +573,7 @@ def main_getkey # GET KEY FROM USER
     @w_b.update = false
   when 'S' # Show comprehensive system info
     begin
+      @w_r.clr
       @w_r.pager_cmd = ""
       uname    = `uname -o`.chomp + "  "
       uname   += `uname -r`.chomp + "  "
@@ -581,8 +582,8 @@ def main_getkey # GET KEY FROM USER
       uname   += `awk -F '"' '/PRETTY/ {print $2}' /etc/os-release` + "\n"
       text     = [[253, 1, uname]]
       system   = "Shell & Terminal: " + `echo $SHELL`.sub(/.*\//, '').chomp + ", " + `echo $TERM`.chomp + "   "
-      packages = `pacman -Q | wc -l`.chomp
-      packages = `dpkg-query -l | grep -c '^.i'`.chomp if packages == "0"
+      packages = `pacman -Q 2>/dev/null | wc -l`.chomp
+      packages = `dpkg-query -l 2>/dev/null | grep -c '^.i'`.chomp if packages == "0"
       packages = "Unrecognized" if packages == "0"
       system  += "Packages: " + packages + "\n"
       system  += "Desktop: " + `awk '/^DesktopNames/' /usr/share/xsessions/* | sed 's/DesktopNames=//g' | \\
