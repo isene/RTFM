@@ -399,6 +399,7 @@ def main_getkey # GET KEY FROM USER
     Dir.chdir
     @w_r.update = true
     @w_b.update = true
+    @change_tag = true
   when 'f' # Follow symlink
     @directory[Dir.pwd] = @selected # Store this directory before leaving
     @marks["'"] = Dir.pwd
@@ -443,6 +444,7 @@ def main_getkey # GET KEY FROM USER
     @index += 1
     @w_r.update = true
     @w_b.update = true
+    @change_tag = true
   when 'C-T' # Tag items matching a pettern
     @w_b.nohistory = true
     @tag = w_b_getstr("~ ", "")
