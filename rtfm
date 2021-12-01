@@ -242,7 +242,7 @@ def getchr # PROCESS KEY PRESSES
   # Note: Curses.getch blanks out @w_t
   # @w_l.getch makes Curses::KEY_DOWN etc not work
   # Therefore resorting to the generic method
-  c = STDIN.getch(min: 0, time: 1)
+  c = STDIN.getch(min: 0, time: 3)
   case c
   when "\e"    # ANSI escape sequences
     case $stdin.getc
@@ -324,7 +324,6 @@ def main_getkey # GET KEY FROM USER
     @directory[Dir.pwd] = @selected # Store this directory before leaving
     @marks["'"] = Dir.pwd
     open_selected()
-    @change_tag = true
     @w_r.update = true
     @w_b.update = true
   when 'x'   # Force open with file opener (used to open HTML files in browser)
@@ -332,7 +331,6 @@ def main_getkey # GET KEY FROM USER
     @directory[Dir.pwd] = @selected # Store this directory before leaving
     @marks["'"] = Dir.pwd
     open_selected(true)
-    @change_tag = true
     @w_r.update = true
     @w_b.update = true
   when 'PgDOWN'
@@ -399,7 +397,6 @@ def main_getkey # GET KEY FROM USER
     Dir.chdir
     @w_r.update = true
     @w_b.update = true
-    @change_tag = true
   when 'f' # Follow symlink
     @directory[Dir.pwd] = @selected # Store this directory before leaving
     @marks["'"] = Dir.pwd
@@ -444,7 +441,6 @@ def main_getkey # GET KEY FROM USER
     @index += 1
     @w_r.update = true
     @w_b.update = true
-    @change_tag = true
   when 'C-T' # Tag items matching a pettern
     @w_b.nohistory = true
     @tag = w_b_getstr("~ ", "")
@@ -465,17 +461,14 @@ def main_getkey # GET KEY FROM USER
     copy_move_link("copy")
     @w_r.update = true
     @w_b.update = true
-    @change_tag = true
   when 'P' # Move tagged items here 
     copy_move_link("move")
     @w_r.update = true
     @w_b.update = true
-    @change_tag = true
   when 's' # Create symlink to tagged items here 
     copy_move_link("link")
     @w_r.update = true
     @w_b.update = true
-    @change_tag = true
   when 'd' # Delete items tagged and @selected 
     tagged_info
     w_b_info(" Delete selected and tagged? (press 'd' again to delete)")
@@ -504,7 +497,6 @@ def main_getkey # GET KEY FROM USER
     @lsall == "" ? @lsall = "-a" : @lsall = ""
     @w_r.update = true
     @w_b.update = true
-    @change_tag = true
   when 'l' # Show long info for all items 
     @lslong = !@lslong
     @w_r.update = true
@@ -526,7 +518,6 @@ def main_getkey # GET KEY FROM USER
     end
     @w_r.update  = true
     @orderchange = true
-    @change_tag = true
   when 'i' # Invert the order/sorting of directory views
     case @lsinvert
     when ""
@@ -538,7 +529,6 @@ def main_getkey # GET KEY FROM USER
     end
     @w_r.update  = true
     @orderchange = true
-    @change_tag = true
   when 'O' # Show the Ordering in the bottom window (the full ls command)
     w_b_info(" Full 'ls' command: ls <@s> #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}")
   when 'G' # Git status for selected item or current dir
@@ -1304,7 +1294,6 @@ def w_b_exec(cmd) # EXECUTE COMMAND FROM @W_B
         pager_show
         @w_r.update = false
       end
-      @change_tag = true
     }
   rescue
     w_b_info(" Failed to execute command (#{cmd})")
@@ -1349,7 +1338,7 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       @w_r.update = false
     end
     @change     = true
-    @change_tag = true
+    @change_tag = true # For future need to force @change
     loop do # INNER, CORE LOOP 
       begin # Jump to home dir if current dir is externally removed
         Dir.pwd
@@ -1390,10 +1379,10 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
         system("printf \"\033]0;RTFM: #{Dir.pwd}\007\"")   # Set Window title to path 
         # Top window (info line) 
         w_t_info
-        @w_l.setpos(0,0)
-        list_dir(true)
-        @w_l.refresh
       end
+      @w_l.setpos(0,0)
+      list_dir(true)
+      @w_l.refresh
       # Bottom window (command line) Before @w_r to avoid image dropping out on startup
       w_b_info(nil) if @w_b.update
       # Left and right windows (browser & content viewer)
