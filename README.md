@@ -97,16 +97,16 @@ Q      | QUIT (without writing changes to the config file)
 
 ### Motion
 
-Key    | Description
--------|------------------------------------------------------------------
-DOWN   | Go one item down in left pane (rounds to top)
-UP     | Go one item up in left pane (rounds to bottom)
-LEFT   | Go up one directory level
-RIGHT  | Enter directory or open file (using xdg-open or run-mailcap). Use the key 'x' to force open using xdg-open (or run-mailcap). Use 'x' for opening html files in a browser rather than editing the file in your text editor.
-PgDown | Go one page down in left pane
-PgUp   | Go one page up in left pane
-END    | Go to last item in left pane
-HOME   | Go to first item in left pane
+Key        | Description
+-----------|------------------------------------------------------------------
+DOWN or j  | Go one item down in left pane (rounds to top)
+UP or k    | Go one item up in left pane (rounds to bottom)
+LEFT or h  | Go up one directory level
+RIGHT or l | Enter directory or open file (using xdg-open or run-mailcap). Use the key 'x' to force open using xdg-open (or run-mailcap). Use 'x' for opening html files in a browser rather than editing the file in your text editor.
+PgDown     | Go one page down in left pane
+PgUp       | Go one page up in left pane
+END        | Go to last item in left pane
+HOME       | Go to first item in left pane
 
 ### Jumping and marks
 
@@ -118,7 +118,7 @@ M      | Show marked items in right pane
 /      | Enter search string in bottom window to highlight matching items and jump to the first match
 n      | Jump to the next item matched by '/'
 N      | Jump to the previous item matched by '/'
-h      | Jump to Home directory
+.      | Jump to Home directory
 f      | Follow symlink to the directory where the target resides
 L      | Start 'locate' search for files, then use '#' to jump to desired line/directory
 
@@ -146,7 +146,7 @@ c      | Change/rename selected (adds command to bottom window)
 Key    | Description
 -------|------------------------------------------------------------------
 a      | Show all (also hidden) items
-l      | Show long info per item (show item attributes)
+A      | Show All info per item (show item attributes)
 o      | Change the order/sorting of directories (circular toggle)
 i      | Invert/reverse the sorting
 O      | Show the Ordering in the bottom window (the full ls command)
