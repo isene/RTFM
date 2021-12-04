@@ -163,6 +163,7 @@ TAB    | Next page of the preview (if doc long and ∇ in the bottom right)
 S-TAB  | Previous page (if you have moved down the document first - ∆ in the top right)
 w      | Change the width of the left/right panes (left pane ⇒ ⅓ ⇒ ¼ ⇒ ⅕ ⇒ ⅙ ⇒ ½ ⇒ ⅓)
 \-      | Toggle preview in right pane (turn it off for faster traversing of directories)
+_      | Toggle preview of images in right pane
 
 ### Additinal commands
 

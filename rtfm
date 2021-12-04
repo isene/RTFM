@@ -83,6 +83,7 @@ RIGHT PANE
  S-TAB   = Previous page (if you have moved down the document first - ∆ in the top right)
  w       = Change the width of the left/right panes (left pane ⇒ ⅓ ⇒ ¼ ⇒ ⅕ ⇒ ⅙ ⇒ ½ ⇒ ⅓)
  -       = Toggle preview in right pane (turn it off for faster traversing of directories)
+ _       = Toggle preview of images in right pane
 
 ADDITINAL COMMANDS
  g       = Run 'grep' to show files that contains the MATCH in current directory
@@ -633,6 +634,10 @@ def main_getkey # GET KEY FROM USER
     @preview = !@preview
     @break = true
     @w_b.update = true
+  when '_'
+    @showimage = !@showimage
+    @break = true
+    @w_b.update = true
   # ADDITIONAL COMMANDS
   when '/' # Get search string to mark items that match the input 
     @w_b.nohistory = true
@@ -736,6 +741,8 @@ def conf_write
     conf += "@border = #{@border}\n"
     conf.sub!(/^@preview.*\n/, "") 
     conf += "@preview = #{@preview}\n"
+    conf.sub!(/^@showimage.*\n/, "") 
+    conf += "@showimage = #{@showimage}\n"
     w_r_info("Press W again to write this to .rtfm.conf:\n\n" + conf)
     if getchr == 'W'
       w_b_info(" Parameters written to .rtfm.conf")
