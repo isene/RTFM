@@ -632,12 +632,16 @@ def main_getkey # GET KEY FROM USER
     @w_b.update = true
   when '-'
     @preview = !@preview
+    @preview ? p = "On" : p = "Off"
+    w_b_info("Preview = " + p)
+    getch
     @break = true
-    @w_b.update = true
   when '_'
     @showimage = !@showimage
+    @showimage ? i = "On" : i = "Off"
+    w_b_info("Image preview = " + i)
+    getch
     @break = true
-    @w_b.update = true
   # ADDITIONAL COMMANDS
   when '/' # Get search string to mark items that match the input 
     @w_b.nohistory = true
