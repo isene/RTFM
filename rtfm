@@ -461,15 +461,15 @@ def main_getkey # GET KEY FROM USER
   when 'p' # Copy tagged items here 
     copy_move_link("copy")
     @w_r.update = true
-    @w_b.update = true
+    w_b_info(" Item(s) copied here.")
   when 'P' # Move tagged items here 
     copy_move_link("move")
     @w_r.update = true
-    @w_b.update = true
+    w_b_info(" Item(s) moved here.")
   when 's' # Create symlink to tagged items here 
     copy_move_link("link")
     @w_r.update = true
-    @w_b.update = true
+    w_b_info(" Item(s) symlinked here.")
   when 'd' # Delete items tagged and @selected 
     tagged_info
     w_b_info(" Delete selected and tagged? (press 'd' again to delete)")
@@ -1304,6 +1304,8 @@ def w_b_exec(cmd) # EXECUTE COMMAND FROM @W_B
         pager_start
         pager_show
         @w_r.update = false
+      else
+        @w_r.update = true
       end
     }
   rescue
