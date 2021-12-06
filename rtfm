@@ -49,7 +49,7 @@ JUMPING AND MARKS
  /       = Enter search string in bottom window to highlight matching items and jump to the first match
  n       = Jump to the next item matched by '/'
  N       = Jump to the previous item matched by '/'
- h       = Jump to Home directory
+ ~       = Jump to Home directory
  f       = Follow symlink to the directory where the target resides
  L       = Start 'locate' search for files, then use '#' to jump to desired line/directory
 
@@ -391,7 +391,7 @@ def main_getkey # GET KEY FROM USER
     end
     @w_r.update = true
     @w_b.update = true
-  when '.' # Go to home dir
+  when '~' # Go to home dir
     var_resets
     @directory[Dir.pwd] = @selected # Store this directory before leaving
     @marks["'"] = Dir.pwd
@@ -461,15 +461,12 @@ def main_getkey # GET KEY FROM USER
   when 'p' # Copy tagged items here 
     copy_move_link("copy")
     @w_r.update = true
-    w_b_info(" Item(s) copied here.")
   when 'P' # Move tagged items here 
     copy_move_link("move")
     @w_r.update = true
-    w_b_info(" Item(s) moved here.")
   when 's' # Create symlink to tagged items here 
     copy_move_link("link")
     @w_r.update = true
-    w_b_info(" Item(s) symlinked here.")
   when 'd' # Delete items tagged and @selected 
     tagged_info
     w_b_info(" Delete selected and tagged? (press 'd' again to delete)")
@@ -924,10 +921,13 @@ def copy_move_link(type) # COPY OR MOVE TAGGED ITEMS (COPY IF "keep == true")
       case type
       when "copy"
         FileUtils.cp_r(item, dest)
+        w_b_info(" Item(s) copied here.")
       when "move"
         FileUtils.mv(item, dest)
+        w_b_info(" Item(s) moved here.")
       when "link"
         FileUtils.ln_s(item, dest)
+        w_b_info(" Item(s) symlinked here.")
       end
     rescue StandardError => err
       w_b_info(err.to_s)

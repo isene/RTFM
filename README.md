@@ -118,7 +118,7 @@ M      | Show marked items in right pane
 /      | Enter search string in bottom window to highlight matching items and jump to the first match
 n      | Jump to the next item matched by '/'
 N      | Jump to the previous item matched by '/'
-.      | Jump to Home directory
+~      | Jump to Home directory
 f      | Follow symlink to the directory where the target resides
 L      | Start 'locate' search for files, then use '#' to jump to desired line/directory
 
