@@ -377,7 +377,7 @@ def main_getkey # GET KEY FROM USER
     @w_b.update = true
   when "'" # Jump to mark 
     marks_info
-    m = STDIN.getc
+    m = stdscr.getch.to_s
     if m.match(/[\w']/) and @marks[m]
       var_resets
       @directory[Dir.pwd] = @selected # Store this directory before leaving
