@@ -46,6 +46,7 @@ JUMPING AND MARKS
            Press '-' and a letter to delete that mark
  M       = Show marked items in right pane
  '       = Jump to mark (next letter is the name of the mark [a-zA-Z'])
+           The 5 latest directories visited are stored in marks 1-5 (1 being the very latest)
  /       = Enter search string in bottom window to highlight matching items and jump to the first match
  n       = Jump to the next item matched by '/'
  N       = Jump to the previous item matched by '/'
@@ -315,7 +316,7 @@ def main_getkey # GET KEY FROM USER
     var_resets
     cur_dir = Dir.pwd
     @directory[Dir.pwd] = @selected # Store this directory before leaving
-    @marks["'"] = Dir.pwd
+    mark_latest
     Dir.chdir("..")
     @directory[Dir.pwd] = File.basename(cur_dir) unless @directory.key?(Dir.pwd)
     @w_r.update = true
@@ -323,14 +324,14 @@ def main_getkey # GET KEY FROM USER
   when 'RIGHT', 'l'
     var_resets
     @directory[Dir.pwd] = @selected # Store this directory before leaving
-    @marks["'"] = Dir.pwd
+    mark_latest
     open_selected()
     @w_r.update = true
     @w_b.update = true
   when 'x'   # Force open with file opener (used to open HTML files in browser)
     var_resets
     @directory[Dir.pwd] = @selected # Store this directory before leaving
-    @marks["'"] = Dir.pwd
+    mark_latest
     open_selected(true)
     @w_r.update = true
     @w_b.update = true
@@ -387,6 +388,7 @@ def main_getkey # GET KEY FROM USER
       rescue
         w_b_info(" No such directory")
       end
+      mark_latest
       @marks["'"] = dir_before
     end
     @w_r.update = true
@@ -394,13 +396,13 @@ def main_getkey # GET KEY FROM USER
   when '~' # Go to home dir
     var_resets
     @directory[Dir.pwd] = @selected # Store this directory before leaving
-    @marks["'"] = Dir.pwd
+    mark_latest
     Dir.chdir
     @w_r.update = true
     @w_b.update = true
   when 'f' # Follow symlink
     @directory[Dir.pwd] = @selected # Store this directory before leaving
-    @marks["'"] = Dir.pwd
+    mark_latest
     if File.symlink?(@selected) 
       begin
         Dir.chdir(File.dirname(File.readlink(@selected)))
@@ -426,7 +428,7 @@ def main_getkey # GET KEY FROM USER
         jumpdir = File.dirname(jumpdir)
       end
       @directory[Dir.pwd] = @selected # Store this directory before leaving
-      @marks["'"] = Dir.pwd
+      mark_latest
       Dir.chdir(jumpdir)
       @w_r.pager = 0
     end
@@ -766,6 +768,14 @@ def ansifix(text) # Format [[fg, attr, text]]
   end
   return output
 end
+def mark_latest
+  @marks["5"] = @marks["4"]
+  @marks["4"] = @marks["3"]
+  @marks["3"] = @marks["2"]
+  @marks["2"] = @marks["1"]
+  @marks["1"] = Dir.pwd
+  @marks["'"] = Dir.pwd
+end
 # TOP WINDOW FUNCTIONS 
 def w_t_info # SHOW INFO IN @w_t
   text  = " " + ENV['USER'].to_s + "@" + `hostname 2>/dev/null`.to_s.chop + ": " + Dir.pwd + "/"
@@ -887,7 +897,7 @@ end
 def open_selected(html = nil) # OPEN SELECTED ITEM (when pressing RIGHT)
   if File.directory?(@selected) # Rescue for permission error
     begin
-      @marks["'"] = Dir.pwd
+      mark_latest
       Dir.chdir(@selected)
     rescue
     end
