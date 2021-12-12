@@ -371,8 +371,6 @@ def main_getkey # GET KEY FROM USER
     @w_r.update = false
     @w_b.update = true
   when 'M' # Show marks 
-    @marks = @marks.sort.to_h
-    @w_r.fg = 147
     marks_info
     @w_r.update = false
     @w_b.update = true
@@ -773,7 +771,7 @@ def mark_latest
   @marks["4"] = @marks["3"]
   @marks["3"] = @marks["2"]
   @marks["2"] = @marks["1"]
-  @marks["1"] = Dir.pwd
+  @marks["1"] = @marks["'"]
   @marks["'"] = Dir.pwd
 end
 # TOP WINDOW FUNCTIONS 
@@ -1046,6 +1044,8 @@ def w_r_info(info) # SHOW INFO IN THE RIGHT WINDOW
   @w_r.update = false
 end
 def marks_info # SHOW MARKS IN RIGHT WINDOW
+  @w_r.fg = 183
+  @marks = @marks.sort.to_h
   info = "MARKS:\n"
   unless @marks.empty?
     @marks.each do |mark, dir|
