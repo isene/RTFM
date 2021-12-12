@@ -114,7 +114,7 @@ Key    | Description
 -------|------------------------------------------------------------------
 m      | Mark current dir (persistent). Next letter is the name of the mark [a-zA-Z'] The special mark "'" jumps to the last directory (makes toggling dirs easy) Press '-' and a letter to delete that mark
 M      | Show marked items in right pane
-'      | Jump to mark (next letter is the name of the mark [a-zA-Z'])
+'      | Jump to mark (next letter is the name of the mark [a-zA-Z']). The 5 latest directories visited are stored in marks 1-5 (1 being the very latest)
 /      | Enter search string in bottom window to highlight matching items and jump to the first match
 n      | Jump to the next item matched by '/'
 N      | Jump to the previous item matched by '/'
