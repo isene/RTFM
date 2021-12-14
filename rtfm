@@ -594,8 +594,8 @@ def main_getkey # GET KEY FROM USER
       text    += [[195, 0, ps]]
       disk     = `df -H | head -8`
       text    += [[172, 0, disk]]
-      dmesg    = "\nDMESG:\n"
-      dmesg   += `dmesg | tail -6`
+      dmesg    = "\nDMESG (latest first):\n"
+      dmesg   += `dmesg | tail -6`.split("\n").sort.reverse.join("\n")
       text    += [[219, 0, dmesg]]
       w_r_info(ansifix(text))
     rescue
