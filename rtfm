@@ -135,6 +135,7 @@ begin # BASIC SETUP
   def cmd?(command)
     system("which #{command} > /dev/null 2>&1")
   end
+  
   if cmd?('/usr/lib/w3m/w3mimgdisplay')
     @w3mimgdisplay = "/usr/lib/w3m/w3mimgdisplay"
     @showimage = true
@@ -142,6 +143,8 @@ begin # BASIC SETUP
     @showimage = false
   end
   @showimage = false unless (cmd?('xwininfo') and cmd?('xdotool'))
+  
+  cmd?('bat') ? @bat = "bat" : @bat = "batcat"
 
   STDIN.set_encoding(Encoding::UTF_8) # Set encoding for STDIN 
   LScolors = `echo $LS_COLORS` # Import LS_COLORS 
@@ -261,6 +264,13 @@ def getchr # PROCESS KEY PRESSES
       when '6' then chr = "PgDOWN" ; STDIN.getc
       when '7' then chr = "HOME"   ; STDIN.getc
       when '8' then chr = "END"    ; STDIN.getc
+      end
+    when 'O'   # Set Ctrl+ArrowKey equal to ArrowKey; May be used for other purposes in the future
+      case $stdin.getc
+      when 'a' then chr = "UP"
+      when 'b' then chr = "DOWN"
+      when 'c' then chr = "RIGHT"
+      when 'd' then chr = "LEFT"
       end
     end
   when "", "" then chr = "BACK"
@@ -603,7 +613,7 @@ def main_getkey # GET KEY FROM USER
     end
   # RIGHT PANE
   when 'ENTER' # Refresh right pane
-    @w_r.clr # First clear the window, then clear any previously showing image
+    @w_r.fill # First clear the window, then clear any previously showing image
     image_show("clear") if @image; @image = false
     @w_r.update = true
     @w_b.update = true
@@ -961,8 +971,8 @@ def w_r_show # SHOW CONTENTS IN THE RIGHT WINDOW
     # TEXT 
     elsif File.read(@selected).force_encoding("UTF-8").valid_encoding? and @w_r.pager == 0
       begin # View the file as text if it is utf-8
-        @w_r.pager_cmd = "batcat -n --color=always #{@selected_safe} 2>/dev/null"
-        @w_r.text      = `batcat -n --color=always --line-range :#{@w_r.maxy} #{@selected_safe} 2>/dev/null`
+        @w_r.pager_cmd = "#{@bat} -n --color=always #{@selected_safe} 2>/dev/null"
+        @w_r.text      = `#{@bat} -n --color=always --line-range :#{@w_r.maxy} #{@selected_safe} 2>/dev/null`
         pager_start
         syntax_highlight(@w_r.text)
       rescue
@@ -1305,7 +1315,7 @@ def w_b_exec(cmd) # EXECUTE COMMAND FROM @W_B
     status = Timeout::timeout(5) {
       @w_r.clr
       begin
-        @w_r.pager_cmd = "#{cmd} | batcat -n --color=always 2>/dev/null"
+        @w_r.pager_cmd = "#{cmd} | #{bat} -n --color=always 2>/dev/null"
         @w_r.text = `#{@w_r.pager_cmd} 2>/dev/null`
       rescue
         @w_r.text = `#{cmd} 2>/dev/null`
