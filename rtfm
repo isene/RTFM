@@ -258,19 +258,19 @@ def getchr # PROCESS KEY PRESSES
       when 'C' then chr = "RIGHT"
       when 'D' then chr = "LEFT"
       when 'Z' then chr = "S-TAB"
-      when '2' then chr = "INS"    ; STDIN.getc
-      when '3' then chr = "DEL"    ; STDIN.getc
-      when '5' then chr = "PgUP"   ; STDIN.getc
-      when '6' then chr = "PgDOWN" ; STDIN.getc
-      when '7' then chr = "HOME"   ; STDIN.getc
-      when '8' then chr = "END"    ; STDIN.getc
+      when '2' then chr = "INS"    ; chr = "C-INS"    if STDIN.getc == "^"
+      when '3' then chr = "DEL"    ; chr = "C-DEL"    if STDIN.getc == "^"
+      when '5' then chr = "PgUP"   ; chr = "C-PgUP"   if STDIN.getc == "^"
+      when '6' then chr = "PgDOWN" ; chr = "C-PgDOWN" if STDIN.getc == "^"
+      when '7' then chr = "HOME"   ; chr = "C-HOME"   if STDIN.getc == "^"
+      when '8' then chr = "END"    ; chr = "C-END"    if STDIN.getc == "^"
       end
     when 'O'   # Set Ctrl+ArrowKey equal to ArrowKey; May be used for other purposes in the future
       case $stdin.getc
-      when 'a' then chr = "UP"
-      when 'b' then chr = "DOWN"
-      when 'c' then chr = "RIGHT"
-      when 'd' then chr = "LEFT"
+      when 'a' then chr = "C-UP"
+      when 'b' then chr = "C-DOWN"
+      when 'c' then chr = "C-RIGHT"
+      when 'd' then chr = "C-LEFT"
       end
     end
   when "", "" then chr = "BACK"
@@ -312,17 +312,17 @@ def main_getkey # GET KEY FROM USER
     @write_conf = false
     exit 0
   # MOTION
-  when 'DOWN', 'j'
+  when 'DOWN', 'j', 'C-DOWN'
     var_resets
     @index = @index >= @max_index ? @min_index : @index + 1
     @w_r.update = true
     @w_b.update = true
-  when 'UP', 'k'
+  when 'UP', 'k', 'C-UP'
     var_resets
     @index = @index <= @min_index ? @max_index : @index - 1
     @w_r.update = true
     @w_b.update = true
-  when 'LEFT', 'h'
+  when 'LEFT', 'h', 'C-LEFT'
     var_resets
     cur_dir = Dir.pwd
     @directory[Dir.pwd] = @selected # Store this directory before leaving
@@ -331,7 +331,7 @@ def main_getkey # GET KEY FROM USER
     @directory[Dir.pwd] = File.basename(cur_dir) unless @directory.key?(Dir.pwd)
     @w_r.update = true
     @w_b.update = true
-  when 'RIGHT', 'l'
+  when 'RIGHT', 'l', 'C-RIGHT'
     var_resets
     @directory[Dir.pwd] = @selected # Store this directory before leaving
     mark_latest
