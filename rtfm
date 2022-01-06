@@ -1315,7 +1315,7 @@ def w_b_exec(cmd) # EXECUTE COMMAND FROM @W_B
     status = Timeout::timeout(15) {
       @w_r.clr
       begin
-        @w_r.pager_cmd = "#{cmd} | #{bat} -n --color=always 2>/dev/null"
+        @w_r.pager_cmd = "#{cmd} | #{@bat} -n --color=always 2>/dev/null"
         @w_r.text = `#{@w_r.pager_cmd} 2>/dev/null`
       rescue
         @w_r.text = `#{cmd} 2>/dev/null`
