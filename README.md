@@ -8,6 +8,7 @@ You can bookmark and jump around easily, delete, rename, copy, symlink and
 move files. RTFM has a a wide range of other features. Read on for what it can
 do.
 
+Note: RTFM works best with the (u)rxvt and xterm terminal emulators.
 
 ## Why?
 RTFM parses your LS_COLORS to ensure color consistency with the terminal experience.
