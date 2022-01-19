@@ -234,9 +234,26 @@ def get_ls_color(type) # GET THE COLOR FOR THE FILETYPE FROM IMPORTED LS_COLORS
   end
   return color.to_i, bold
 end
+def syntax_highlight(input) # SYNTAX HIGHLIGHTING FROM ANSI COLOR CODES
+  color_ary  = color_parse(input)
+  color_ary.each do | pair |
+    begin
+      fg   = pair[0].to_i
+      atr  = pair[1].to_i
+      atr == 1 ? atr = Curses::A_BOLD : atr = 0
+      text = pair[2]
+      text.gsub!(/\t/, '')
+      init_pair(fg, fg, 0)
+      @w_r.attron(color_pair(fg) | atr) { @w_r << text }
+    rescue
+    end
+  end
+end
 def color_parse(input) # PARSE ANSI COLOR SEQUENCES
   input.gsub!( /\e\[\d;38;5;(\d+);*(\d*)m/, '¤¤\1¤¤\2¤¤')
   input.gsub!( /\e\[38;5;(\d+);*(\d*)m/, '¤¤\1¤¤\2¤¤')
+  input.gsub!( /\e\[\d;38;2;(\d+);*(\d*);\d*m/, '¤¤\1¤¤\2¤¤')
+  input.gsub!( /\e\[38;2;(\d+);*(\d*);\d*m/, '¤¤\1¤¤\2¤¤')
   input.gsub!( /\e\[0m/, "\t")
   color_array = input.split("¤¤")
   color_array = color_array.drop(1)
@@ -1070,21 +1087,6 @@ def tagged_info # SHOW THE LIST OF TAGGED ITEMS IN @w_r
   info = "TAGGED:\n"
   @tagged.empty? ? info += "(None)" : info += @tagged.join("\n")
   w_r_info(info)
-end
-def syntax_highlight(input) # SYNTAX HIGHLIGHTING FROM ANSI COLOR CODES
-  color_ary  = color_parse(input)
-  color_ary.each do | pair |
-    begin
-      fg   = pair[0].to_i
-      atr  = pair[1].to_i
-      atr == 1 ? atr = Curses::A_BOLD : atr = 0
-      text = pair[2]
-      text.gsub!(/\t/, '')
-      init_pair(fg, fg, 0)
-      @w_r.attron(color_pair(fg) | atr) { @w_r << text }
-    rescue
-    end
-  end
 end
 def image_show(image)# SHOW THE SELECTED IMAGE IN THE RIGHT WINDOW
   # Pass "clear" to clear the window for previous image
