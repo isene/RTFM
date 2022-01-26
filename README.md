@@ -90,7 +90,7 @@ most popular terminals fare with this. An "O" indicates that the terminal is
 OK, while an "X" indicates that it fails:
 
 Terminal      |Images | No overlap | Images stay
------------------------------------------------
+--------------|-------|------------|-----------
 (u)rxvt       |   O   |    O       |   O
 xterm         |   O   |    O       |   O
 Eterm         |   O   |    O       |   O
