@@ -8,7 +8,7 @@ You can bookmark and jump around easily, delete, rename, copy, symlink and
 move files. RTFM has a a wide range of other features. Read on for what it can
 do.
 
-Note: RTFM works best with the (u)rxvt, xterm and kitty terminal emulators.
+Note: RTFM works best with the (u)rxvt, xterm and Eterm terminal emulators.
 
 ## Why?
 RTFM parses your LS_COLORS to ensure color consistency with the terminal experience.
@@ -79,6 +79,32 @@ echo "source ~/.rtfm.launch" >> .zshrc # or .bashrc if you run bash as shell
 ## Screenshot
 
 ![](img/screenshot.png)
+
+## Image preview in the terminal
+
+RTFM uses w3mimgdisplay (part of the w3m package) to show images in the
+terminal. Some terminals have an issue with this - either the images don't
+show, the previous image is not cleared (new image overlaps the previous) or
+they show for only a flash or a few seconds. The table below shows how the
+most popular terminals fare with this. An "O" indicates that the terminal is
+OK, while an "X" indicates that it fails:
+
+Terminal      |Images | No overlap | Images stay
+-----------------------------------------------
+(u)rxvt       |   O   |    O       |   O
+xterm         |   O   |    O       |   O
+Eterm         |   O   |    O       |   O
+kitty         |   O   |    O       |   X
+alacritty     |   O   |    O       |   X
+terminology   |   O   |    O       |   X
+stterm        |   O   |    O       |   X
+gnome-terminal|   O   |    X       |
+xfce4-terminal|   O   |    X       |
+mate-terminal |   O   |    X       |
+lilyterm      |   O   |    X       |
+termit        |   X   |            |
+lxterminal    |   X   |            |
+qterminal     |   X   |            |
 
 
 ## Keys
