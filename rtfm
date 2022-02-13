@@ -1102,6 +1102,7 @@ def image_show(image)# SHOW THE SELECTED IMAGE IN THE RIGHT WINDOW
     img_max_w   = char_w * (Curses.cols - Curses.cols/@width - 2)
     img_max_h   = char_h * (Curses.lines - 4)
     if image == "clear"
+      `clear`
       img_x     -= char_w
       img_max_w += char_w + 2
       img_max_h += 2
