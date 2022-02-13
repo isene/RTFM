@@ -94,7 +94,7 @@ Terminal      |Images | No overlap | Images stay
 (u)rxvt       |   O   |    O       |   O
 xterm         |   O   |    O       |   O
 Eterm         |   O   |    O       |   O
-kitty         |   O   |    O       |   X
+kitty         |   O   |    O       |   O
 alacritty     |   O   |    O       |   X
 terminology   |   O   |    O       |   X
 stterm        |   O   |    O       |   X
