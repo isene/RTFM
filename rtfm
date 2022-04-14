@@ -48,6 +48,7 @@ JUMPING AND MARKS
  '       = Jump to mark (next letter is the name of the mark [a-zA-Z'])
            The 5 latest directories visited are stored in marks 1-5 (1 being the very latest)
  /       = Enter search string in bottom window to highlight matching items and jump to the first match
+ \\       = Remove search pattern
  n       = Jump to the next item matched by '/'
  N       = Jump to the previous item matched by '/'
  ~       = Jump to Home directory
@@ -675,6 +676,8 @@ def main_getkey # GET KEY FROM USER
     @index = m[0] unless m == []
     @index = 0 if @searched == ""
     @w_r.update = true
+  when '\\'
+    @searched = ""
   when 'n' # Jump to next occurence of search (after '/')
     l = `ls #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}`.split
     m = l.each_index.select{|n| l[n] =~ /#{@searched}/}

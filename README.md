@@ -143,6 +143,7 @@ m      | Mark current dir (persistent). Next letter is the name of the mark [a-z
 M      | Show marked items in right pane
 '      | Jump to mark (next letter is the name of the mark [a-zA-Z']). The 5 latest directories visited are stored in marks 1-5 (1 being the very latest)
 /      | Enter search string in bottom window to highlight matching items and jump to the first match
+\\	   | Remove search pattern
 n      | Jump to the next item matched by '/'
 N      | Jump to the previous item matched by '/'
 ~      | Jump to Home directory
