@@ -65,7 +65,7 @@ MANIPULATE ITEMS
  p       = Put (copy) tagged items here
  P       = PUT (move) tagged items here
  s       = Create symlink to tagged items here
- d       = Delete selected item and tagged items. Press 'd' to confirm
+ d       = Delete selected item and tagged items. Press 'y' to confirm
  c       = Change/rename selected (adds command to bottom window)
 
 DIRECTORY VIEWS
@@ -323,9 +323,11 @@ def main_getkey # GET KEY FROM USER
     conf_write
     @w_b.update = true
   when 'q' # Exit 
+    @tagged = []
     @write_conf = true
     exit 0
   when 'Q' # Exit without writing to .rtfm.conf
+    @tagged = []
     system("printf \"\033]0;#{Dir.pwd}\007\"")
     @write_conf = false
     exit 0
@@ -497,15 +499,19 @@ def main_getkey # GET KEY FROM USER
     @w_r.update = true
   when 'd' # Delete items tagged and @selected 
     tagged_info
-    w_b_info(" Delete selected and tagged? (press 'd' again to delete)")
+    w_b_info(" Delete selected and tagged? (press 'y' to delete)")
     begin
       @tagged.push("\"#{Dir.pwd}/#{@selected}\"")
       @tagged.uniq!
       deletes = @tagged.join(" ")
-      `rm -rf #{deletes} 2>/dev/null` if STDIN.getc == 'd'
-      items_number = @tagged.length
-      @tagged = []
-      w_b_info("Deleted #{items_number} items: #{deletes}")
+      if STDIN.getc == 'y'
+        `rm -rf #{deletes} 2>/dev/null` 
+        items_number = @tagged.length
+        @tagged = []
+        w_b_info("Deleted #{items_number} items: #{deletes}")
+      else
+        @w_b.update = true
+      end
       @w_r.update = true
     rescue StandardError => err
       w_b_info(err.to_s)

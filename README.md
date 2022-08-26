@@ -166,7 +166,7 @@ Key    | Description
 p      | Put (copy) tagged items here
 P      | PUT (move) tagged items here
 s      | Create symlink to tagged items here
-d      | Delete selected item and tagged items. Press 'd' to confirm
+d      | Delete selected item and tagged items. Press 'y' to confirm
 c      | Change/rename selected (adds command to bottom window)
 
 ### Directory views
