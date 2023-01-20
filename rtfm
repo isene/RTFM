@@ -1191,18 +1191,23 @@ def openai # INTERFACE TO OPENAI
   rescue
     w_b_info("To make openai work in RTFM, you need to do `gem install ruby-openai` and add this to your .rtfm.conf: $ai = 'your-secret-openai-key'")
   end
-
+  
   client = OpenAI::Client.new(access_token: @ai)
+
+  c = @w_r.text
+  @w_r.fg = 214
+  w_r_info("OpenAI description...")
 
   f  = Dir.pwd + "/" + @selected
   p  = "What is this "
   File.directory?(@selected) ? p += "directory: " : p+= "file: "
   p += "#{f}? "
-  p += "Give a brief summary of its content: " + @w_r.text unless File.directory?(@selected) and @w_r.text == ""
+  p += "Give a brief summary of its content: " + c unless File.directory?(@selected) and c == ""
 
   response = client.completions( parameters: { model: "text-davinci-003", prompt: p, max_tokens: 200 })
-  text = "OpenAI description:" + response["choices"][0]["text"]
+  text = "OpenAI description:\n" + response["choices"][0]["text"]
 
+  @w_r.fg = 229
   w_r_info(text)
 end
 
