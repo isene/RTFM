@@ -78,6 +78,9 @@ DIRECTORY VIEWS
  H       = Do a cryptographic hash of the current directory with subdirs
            If a previous hash was made, compare and report if there has been any change
  S       = Show comprehensive system info (system, CPU, filesystem, latest dmesg messages)
+ I       = Show OpenAI's description of the selected item and its content (if available)
+           You must have installed the ruby-openai gem and added your openai secret key
+           in the .rtfm.conf (add `@ai = "your-secret-openai-key") for this to work.
 
 RIGHT PANE
  ENTER   = Refresh the right pane
@@ -94,7 +97,7 @@ ADDITINAL COMMANDS
  y       = Copy path of selected item to primary selection (for pasting with middle mouse button)
  Y       = Copy path of selected item to clipboard
 
-COPYRIGHT: Geir Isene, 2020-1. No rights reserved. See http://isene.com for more.
+COPYRIGHT: Geir Isene, 2020-3. No rights reserved. See http://isene.com for more.
 HELPTEXT
 
 @firstrun = <<FIRSTRUN
@@ -635,6 +638,12 @@ def main_getkey # GET KEY FROM USER
     rescue
       w_r_info("Unable to show system info")
     end
+  when 'I'
+    if @ai
+      openai
+    else
+      w_b_info("No OpenAI key in config file. Add `@ai = 'your-secret-openai-key'` to .rtfm.conf")
+    end
   # RIGHT PANE
   when 'ENTER' # Refresh right pane
     @w_r.fill # First clear the window, then clear any previously showing image
@@ -1068,11 +1077,8 @@ def w_r_info(info) # SHOW INFO IN THE RIGHT WINDOW
   image_show("clear") if @image; @image = false
   @w_r.clr
   @w_r. refresh
-  w_r_width = Curses.cols - (Curses.cols/@width) - 1
-  info = info.split("\n")
-  l = []
-  info.each{ |e| l << e.scan(/.{,#{w_r_width}}/)[0..-2] }
-  info = l.join("\n")
+  w_r_width = Curses.cols - (Curses.cols/@width) - 2
+  info.gsub!(/(.{1,#{w_r_width}})( +|$\n?)|(.{1,#{w_r_width}})/, "\\1\\3\n")
   @w_r.text      = info
   @w_r.pager_cmd = ""
   pager_start
@@ -1179,6 +1185,27 @@ def var_resets # RESET PAGER VARIABLES
     @pager_cmd  = ""
     @info       = false
 end
+def openai # INTERFACE TO OPENAI
+  begin
+    require "ruby/openai"
+  rescue
+    w_b_info("To make openai work in RTFM, you need to do `gem install ruby-openai` and add this to your .rtfm.conf: $ai = 'your-secret-openai-key'")
+  end
+
+  client = OpenAI::Client.new(access_token: @ai)
+
+  f  = Dir.pwd + "/" + @selected
+  p  = "What is this "
+  File.directory?(@selected) ? p += "directory: " : p+= "file: "
+  p += "#{f}? "
+  p += "Give a brief summary of its content: " + @w_r.text unless File.directory?(@selected) and @w_r.text == ""
+
+  response = client.completions( parameters: { model: "text-davinci-003", prompt: p, max_tokens: 200 })
+  text = "OpenAI description:" + response["choices"][0]["text"]
+
+  w_r_info(text)
+end
+
 # BOTTOM WINDOW FUNCTIONS 
 def w_b_info(info) # SHOW INFO IN @W_B
   @w_b.clr
@@ -1386,6 +1413,7 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     @change     = true
     @change_tag = true # For future need to force @change
     loop do # INNER, CORE LOOP 
+      @w_r.text = ""
       begin # Jump to home dir if current dir is externally removed
         Dir.pwd
       rescue
