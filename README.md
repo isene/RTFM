@@ -181,6 +181,7 @@ O      | Show the Ordering in the bottom window (the full ls command)
 G      | Show git status for current directory
 H      | Do a cryptographic hash of the current directory with subdirs. If a previous hash was made, compare and report if there has been any change
 S      | Show comprehensive system info (system, CPU, filesystem, latest dmesg messages)
+I      | Show OpenAI's description of the selected item and its content (if available). You must have installed the ruby-openai gem and added your openai secret key in the .rtfm.conf (add `@ai = "your-secret-openai-key") for this to work. If RTFM is installed as a gem, the ruby-openai gem is included in the installation
 
 ### Right pane
 
