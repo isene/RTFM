@@ -1076,7 +1076,7 @@ end
 def w_r_info(info) # SHOW INFO IN THE RIGHT WINDOW
   image_show("clear") if @image; @image = false
   @w_r.clr
-  @w_r. refresh
+  @w_r.refresh
   w_r_width = Curses.cols - (Curses.cols/@width) - 2
   info.gsub!(/(.{1,#{w_r_width}})( +|$\n?)|(.{1,#{w_r_width}})/, "\\1\\3\n")
   @w_r.text      = info
@@ -1205,7 +1205,11 @@ def openai # INTERFACE TO OPENAI
   p += "Give a brief summary of its content: " + c unless File.directory?(@selected) and c == ""
 
   response = client.completions( parameters: { model: "text-davinci-003", prompt: p, max_tokens: 200 })
-  text = "OpenAI description:\n" + response["choices"][0]["text"]
+  begin
+    text = "OpenAI description:\n" + response["choices"][0]["text"]
+  rescue
+    text = "No OpenAI response"
+  end
 
   @w_r.fg = 229
   w_r_info(text)
