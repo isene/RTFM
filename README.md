@@ -198,7 +198,7 @@ _      | Toggle preview of images in right pane
 
 Key    | Description
 -------|------------------------------------------------------------------
-/      | Enter search string in bottom window to highlight matching items
+F      | Show only files in the left pane matching extension(s) (e.g. "txt" or "pdf,png,jpg")
 g      | Run 'grep' to show files that contains the MATCH in current directory
 :      | Enter "command mode" in bottom window (press ENTER to execute, press Ctrl-G to escape)
 ;      | Show command history in right pane
