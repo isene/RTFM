@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 # encoding: utf-8
-
+#
 # SCRIPT INFO 
 # Name:       RTFM - Ruby Terminal File Manager
 # Language:   Pure Ruby, best viewed in VIM
@@ -91,6 +91,7 @@ RIGHT PANE
  _       = Toggle preview of images in right pane
 
 ADDITINAL COMMANDS
+ F       = Show only files in the left pane matching extension(s) (e.g. "txt" or "pdf,png,jpg")
  g       = Run 'grep' to show files that contains the MATCH in current directory
  :       = Enter "command mode" in bottom window (press ENTER to execute, press Ctrl-G to escape)
  ;       = Show command history in right pane
@@ -99,7 +100,6 @@ ADDITINAL COMMANDS
 
 COPYRIGHT: Geir Isene, 2020-3. No rights reserved. See http://isene.com for more.
 HELPTEXT
-
 @firstrun = <<FIRSTRUN
 
 Welcome to RTFM - the Ruby Terminal File Manager. This help text is shown on the first run.
@@ -118,7 +118,6 @@ Viewing Images uses "w3m and ImageMagick":                apt install w3m imagem
 Viewing Video thumbnails uses "ffmpegthumbnailer"         apt install ffmpegthumbnailer
 
 FIRSTRUN
-
 unless File.exist?(Dir.home+'/.rtfm.conf')
   puts @firstrun
   puts "... hit ENTER to show the RTFM help text."
@@ -127,7 +126,6 @@ unless File.exist?(Dir.home+'/.rtfm.conf')
   puts "\n... hit ENTER to start RTFM. Enjoy :-)"
   STDIN.gets
 end
-
 begin # BASIC SETUP
   require 'fileutils'
   require 'io/console'
@@ -181,6 +179,7 @@ begin # BASIC SETUP
   ## These should not be set by user in .rtfm.conf
   @directory  = {}    # Initialize the directory hash for remembering directories visited
   @searched   = ""    # Initialize the active searched for items
+  @lsfiles    = ""    # File types to show (initially set to all file types"
   @index      = 0     # Set chosen item to first on startup
   @marks["'"] = Dir.pwd
   ## File type recognizers
@@ -683,6 +682,11 @@ def main_getkey # GET KEY FROM USER
     getch
     @break = true
   # ADDITIONAL COMMANDS
+  when 'F' # Filter out filetypes not matching @lsfiles
+    loop do
+      @lsfiles = w_b_getstr("Filetype(s) to show: ", @lsfiles)
+      break if @lsfiles.match(/^$|\w+(,\w+)*$/)
+    end
   when '/' # Get search string to mark items that match the input 
     @w_b.nohistory = true
     @searched = w_b_getstr("/ ", "")
@@ -1000,7 +1004,7 @@ def w_r_show # SHOW CONTENTS IN THE RIGHT WINDOW
     elsif File.directory?(@selected)
       ls_cmd  = "ls #{@selected_safe} #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}"
       @files  = `#{ls_cmd} 2>/dev/null`.split("\n")
-      ls_cmd += %q[ -lhgGH --time-style="long-iso" | awk '{printf "%s%12s%6s%6s%5s", $1,$4,$5,$3,$2 "\n"}']
+      ls_cmd += %q[ -lhgGH --time-style="long-iso" 2>/dev/null | awk '{printf "%s%12s%6s%6s%5s", $1,$4,$5,$3,$2 "\n"}']
       @fspes  = `#{ls_cmd} 2>/dev/null`.split("\n").drop(1)
       list_dir(false)
     # TEXT 
@@ -1218,7 +1222,11 @@ end
 # BOTTOM WINDOW FUNCTIONS 
 def w_b_info(info) # SHOW INFO IN @W_B
   @w_b.clr
-  info      = ": for command (use @s for selected item, @t for tagged items)" if info == nil
+  if info == nil
+    info      = ": for command (use @s for selected item, @t for tagged items) - press ? for help" 
+    info      = "Showing only file type #{@lsfiles}" if @lsfiles != ""
+    info      = "Showing only file types #{@lsfiles}" if @lsfiles =~ /,/
+  end
   info      = info[1..(@w_b.maxx - 3)] + "…" if info.length + 3 > @w_b.maxx 
   info     += " " * (@w_b.maxx - info.length) if info.length < @w_b.maxx
   @w_b.text = info
@@ -1408,7 +1416,6 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     @w_p.refresh
     @w_t.fg, @w_t.bg = 232, 249
     @w_t.attr        = Curses::A_BOLD
-    @w_b.fg, @w_b.bg = 250, 238
     @w_b.update = true
     @w_r.update = true
     @w_r.pager  = 0
@@ -1422,16 +1429,25 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     @change     = true
     @change_tag = true # For future need to force @change
     loop do # INNER, CORE LOOP 
+      @w_b.fg, @w_b.bg = 250, 238
+      @w_b.fg, @w_b.bg = 250, 88  if @lsfiles != ""
       @w_r.text = ""
       begin # Jump to home dir if current dir is externally removed
         Dir.pwd
       rescue
         Dir.chdir
       end
-      ls_cmd  = "ls #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}" # Get files in current directory 
+      lsf     = @lsfiles.split(",").map! {|e| "*." + e.strip }
+      lsf     = lsf.join(" ")
+      ls_cmd  = "ls #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser} #{lsf}" # Get files in current directory 
       @files  = `#{ls_cmd} 2>/dev/null`.split("\n")
-      ls_cmd += %q[ -lhgG --time-style="long-iso" | awk '{printf "%s%12s%6s%6s%5s", $1,$4,$5,$3,$2 "\n"}']
+      ls_cmd += %q[ -lhgG --time-style="long-iso" 2>/dev/null | awk '{printf "%s%12s%6s%6s%5s", $1,$4,$5,$3,$2 "\n"}']
       @fspes  = `#{ls_cmd} 2>/dev/null`.split("\n").drop(1)
+      if @lsfiles != ""
+        dirs    = `ls -d */`.split("/\n")
+        @files  = dirs + @files
+        @fspes  = dirs + @fspes
+      end
       if Dir.pwd != dir_old
         if @directory.key?(Dir.pwd)
           @selected = @directory[Dir.pwd]
