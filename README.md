@@ -147,7 +147,7 @@ M      | Show marked items in right pane
 n      | Jump to the next item matched by '/'
 N      | Jump to the previous item matched by '/'
 ~      | Jump to Home directory
-f      | Follow symlink to the directory where the target resides
+\>      | Follow symlink to the directory where the target resides
 L      | Start 'locate' search for files, then use '#' to jump to desired line/directory
 
 ### Tagging
@@ -180,7 +180,6 @@ i      | Invert/reverse the sorting
 O      | Show the Ordering in the bottom window (the full ls command)
 G      | Show git status for current directory
 H      | Do a cryptographic hash of the current directory with subdirs. If a previous hash was made, compare and report if there has been any change
-S      | Show comprehensive system info (system, CPU, filesystem, latest dmesg messages)
 I      | Show OpenAI's description of the selected item and its content (if available). You must have installed the ruby-openai gem and added your openai secret key in the .rtfm.conf (add `@ai = "your-secret-openai-key") for this to work. If RTFM is installed as a gem, the ruby-openai gem is included in the installation
 
 ### Right pane
@@ -198,12 +197,14 @@ _      | Toggle preview of images in right pane
 
 Key    | Description
 -------|------------------------------------------------------------------
-F      | Show only files in the left pane matching extension(s) (e.g. "txt" or "pdf,png,jpg")
+f      | Show only files in the left pane matching extension(s) (e.g. "txt" or "pdf,png,jpg")
+F      | Show only files matching a pattern (Ruby Regex) (e.g. "abc" or "ab.+12(\w3)*")
 g      | Run 'grep' to show files that contains the MATCH in current directory
 :      | Enter "command mode" in bottom window (press ENTER to execute, press Ctrl-G to escape)
 ;      | Show command history in right pane
 y      | Copy path of selected item to primary selection (for pasting with middle mouse button)
 Y      | Copy path of selected item to clipboard
+S      | Show comprehensive system info (system, CPU, filesystem, latest dmesg messages)
 
 
 ## A convenient shell function
