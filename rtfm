@@ -689,8 +689,10 @@ def main_getkey # GET KEY FROM USER
       @lsfiles = w_b_getstr("Filetype(s) to show: ", @lsfiles)
       break if @lsfiles.match(/^$|\w+(,\w+)*$/)
     end
+    w_b_info(nil)
   when 'F' # Filter out files not matching @lsmatch
     @lsmatch = w_b_getstr("Files will match RegEx: ", @lsmatch)
+    w_b_info(nil)
   when '/' # Get search string to mark items that match the input 
     @w_b.nohistory = true
     @searched = w_b_getstr("/ ", "")
@@ -1248,10 +1250,16 @@ end
 # BOTTOM WINDOW FUNCTIONS 
 def w_b_info(info) # SHOW INFO IN @W_B
   @w_b.clr
+  @w_b.fg, @w_b.bg = 250, 238
   if info == nil
     info      = ": for command (use @s for selected item, @t for tagged items) - press ? for help" 
-    info      = "Showing only file type #{@lsfiles}" if @lsfiles != ""
-    info      = "Showing only file types #{@lsfiles}" if @lsfiles =~ /,/
+    info      = "Showing only files matching '#{@lsmatch}'" if @lsmatch != ""
+    info      = "Showing only file type '#{@lsfiles}'" if @lsfiles != ""
+    info      = "Showing only file types '#{@lsfiles}'" if @lsfiles =~ /,/
+    info     += " and only files matching '#{@lsmatch}'" if @lsfiles != "" and @lsmatch != ""
+    @w_b.fg, @w_b.bg = 250, 88  if @lsfiles != ""
+    @w_b.fg, @w_b.bg = 250, 21  if @lsmatch != ""
+    @w_b.fg, @w_b.bg = 250, 55  if @lsfiles != "" and @lsmatch != ""
   end
   info      = info[1..(@w_b.maxx - 3)] + "…" if info.length + 3 > @w_b.maxx 
   info     += " " * (@w_b.maxx - info.length) if info.length < @w_b.maxx
@@ -1442,6 +1450,7 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     @w_p.refresh
     @w_t.fg, @w_t.bg = 232, 249
     @w_t.attr        = Curses::A_BOLD
+    @w_b.fg, @w_b.bg = 250, 238
     @w_b.update = true
     @w_r.update = true
     @w_r.pager  = 0
@@ -1455,8 +1464,6 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     @change     = true
     @change_tag = true # For future need to force @change
     loop do # INNER, CORE LOOP 
-      @w_b.fg, @w_b.bg = 250, 238
-      @w_b.fg, @w_b.bg = 250, 88  if @lsfiles != ""
       @w_r.text = ""
       begin # Jump to home dir if current dir is externally removed
         Dir.pwd
