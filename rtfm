@@ -696,7 +696,7 @@ def main_getkey # GET KEY FROM USER
   when '/' # Get search string to mark items that match the input 
     @w_b.nohistory = true
     @searched = w_b_getstr("/ ", "")
-    l = `ls #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}`.split
+    l = `ls 2>/dev/null #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}`.split
     m = l.each_index.select{|n| l[n] =~ /#{@searched}/}
     @index = m[0] unless m == []
     @index = 0 if @searched == ""
@@ -704,7 +704,7 @@ def main_getkey # GET KEY FROM USER
   when '\\'
     @searched = ""
   when 'n' # Jump to next occurence of search (after '/')
-    l = `ls #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}`.split
+    l = `ls 2>/dev/null #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}`.split
     m = l.each_index.select{|n| l[n] =~ /#{@searched}/}
     i = m.find { |n| n > @index }
     if i == nil
@@ -714,7 +714,7 @@ def main_getkey # GET KEY FROM USER
     end
     @w_r.update = true
   when 'N' # Jump to previous occurence of search (after '/')
-    l = `ls #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}`.split
+    l = `ls 2>/dev/null #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}`.split
     m = l.each_index.select{|n| l[n] =~ /#{@searched}/}.reverse
     i = m.find { |n| n < @index }
     if i == nil
@@ -830,18 +830,18 @@ def mark_latest
   @marks["'"] = Dir.pwd
 end
 def get_files(win) # The core of the directory listings
-  ls_cmd  = "ls #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}" # Get files in current directory 
+  ls_cmd  = "ls 2>/dev/null #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}" # Get files in current directory 
   ls_cmd += @selected_safe if win == "right"
-  @files  = `#{ls_cmd} 2>/dev/null`.split("\n")
+  @files  = `#{ls_cmd}`.split("\n")
   ls_cmd += " -H " if win == "right"
-  ls_cmd += %q[ -lhgG --time-style="long-iso" 2>/dev/null | awk '{printf "%s%12s%6s%6s%5s", $1,$4,$5,$3,$2 "\n"}']
-  @fspes  = `#{ls_cmd} 2>/dev/null`.split("\n").drop(1)
+  ls_cmd += %q[ -lhgG --time-style="long-iso" | awk '{printf "%s%12s%6s%6s%5s", $1,$4,$5,$3,$2 "\n"}']
+  @fspes  = `#{ls_cmd}`.split("\n").drop(1)
   if @lsfiles != "" or @lsmatch != ""
     lsf      = @lsfiles.split(",").map! {|e| e.strip}
-    dir_cmd  = "ls -d "
+    dir_cmd  = "ls 2>/dev/null -d "
     dir_cmd += @selected_safe + "/" if win == "right"
     dir_cmd += "*/"
-    dirs     = `#{dir_cmd} 2>/dev/null`.split("/\n")
+    dirs     = `#{dir_cmd}`.split("/\n")
     dirs.map!{|d| d.sub!(/.*\//, '')} if win == "right"
     @files   = @files - dirs
     @fspes   = @fspes - dirs
@@ -1406,10 +1406,10 @@ def w_b_exec(cmd) # EXECUTE COMMAND FROM @W_B
       @w_r.clr
       begin
         @w_r.pager_cmd = "#{cmd} | #{@bat} -n --color=always 2>/dev/null"
-        @w_r.text = `#{@w_r.pager_cmd} 2>/dev/null`
+        @w_r.text = `#{@w_r.pager_cmd}`
       rescue
         @w_r.pager_cmd = "#{cmd} 2>/dev/null"
-        @w_r.text = `#{@w_r.pager_cmd} 2>/dev/null`
+        @w_r.text = `#{@w_r.pager_cmd}`
       end
       unless @w_r.text == "" or @w_r.text == nil
         pager_start
