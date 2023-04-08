@@ -67,6 +67,8 @@ MANIPULATE ITEMS
  s       = Create symlink to tagged items here
  d       = Delete selected item and tagged items. Press 'y' to confirm
  c       = Change/rename selected (adds command to bottom window)
+ z       = Extract tagged zipped archive to current directory
+ Z       = Create zipped archive from tagged files/directories
 
 DIRECTORY VIEWS
  a       = Show all (also hidden) items
@@ -528,6 +530,21 @@ def main_getkey # GET KEY FROM USER
       w_b_info(err.to_s)
     end
     @w_r.update = true
+  when 'z'
+    cmd = w_b_getstr("Command = ", "tar xfz #{@tagged.first}")
+    begin
+      w_b_exec(cmd + " 2>/dev/null")
+    rescue StandardError => err
+      w_b_info(err.to_s)
+    end
+  when 'Z'
+    arc = w_b_getstr("Archive name: ", "")
+    cmd = w_b_getstr("Command = ", "tar cfz #{arc}.gz #{@tagged.join(" ")}")
+    begin
+      w_b_exec(cmd + " 2>/dev/null")
+    rescue StandardError => err
+      w_b_info(err.to_s)
+    end
   # DIRECTORY VIEWS
   when 'a' # Show all items 
     @lsall == "" ? @lsall = "-a" : @lsall = ""

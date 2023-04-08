@@ -168,6 +168,8 @@ P      | PUT (move) tagged items here
 s      | Create symlink to tagged items here
 d      | Delete selected item and tagged items. Press 'y' to confirm
 c      | Change/rename selected (adds command to bottom window)
+z      | Extract tagged zipped archive to current directory
+Z      | Create zipped archive from tagged files/directories
 
 ### Directory views
 
