@@ -1464,7 +1464,6 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     @change     = true
     @change_tag = true # For future need to force @change
     loop do # INNER, CORE LOOP 
-      @w_r.text = ""
       begin # Jump to home dir if current dir is externally removed
         Dir.pwd
       rescue
