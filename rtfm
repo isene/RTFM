@@ -56,6 +56,7 @@ JUMPING AND MARKS
  L       = Start 'locate' search for files, then use '#' to jump to desired line/directory
  Ctrl-l  = Locate files via fzf from the current directory down
            (fuzzy file finder must be installed https://github.com/junegunn/fzf)
+ Ctrl-n  = Invoke navi (see https://github.com/denisidoro/navi) with any output in right window
 
 TAGGING
  t       = Tag item (toggles)
@@ -187,6 +188,7 @@ begin # BASIC SETUP
   @lsfiles    = ""    # File types to show (initially set to all file types) - not saved on exit
   @lsmatch    = ""    # Files to match (initially set to matching all files) - not saved on exit
   @index      = 0     # Set chosen item to first on startup
+  @navi       = ""
   @marks["'"] = Dir.pwd
   ## File type recognizers
   @imagefile  = /\.jpg$|\.JPG$|\.jpeg$|\.png$|\.bmp$|\.gif$|\.tif$|\.tiff$/
@@ -302,8 +304,9 @@ def getchr # PROCESS KEY PRESSES
   when "", "" then chr = "BACK"
   when "" then chr = "WBACK"
   when "" then chr = "LDEL"
-  when "" then chr = "C-L"
   when "" then chr = "C-G"
+  when "" then chr = "C-L"
+  when "" then chr = "C-N"
   when "" then chr = "C-T"
   when "\r" then chr = "ENTER"
   when "\t" then chr = "TAB"
@@ -724,6 +727,13 @@ def main_getkey # GET KEY FROM USER
     @directory[Dir.pwd] = @selected # Store this directory before leaving
     mark_latest
     Dir.chdir(jumpdir)
+    @break = true
+  when 'C-N'
+    begin
+      @navi = `navi`
+    rescue
+      w_b_info(" navi not installed - see https://github.com/denisidoro/navi")
+    end
     @break = true
   when '/' # Get search string to mark items that match the input 
     @w_b.nohistory = true
@@ -1542,6 +1552,11 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       if @w_r.update and @preview
         w_r_show
         @w_r.fg = 255
+      end
+      unless @navi == ""
+        w_r_info(@navi)
+        @w_r.update = false
+        @navi = ""
       end
       Curses.curs_set(1); Curses.curs_set(0) # Clear residual cursor from editing files 
       @tag = false       # Clear tag pattern

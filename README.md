@@ -209,6 +209,7 @@ g      | Run 'grep' to show files that contains the MATCH in current directory
 y      | Copy path of selected item to primary selection (for pasting with middle mouse button)
 Y      | Copy path of selected item to clipboard
 S      | Show comprehensive system info (system, CPU, filesystem, latest dmesg messages)
+Ctrl-n | Invoke navi (see https://github.com/denisidoro/navi) with any output in right window
 
 
 ## A convenient shell function
