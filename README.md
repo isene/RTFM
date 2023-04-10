@@ -6,7 +6,8 @@ directories and view the content of directories and files. Files are syntax
 highlighted, images are shown in the terminal, videos are thumbnailed, etc.
 You can bookmark and jump around easily, delete, rename, copy, symlink and
 move files. RTFM has a a wide range of other features. Read on for what it can
-do.
+do. RTFM consists of just one executable file and thereby easily ported across
+systems.
 
 Note: RTFM works best with the (u)rxvt, xterm and Eterm terminal emulators.
 
@@ -149,6 +150,7 @@ N      | Jump to the previous item matched by '/'
 ~      | Jump to Home directory
 \>      | Follow symlink to the directory where the target resides
 L      | Start 'locate' search for files, then use '#' to jump to desired line/directory
+Ctrl-l | Locate files via fzf (fuzzy file finder must be installed https://github.com/junegunn/fzf)
 
 ### Tagging
 
