@@ -54,6 +54,7 @@ JUMPING AND MARKS
  ~       = Jump to Home directory
  >       = Follow symlink to the directory where the target resides
  L       = Start 'locate' search for files, then use '#' to jump to desired line/directory
+ Ctrl-l  = Locate files via fzf (fuzzy file finder must be installed https://github.com/junegunn/fzf)
 
 TAGGING
  t       = Tag item (toggles)
@@ -300,8 +301,9 @@ def getchr # PROCESS KEY PRESSES
   when "", "" then chr = "BACK"
   when "" then chr = "WBACK"
   when "" then chr = "LDEL"
-  when "" then chr = "C-T"
+  when "" then chr = "C-L"
   when "" then chr = "C-G"
+  when "" then chr = "C-T"
   when "\r" then chr = "ENTER"
   when "\t" then chr = "TAB"
   when /./  then chr = c
@@ -710,6 +712,18 @@ def main_getkey # GET KEY FROM USER
   when 'F' # Filter out files not matching @lsmatch
     @lsmatch = w_b_getstr("Files will match RegEx: ", @lsmatch)
     w_b_info(nil)
+  when 'C-L'
+    begin
+      jump     = `fzf`.chomp
+    rescue
+      w_b_info(" fzf not installed - see https://github.com/junegunn/fzf")
+    end
+    jumpdir  = File.dirname(jump)
+    @searched = File.basename(jump)
+    @directory[Dir.pwd] = @selected # Store this directory before leaving
+    mark_latest
+    Dir.chdir(jumpdir)
+    @break = true
   when '/' # Get search string to mark items that match the input 
     @w_b.nohistory = true
     @searched = w_b_getstr("/ ", "")
