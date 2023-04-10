@@ -150,7 +150,7 @@ N      | Jump to the previous item matched by '/'
 ~      | Jump to Home directory
 \>      | Follow symlink to the directory where the target resides
 L      | Start 'locate' search for files, then use '#' to jump to desired line/directory
-Ctrl-l | Locate files via fzf (fuzzy file finder must be installed https://github.com/junegunn/fzf)
+Ctrl-l | Locate files via fzf from the current directory down (fuzzy file finder must be installed https://github.com/junegunn/fzf)
 
 ### Tagging
 
