@@ -54,7 +54,8 @@ JUMPING AND MARKS
  ~       = Jump to Home directory
  >       = Follow symlink to the directory where the target resides
  L       = Start 'locate' search for files, then use '#' to jump to desired line/directory
- Ctrl-l  = Locate files via fzf (fuzzy file finder must be installed https://github.com/junegunn/fzf)
+ Ctrl-l  = Locate files via fzf from the current directory down
+           (fuzzy file finder must be installed https://github.com/junegunn/fzf)
 
 TAGGING
  t       = Tag item (toggles)
