@@ -11,6 +11,38 @@ systems.
 
 Note: RTFM works best with the (u)rxvt, xterm and Eterm terminal emulators.
 
+## Features
+
+RTFM is one of the more feature rich terminal file managers. Some of the
+features:
+
+* RTFM shows images inline in the terminal (can be turned off)
+* File contents is shown with proper syntax highlighting
+* Item's meta data is shown at the top
+* Easily browse file content (even pdf, MS/OpenOffice, etc.)
+* Move around the file systems using arrow keys of VI keys
+* Copy, move or rename files
+* Create symlinks with just one key stroke
+* Easily copy an item's path to clipboard or primary selection
+* Order items the way you want
+* See only files of a certain type
+* Filter out all files not matching a [regex](https://www.rubyguides.com/2015/06/ruby-regex/) pattern
+* Mark files and directories an do group actions on them
+* Bookmark directories for easy jumping
+* Follow a symlink to where it points with one key stroke
+* Highlight files and directories matching a given pattern
+* Find items using `locate` and jump directly to the desired item
+* Find items and jump there using fuzzy search (uses
+  [fzf](https://github.com/junegunn/fzf))
+* Execute any shell command from inside RTFM
+* [navi](https://github.com/denisidoro/navi) integration for easier command
+  executions
+* Easily unpack or create archives
+* Show git status for the current directory
+* Show comprehensive system info (processes running, disk space, dmesg, etc.)
+* See if a directory (with sub dirs) has changed using cryptographic hashes
+* Integration with OpenAI to get an executive summary of file content
+
 ## Why?
 RTFM parses your LS_COLORS to ensure color consistency with the terminal experience.
 
