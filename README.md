@@ -1,5 +1,7 @@
 # RTFM - Ruby Terminal File Manager
 
+[![Gem Version](https://badge.fury.io/rb/rtfm-filemanager.svg)](https://badge.fury.io/rb/rtfm-filemanager)
+
 ## What?
 RTFM is a file manager for the terminal written in Ruby. It lets you browse
 directories and view the content of directories and files. Files are syntax
