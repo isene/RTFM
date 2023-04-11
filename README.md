@@ -48,13 +48,13 @@ features:
 ## Why?
 RTFM parses your LS_COLORS to ensure color consistency with the terminal experience.
 
-The idea came to mind as I was working on [a complete
-LS_COLORS setup](https://github.com/isene/LS_COLORS) with a corresponding
-ranger theme. But making a separate theme for ranger to mimic a massive
-LS_COLOR setup is rather stupid. File managers should parse LS_COLORS as
-default rather than implement their own themes. This became an itch that
-I kept scratching until I could happily replace ranger two weeks later.
-
+The idea came to mind as I was working on [a complete LS_COLORS
+setup](https://github.com/isene/LS_COLORS) with a corresponding
+[ranger](https://ranger.github.io/) theme. But making a separate theme for
+ranger to mimic a massive LS_COLOR setup is rather stupid. File managers
+should parse LS_COLORS as default rather than implement their own themes. This
+became an itch that I kept scratching until I could happily replace ranger two
+weeks later.
 
 ## How?
 RTFM is a two-pane file manager. You navigate in the left pane and the content
