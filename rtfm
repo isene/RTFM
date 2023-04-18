@@ -530,8 +530,14 @@ def main_getkey # GET KEY FROM USER
     end
   when 'c' # Change/rename selected @selected 
     cmd = w_b_getstr(": ", "mv \"#{@selected}\" \"#{@selected}\"")
+    el1 = cmd.sub(/mv \"(.*)\" \"(.*)\"/, '\1')
+    el2 = cmd.sub(/mv \"(.*)\" \"(.*)\"/, '\2')
     begin
-      w_b_exec(cmd + " 2>/dev/null")
+      if el1 == el2
+        w_b_info(" Source and target are the same. No action done.")
+      else
+        w_b_exec(cmd + " 2>/dev/null")
+      end
     rescue StandardError => err
       w_b_info(err.to_s)
     end
