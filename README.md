@@ -2,6 +2,8 @@
 
 ![Ruby](https://img.shields.io/badge/language-Ruby-red) [![Gem Version](https://badge.fury.io/rb/rtfm-filemanager.svg)](https://badge.fury.io/rb/rtfm-filemanager) ![Unlicense](https://img.shields.io/badge/license-Unlicense-green) ![Stay Amazing](https://img.shields.io/badge/Stay-Amazing-important)
 
+What other features can I cram into this file manager?
+
 ## What?
 RTFM is a file manager for the terminal written in Ruby. It lets you browse
 directories and view the content of directories and files. Files are syntax
@@ -23,13 +25,13 @@ features:
 * Item's meta data is shown at the top
 * Easily browse file content (even pdf, MS/OpenOffice, etc.)
 * Move around the file systems using arrow keys of VI keys
-* Copy, move or rename files
+* Copy, move, rename or delet files easily
 * Create symlinks with just one key stroke
 * Easily copy an item's path to clipboard or primary selection
 * Order items the way you want
 * See only files of a certain type
 * Filter out all files not matching a [regex](https://www.rubyguides.com/2015/06/ruby-regex/) pattern
-* Mark files and directories an do group actions on them
+* Mark files and directories and do group actions on them
 * Bookmark directories for easy jumping
 * Follow a symlink to where it points with one key stroke
 * Highlight files and directories matching a given pattern
