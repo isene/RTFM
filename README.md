@@ -25,7 +25,7 @@ features:
 * Item's meta data is shown at the top
 * Easily browse file content (even pdf, MS/OpenOffice, etc.)
 * Move around the file systems using arrow keys of VI keys
-* Copy, move, rename or delet files easily
+* Copy, move, rename or delete files easily
 * Create symlinks with just one key stroke
 * Easily copy an item's path to clipboard or primary selection
 * Order items the way you want
