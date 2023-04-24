@@ -98,6 +98,7 @@ ADDITINAL COMMANDS
  f       = Show only files in the left pane matching extension(s) (e.g. "txt" or "pdf,png,jpg")
  F       = Show only files matching a pattern (Ruby Regex) (e.g. "abc" or "ab.+12(\w3)*")
  g       = Run 'grep' to show files that contains the MATCH in current directory
+ B       = Toggle border
  :       = Enter "command mode" in bottom window (press ENTER to execute, press Ctrl-G to escape)
  ;       = Show command history in right pane
  y       = Copy path of selected item to primary selection (for pasting with middle mouse button)
@@ -700,6 +701,9 @@ def main_getkey # GET KEY FROM USER
     @width  = 2 if @width == 7
     @break = true
     @w_b.update = true
+  when 'B'
+    @border = !@border
+    @break = true
   when '-'
     @preview = !@preview
     @preview ? p = "On" : p = "Off"
@@ -978,11 +982,11 @@ def list_dir(active) # LIST CONTENT OF A DIRECTORY (BOTH active AND RIGHT WINDOW
     file_marker = color_pair(fg)
     file_marker = file_marker | Curses::A_BOLD if bold == 1
     if ix == @index and active
-      str = "∶" + str
+      @w_l << "→ "
       file_marker = file_marker | Curses::A_UNDERLINE 
       wixy = win.cury
     else
-      str = " " + str
+      active ? @w_l << "  " : @w_r << " "
     end
     file_marker = file_marker | Curses::A_REVERSE if @tagged.include?("\"#{Dir.pwd}/#{str_path}\"")
     file_marker = file_marker | Curses::A_BLINK if str.match(/#{@searched}/) and @searched != ""

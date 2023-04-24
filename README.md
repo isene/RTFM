@@ -240,6 +240,7 @@ Key    | Description
 f      | Show only files in the left pane matching extension(s) (e.g. "txt" or "pdf,png,jpg")
 F      | Show only files matching a pattern (Ruby Regex) (e.g. "abc" or "ab.+12(\w3)*")
 g      | Run 'grep' to show files that contains the MATCH in current directory
+B      | Toggle border
 :      | Enter "command mode" in bottom window (press ENTER to execute, press Ctrl-G to escape)
 ;      | Show command history in right pane
 y      | Copy path of selected item to primary selection (for pasting with middle mouse button)
