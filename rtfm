@@ -56,7 +56,6 @@ JUMPING AND MARKS
  L       = Start 'locate' search for files, then use '#' to jump to desired line/directory
  Ctrl-l  = Locate files via fzf from the current directory down
            (fuzzy file finder must be installed https://github.com/junegunn/fzf)
- Ctrl-n  = Invoke navi (see https://github.com/denisidoro/navi) with any output in right window
 
 TAGGING
  t       = Tag item (toggles)
@@ -95,7 +94,7 @@ RIGHT PANE
  _       = (Underscore) Toggle preview of images in right pane
  b       = Toggle syntax highlighting (and line numbering)
 
-ADDITINAL COMMANDS
+ADDITIONAL COMMANDS
  f       = Show only files in the left pane matching extension(s) (e.g. "txt" or "pdf,png,jpg")
  F       = Show only files matching a pattern (Ruby Regex) (e.g. "abc" or "ab.+12(\w3)*")
  g       = Run 'grep' to show files that contains the MATCH in current directory
@@ -106,6 +105,7 @@ ADDITINAL COMMANDS
  Y       = Copy path of selected item to clipboard
  C-Y     = Copy content of right pane to clipboard
  S       = Show comprehensive System info (system, CPU, filesystem, latest dmesg messages)
+ Ctrl-n  = Invoke navi (see https://github.com/denisidoro/navi) with any output in right window
 
 COPYRIGHT: Geir Isene, 2020-3. No rights reserved. See http://isene.com for more.
 HELPTEXT

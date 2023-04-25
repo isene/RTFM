@@ -232,8 +232,9 @@ S-TAB  | Previous page (if you have moved down the document first - ∆ in the t
 w      | Change the width of the left/right panes (left pane ⇒ ⅓ ⇒ ¼ ⇒ ⅕ ⇒ ⅙ ⇒ ½ ⇒ ⅓)
 \-      | Toggle preview in right pane (turn it off for faster traversing of directories)
 _      | Toggle preview of images in right pane
+b      | Toggle syntax highlighting (and line numbering)
 
-### Additinal commands
+### Additional commands
 
 Key    | Description
 -------|------------------------------------------------------------------
@@ -245,6 +246,7 @@ B      | Toggle border
 ;      | Show command history in right pane
 y      | Copy path of selected item to primary selection (for pasting with middle mouse button)
 Y      | Copy path of selected item to clipboard
+C-Y    | Copy content of right pane to clipboard
 S      | Show comprehensive system info (system, CPU, filesystem, latest dmesg messages)
 Ctrl-n | Invoke navi (see https://github.com/denisidoro/navi) with any output in right window
 
