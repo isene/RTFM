@@ -93,6 +93,7 @@ RIGHT PANE
  w       = Change the width of the left/right panes (left pane ⇒ ⅓ ⇒ ¼ ⇒ ⅕ ⇒ ⅙ ⇒ ½ ⇒ ⅓)
  -       = (Minus sign) Toggle preview in right pane (turn it off for faster traversing of directories)
  _       = (Underscore) Toggle preview of images in right pane
+ b       = Toggle syntax highlighting (and line numbering)
 
 ADDITINAL COMMANDS
  f       = Show only files in the left pane matching extension(s) (e.g. "txt" or "pdf,png,jpg")
@@ -103,6 +104,7 @@ ADDITINAL COMMANDS
  ;       = Show command history in right pane
  y       = Copy path of selected item to primary selection (for pasting with middle mouse button)
  Y       = Copy path of selected item to clipboard
+ C-Y     = Copy content of right pane to clipboard
  S       = Show comprehensive System info (system, CPU, filesystem, latest dmesg messages)
 
 COPYRIGHT: Geir Isene, 2020-3. No rights reserved. See http://isene.com for more.
@@ -154,6 +156,7 @@ begin # BASIC SETUP
   @showimage = false unless (cmd?('xwininfo') and cmd?('xdotool'))
   
   cmd?('bat') ? @bat = "bat" : @bat = "batcat"
+  @batuse = true
 
   STDIN.set_encoding(Encoding::UTF_8) # Set encoding for STDIN 
   LScolors = `echo $LS_COLORS` # Import LS_COLORS 
@@ -189,6 +192,7 @@ begin # BASIC SETUP
   @lsfiles    = ""    # File types to show (initially set to all file types) - not saved on exit
   @lsmatch    = ""    # Files to match (initially set to matching all files) - not saved on exit
   @index      = 0     # Set chosen item to first on startup
+  @cont       = ""
   @navi       = ""
   @marks["'"] = Dir.pwd
   ## File type recognizers
@@ -309,6 +313,7 @@ def getchr # PROCESS KEY PRESSES
   when "" then chr = "C-L"
   when "" then chr = "C-N"
   when "" then chr = "C-T"
+  when "" then chr = "C-Y"
   when "\r" then chr = "ENTER"
   when "\t" then chr = "TAB"
   when /./  then chr = c
@@ -543,14 +548,14 @@ def main_getkey # GET KEY FROM USER
       w_b_info(err.to_s)
     end
     @w_r.update = true
-  when 'z'
+  when 'z' # Unzip selected archive file
     cmd = w_b_getstr("Command = ", "tar xfz #{@tagged.first}")
     begin
       w_b_exec(cmd + " 2>/dev/null")
     rescue StandardError => err
       w_b_info(err.to_s)
     end
-  when 'Z'
+  when 'Z' # Create archive file
     arc = w_b_getstr("Archive name: ", "")
     cmd = w_b_getstr("Command = ", "tar cfz #{arc}.gz #{@tagged.join(" ")}")
     begin
@@ -669,7 +674,7 @@ def main_getkey # GET KEY FROM USER
     rescue
       w_r_info("Unable to show system info")
     end
-  when 'I'
+  when 'I' # OpenAI integration
     if @ai
       openai
     else
@@ -701,21 +706,24 @@ def main_getkey # GET KEY FROM USER
     @width  = 2 if @width == 7
     @break = true
     @w_b.update = true
-  when 'B'
+  when 'B' # Toggle borders
     @border = !@border
     @break = true
-  when '-'
+  when '-' # Toggle content view in right pane
     @preview = !@preview
     @preview ? p = "On" : p = "Off"
     w_b_info("Preview = " + p)
     getch
     @break = true
-  when '_'
+  when '_' # Toggle image view
     @showimage = !@showimage
     @showimage ? i = "On" : i = "Off"
     w_b_info("Image preview = " + i)
     getch
     @break = true
+  when 'b'
+    @batuse = !@batuse
+    @break  = true
   # ADDITIONAL COMMANDS
   when 'f' # Filter out filetypes not matching @lsfiles
     loop do
@@ -726,7 +734,7 @@ def main_getkey # GET KEY FROM USER
   when 'F' # Filter out files not matching @lsmatch
     @lsmatch = w_b_getstr("Files will match RegEx: ", @lsmatch)
     w_b_info(nil)
-  when 'C-L'
+  when 'C-L' # fzf integration (https://github.com/junegunn/fzf)
     begin
       jump     = `fzf`.chomp
     rescue
@@ -738,7 +746,7 @@ def main_getkey # GET KEY FROM USER
     mark_latest
     Dir.chdir(jumpdir)
     @break = true
-  when 'C-N'
+  when 'C-N' # navi integration (https://github.com/denisidoro/navi)
     begin
       @navi = `navi`
     rescue
@@ -796,6 +804,19 @@ def main_getkey # GET KEY FROM USER
       end
       system("echo -n '#{path}' | #{clip}")
     end
+  when 'C-Y' # Copy right pane to clipboard
+    clip = "xclip -selection clipboard" 
+    @cont.gsub!(/	¤¤\d+¤¤\d*¤¤/, '')
+    @cont.gsub!(/^¤¤\d+¤¤\d*¤¤ */, '')
+    @cont.gsub!(/¤¤\d+¤¤\d*¤¤/, '')
+    @cont.gsub!(/	/, '')
+    @cont.gsub!(/   (\d)/, '\1')
+    @cont.gsub!(/\[(\d+;)+\d+m/, '')
+    @cont = @cont.inspect
+    @cont.gsub!('\"', '"')
+    @cont = @cont [1...-1]
+    w_b_info(" Right pane copied to clipboard")
+    system("echo -n '#{@cont}' | #{clip}")
   when '@' # Enter "Ruby debug"
     @w_b.nohistory = true
     cmd = w_b_getstr("◆ ", "")
@@ -941,6 +962,7 @@ def list_dir(active) # LIST CONTENT OF A DIRECTORY (BOTH active AND RIGHT WINDOW
     ix = @index - @w_l.maxy/2 if @index > @w_l.maxy/2 and @files.size > @w_l.maxy - 1
   else
     win = @w_r
+    @cont = ""
   end
   while ix < @files.size and t < win.maxy do
     str = @files[ix]
@@ -999,6 +1021,7 @@ def list_dir(active) # LIST CONTENT OF A DIRECTORY (BOTH active AND RIGHT WINDOW
       return
     end
     str += link + dir
+    @cont += str + "\n" unless active # Adds to content in right win for copying
     win.attron(file_marker) { win << str } # Implement color/bold to the item
     win.clrtoeol
     win << "\n"
@@ -1082,12 +1105,17 @@ def w_r_show # SHOW CONTENTS IN THE RIGHT WINDOW
       list_dir(false)
     # TEXT 
     elsif File.read(@selected).force_encoding("UTF-8").valid_encoding? and @w_r.pager == 0
-      begin # View the file as text if it is utf-8
-        @w_r.pager_cmd = "#{@bat} -n --color=always #{@selected_safe} 2>/dev/null"
-        @w_r.text      = `#{@bat} -n --color=always --line-range :#{@w_r.maxy} #{@selected_safe} 2>/dev/null`
-        pager_start
-        syntax_highlight(@w_r.text)
-      rescue
+      if @batuse
+        begin # View the file as text if it is utf-8
+          @w_r.pager_cmd = "#{@bat} -n --color=always #{@selected_safe} 2>/dev/null"
+          @w_r.text      = `#{@bat} -n --color=always --line-range :#{@w_r.maxy} #{@selected_safe} 2>/dev/null`
+          pager_start
+          syntax_highlight(@w_r.text)
+        rescue
+          @w_r.pager_cmd  = "cat #{@selected_safe} 2>/dev/null"
+          w_r_doc
+        end
+      else
         @w_r.pager_cmd  = "cat #{@selected_safe} 2>/dev/null"
         w_r_doc
       end
@@ -1223,6 +1251,7 @@ def pager_start # START PAGING
   if @w_r.text.lines.count > @w_r.maxy - 2
     @w_r.pager_more = true
   end
+  @cont = @w_r.text # For copying right win
 end
 def pager_show # SHOW THE CURRENT PAGE CONTENT
   @w_r.setpos(0,0)
@@ -1242,6 +1271,7 @@ def pager_show # SHOW THE CURRENT PAGE CONTENT
     @w_r.attr = 0 if @w_r.attr == nil
     @w_r.attron(color_pair(@w_r.fg) | @w_r.attr) { @w_r << input }
   end
+  @cont = input # For copying right win
   (@w_r.maxy - @w_r.cury).times {@w_r.deleteln()} # Clear to bottom of window
   pager_add_markers
   @w_r.refresh
