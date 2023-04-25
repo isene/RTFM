@@ -156,7 +156,6 @@ begin # BASIC SETUP
   @showimage = false unless (cmd?('xwininfo') and cmd?('xdotool'))
   
   cmd?('bat') ? @bat = "bat" : @bat = "batcat"
-  @batuse = true
 
   STDIN.set_encoding(Encoding::UTF_8) # Set encoding for STDIN 
   LScolors = `echo $LS_COLORS` # Import LS_COLORS 
@@ -182,6 +181,7 @@ begin # BASIC SETUP
   @border     = false
   @preview    = true
   @runmailcap = false # Set to 'true' in .rtfm.conf if you want to use run-mailcap instead of xdg-open
+  @batuse     = true  # Use batcat for syntax highlighting
   ## These are automatically written on exit
   @marks      = {}    # Initialize (book)marks hash
   @hash       = {}    # Initialize the sha directory hashing
@@ -193,6 +193,7 @@ begin # BASIC SETUP
   @lsmatch    = ""    # Files to match (initially set to matching all files) - not saved on exit
   @index      = 0     # Set chosen item to first on startup
   @cont       = ""
+  @tagsize    = 0
   @navi       = ""
   @marks["'"] = Dir.pwd
   ## File type recognizers
@@ -484,8 +485,10 @@ def main_getkey # GET KEY FROM USER
     item = "\"#{Dir.pwd}/#{@selected}\""
     if @tagged.include?(item)
       @tagged.delete(item)
+      @tagsize -= File.size(item[1...-1])
     else
       @tagged.push(item)
+      @tagsize += File.size(item[1...-1])
     end
     @index += 1
     @w_r.update = true
@@ -1321,17 +1324,17 @@ def openai # INTERFACE TO OPENAI
   @w_r.fg = 229
   w_r_info(text)
 end
-
 # BOTTOM WINDOW FUNCTIONS 
 def w_b_info(info) # SHOW INFO IN @W_B
   @w_b.clr
   @w_b.fg, @w_b.bg = 250, 238
   if info == nil
     info      = ": for command (use @s for selected item, @t for tagged items) - press ? for help" 
-    info      = "Showing only files matching '#{@lsmatch}'" if @lsmatch != ""
-    info      = "Showing only file type '#{@lsfiles}'" if @lsfiles != ""
-    info      = "Showing only file types '#{@lsfiles}'" if @lsfiles =~ /,/
+    info      = " Showing only files matching '#{@lsmatch}'" if @lsmatch != ""
+    info      = " Showing only file type '#{@lsfiles}'" if @lsfiles != ""
+    info      = " Showing only file types '#{@lsfiles}'" if @lsfiles =~ /,/
     info     += " and only files matching '#{@lsmatch}'" if @lsfiles != "" and @lsmatch != ""
+    info      = " Tagged #{@tagged.size} files (#{(@tagsize.to_f/1000000).round(2)}MB)" unless @tagged.empty?
     @w_b.fg, @w_b.bg = 250, 88  if @lsfiles != ""
     @w_b.fg, @w_b.bg = 250, 21  if @lsmatch != ""
     @w_b.fg, @w_b.bg = 250, 55  if @lsfiles != "" and @lsmatch != ""
