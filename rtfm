@@ -14,6 +14,7 @@
 #             for any damages resulting from its use. Further, I am under no
 #             obligation to maintain or extend this software. It is provided 
 #             on an 'as is' basis without any expressed or implied warranty.
+@version    = "3.0.1"
 
 # PRELIMINARIES
 @help = <<HELPTEXT
@@ -27,6 +28,7 @@ BASIC KEYS
            (@lsall, @lslong, @lsorder, @lsinvert, @border, @width, @preview, @tagged, @marks)
  q       = Quit
  Q       = QUIT (without writing changes to the config file)
+ v       = Display RTFM version in bottom window/command bar
 
 MOTION
  j/DOWN  = Go one item down in left pane (rounds to top)
@@ -357,6 +359,8 @@ def main_getkey # GET KEY FROM USER
     system("printf \"\033]0;#{Dir.pwd}\007\"")
     @write_conf = false
     exit 0
+  when 'v'
+    w_b_info("RTFM version = #{@version} (latest RubyGems version is #{Gem.latest_version_for("rtfm-filemanager").version} - https://github.com/isene/RTFM)")
   # MOTION
   when 'DOWN', 'j', 'C-DOWN'
     var_resets
