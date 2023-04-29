@@ -47,12 +47,15 @@ JUMPING AND MARKS
  M       = Show marked items in right pane
  '       = Jump to mark (next letter is the name of the mark [a-zA-Z'])
            The 5 latest directories visited are stored in marks 1-5 (1 being the very latest)
- /       = Enter search string in bottom window to highlight matching items and jump to the first match
- \       = Remove search pattern
- n       = Jump to the next item matched by '/'
- N       = Jump to the previous item matched by '/'
  ~       = Jump to Home directory
  >       = Follow symlink to the directory where the target resides
+
+SEARCHING
+ /       = Enter search string in bottom window to highlight matching items and jump to the first match
+ \\       = Remove search pattern
+ n       = Jump to the next item matched by '/'
+ N       = Jump to the previous item matched by '/'
+ g       = Run 'grep' to show files that contains the MATCH in current directory
  L       = Start 'locate' search for files, then use '#' to jump to desired line/directory
  Ctrl-l  = Locate files via fzf from the current directory down
            (fuzzy file finder must be installed https://github.com/junegunn/fzf)
@@ -69,6 +72,9 @@ MANIPULATE ITEMS
  s       = Create symlink to tagged items here
  d       = Delete selected item and tagged items. Press 'y' to confirm
  c       = Change/rename selected (adds command to bottom window)
+ Ctrl-o  = Change ownership to user:group of selected and tagged items
+ Ctrl-p  = Change permissions of selected and tagged items
+           Format = rwxr-xr-x or 755 or rwx (applies the trio to user, group and others)
  z       = Extract tagged zipped archive to current directory
  Z       = Create zipped archive from tagged files/directories
 
@@ -89,7 +95,7 @@ RIGHT PANE
  ENTER   = Refresh the right pane
  TAB     = Next page of the preview (if doc long and ∇ in the bottom right)
  S-TAB   = Previous page (if you have moved down the document first - ∆ in the top right)
- w       = Change the width of the left/right panes (left pane ⇒ ⅓ ⇒ ¼ ⇒ ⅕ ⇒ ⅙ ⇒ ½ ⇒ ⅓)
+ w       = Change the width of the left/right panes (left pane ⇒ 20%, 30%, 40%, 50%, 60%)
  -       = (Minus sign) Toggle preview in right pane (turn it off for faster traversing of directories)
  _       = (Underscore) Toggle preview of images in right pane
  b       = Toggle syntax highlighting (and line numbering)
@@ -97,7 +103,6 @@ RIGHT PANE
 ADDITIONAL COMMANDS
  f       = Show only files in the left pane matching extension(s) (e.g. "txt" or "pdf,png,jpg")
  F       = Show only files matching a pattern (Ruby Regex) (e.g. "abc" or "ab.+12(\w3)*")
- g       = Run 'grep' to show files that contains the MATCH in current directory
  B       = Toggle border
  :       = Enter "command mode" in bottom window (press ENTER to execute, press Ctrl-G to escape)
  ;       = Show command history in right pane
@@ -176,7 +181,7 @@ begin # BASIC SETUP
   @lsorder    = ""    # Change the order/sorting by pressing 'o' (circular toggle)
   @lsinvert   = ""    # Set to "-r" to reverse/invert sorting order
   @lsuser     = ""    # Set this variable in .rtfm.conf to any 'ls' switch you want to customize directory listings
-  @width      = 3     # Set width of the left pane to the default ⅓ of the terminal width
+  @width      = 4     # Set width of the left pane to the default ⅓ of the terminal width
   @history    = []    # Initialize the command line history array
   @border     = false
   @preview    = true
@@ -313,6 +318,8 @@ def getchr # PROCESS KEY PRESSES
   when "" then chr = "C-G"
   when "" then chr = "C-L"
   when "" then chr = "C-N"
+  when "" then chr = "C-O"
+  when "" then chr = "C-P"
   when "" then chr = "C-T"
   when "" then chr = "C-Y"
   when "\r" then chr = "ENTER"
@@ -457,6 +464,37 @@ def main_getkey # GET KEY FROM USER
       end
     end
     @w_b.update = true
+  # SEARCHING
+  when '/' # Get search string to mark items that match the input 
+    @w_b.nohistory = true
+    @searched = w_b_getstr("/ ", "")
+    l = `ls 2>/dev/null #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}`.split
+    m = l.each_index.select{|n| l[n] =~ /#{@searched}/}
+    @index = m[0] unless m == []
+    @index = 0 if @searched == ""
+    @w_r.update = true
+  when '\\' # Clear search string
+    @searched = ""
+  when 'n' # Jump to next occurence of search (after '/')
+    l = `ls 2>/dev/null #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}`.split
+    m = l.each_index.select{|n| l[n] =~ /#{@searched}/}
+    i = m.find { |n| n > @index }
+    if i == nil
+      @index = m.first
+    else
+      @index = i
+    end
+    @w_r.update = true
+  when 'N' # Jump to previous occurence of search (after '/')
+    l = `ls 2>/dev/null #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}`.split
+    m = l.each_index.select{|n| l[n] =~ /#{@searched}/}.reverse
+    i = m.find { |n| n < @index }
+    if i == nil
+      @index = m.first
+    else
+      @index = i
+    end
+    @w_r.update = true
   when 'g' # Run 'grep' in the current directory
     cmd = w_b_getstr(": ", "grep -s MATCH *")
     w_b_exec(cmd)
@@ -480,6 +518,18 @@ def main_getkey # GET KEY FROM USER
       @w_r.pager = 0
     end
     @w_b.update = true
+  when 'C-L' # fzf integration (https://github.com/junegunn/fzf)
+    begin
+      jump     = `fzf`.chomp
+    rescue
+      w_b_info(" fzf not installed - see https://github.com/junegunn/fzf")
+    end
+    jumpdir  = File.dirname(jump)
+    @searched = File.basename(jump)
+    @directory[Dir.pwd] = @selected # Store this directory before leaving
+    mark_latest
+    Dir.chdir(jumpdir)
+    @break = true
   # TAGGING
   when 't' # Add item to tagged list 
     item = "\"#{Dir.pwd}/#{@selected}\""
@@ -551,6 +601,55 @@ def main_getkey # GET KEY FROM USER
       w_b_info(err.to_s)
     end
     @w_r.update = true
+  when 'C-O' # Change ownerships
+    require 'etc'
+    gnm = Etc.getgrgid(File.stat(@selected).gid).name
+    unm = Etc.getpwuid(File.stat(@selected).uid).name
+    p   = "Change ownership of selected"
+    p  += " and tagged" unless @tagged.empty?
+    p  += ". Selected ownership (user:group) = "
+    own = w_b_getstr(p, "#{unm}:#{gnm}").split(":")
+    gnm, unm = own[0], own[1]
+    begin
+      gid = Etc.getgrnam(gnm).gid.to_i
+      uid = Etc.getpwnam(unm).uid.to_i
+      File.chown(uid, gid, @selected)
+      @tagged.each {|t| File.chown(uid, gid, t[1...-1])} unless @tagged.empty? 
+      w_b_info("Ownership changed to #{gnm}:#{unm}")
+    rescue StandardError => err
+      w_b_info(err.to_s)
+    end
+  when 'C-P' # Change permissions
+    mode = @fspes[@index][1..9]
+    p   = "Change permissions of selected"
+    p  += " and tagged" unless @tagged.empty?
+    p  += ". Selected permissions = "
+    mode = w_b_getstr(p, mode)
+    mode = mode * 3 if mode.length == 3 and mode.to_i == 0
+    if mode.length == 9 and mode.to_i == 0
+      x  = 0
+      x += 400 if mode[0] == "r"
+      x += 200 if mode[1] == "w"
+      x += 100 if mode[2] == "x"
+      x +=  40 if mode[3] == "r"
+      x +=  20 if mode[4] == "w"
+      x +=  10 if mode[5] == "x"
+      x +=   4 if mode[6] == "r"
+      x +=   2 if mode[7] == "w"
+      x +=   1 if mode[8] == "x"
+      mode = x
+    end
+    if mode.to_s.length == 3 and mode.to_i != 0
+      mode = mode.to_s.to_i(8)
+      begin
+        File.chmod(mode, @selected)
+        @tagged.each {|t| File.chmod(mode, t[1...-1])} unless @tagged.empty?
+      rescue StandardError => err
+        w_b_info(err.to_s)
+      end
+    else
+      w_b_info("Not a valid permissions mode. Nothing changed.")
+    end
   when 'z' # Unzip selected archive file
     cmd = w_b_getstr("Command = ", "tar xfz #{@tagged.first}")
     begin
@@ -638,45 +737,6 @@ def main_getkey # GET KEY FROM USER
     end
     @w_r.update = true
     @w_b.update = false
-  when 'S' # Show comprehensive system info
-    begin
-      @w_r.clr
-      @w_r.pager_cmd = ""
-      uname    = `uname -o`.chomp + "  "
-      uname   += `uname -r`.chomp + "  "
-      uname   += `uname -v`.chomp + "  "
-      uname   += `uname -p`.chomp + "  "
-      uname   += `awk -F '"' '/PRETTY/ {print $2}' /etc/os-release` + "\n"
-      text     = [[253, 1, uname]]
-      system   = "Shell & Terminal: " + `echo $SHELL`.sub(/.*\//, '').chomp + ", " + `echo $TERM`.chomp + "   "
-      packages = `pacman -Q 2>/dev/null | wc -l`.chomp
-      packages = `dpkg-query -l 2>/dev/null | grep -c '^.i'`.chomp if packages == "0"
-      packages = "Unrecognized" if packages == "0"
-      system  += "Packages: " + packages + "\n"
-      system  += "Desktop: " + `awk '/^DesktopNames/' /usr/share/xsessions/* | sed 's/DesktopNames=//g' | \\
-                  sed 's/\\;/\\n/g' | sed '/^$/d' | sort -u | sed ':a;N;$!ba;s/\\n/, /g'`.chomp + "/"
-      system  += `grep 'gtk-theme-name' ~/.config/gtk-3.0/* | sed 's/gtk-theme-name=//g' | \\
-                  sed 's/-/ /g'`.sub(/.*:/, '') + "\n"
-      text    += [[251, 0, system]]
-      cpu      = "CPUs = " + `nproc`.chop + "  "
-      cpuinfo  = `lscpu`
-      cpu     += cpuinfo[/^.*Model name:\s*(.*)/, 1] + "  "
-      cpu     += "Max: " + cpuinfo[/^.*CPU max MHz:\s*(.*)/, 1][/(.*),.*/, 1] + "MHz  "
-      cpu     += "Min: " + cpuinfo[/^.*CPU min MHz:\s*(.*)/, 1][/(.*),.*/, 1] + "MHz\n\n"
-      text    += [[154, 0, cpu]]
-      mem      = `free -h`  + "\n"
-      text    += [[229, 0, mem]]
-      ps       = `ps -eo comm,pid,user,pcpu,pmem,stat --sort -pcpu,-pmem | head` + "\n"
-      text    += [[195, 0, ps]]
-      disk     = `df -H | head -8`
-      text    += [[172, 0, disk]]
-      dmesg    = "\nDMESG (latest first):\n"
-      dmesg   += `dmesg | tail -6`.split("\n").sort.reverse.join("\n")
-      text    += [[219, 0, dmesg]]
-      w_r_info(ansifix(text))
-    rescue
-      w_r_info("Unable to show system info")
-    end
   when 'I' # OpenAI integration
     if @ai
       openai
@@ -708,10 +768,8 @@ def main_getkey # GET KEY FROM USER
     @width += 1
     @width  = 2 if @width == 7
     @break = true
+    @w_r.update = true
     @w_b.update = true
-  when 'B' # Toggle borders
-    @border = !@border
-    @break = true
   when '-' # Toggle content view in right pane
     @preview = !@preview
     @preview ? p = "On" : p = "Off"
@@ -724,7 +782,7 @@ def main_getkey # GET KEY FROM USER
     w_b_info("Image preview = " + i)
     getch
     @break = true
-  when 'b'
+  when 'b' # Toggle syntax highlighting (via bat/batcat)
     @batuse = !@batuse
     @break  = true
   # ADDITIONAL COMMANDS
@@ -737,55 +795,9 @@ def main_getkey # GET KEY FROM USER
   when 'F' # Filter out files not matching @lsmatch
     @lsmatch = w_b_getstr("Files will match RegEx: ", @lsmatch)
     w_b_info(nil)
-  when 'C-L' # fzf integration (https://github.com/junegunn/fzf)
-    begin
-      jump     = `fzf`.chomp
-    rescue
-      w_b_info(" fzf not installed - see https://github.com/junegunn/fzf")
-    end
-    jumpdir  = File.dirname(jump)
-    @searched = File.basename(jump)
-    @directory[Dir.pwd] = @selected # Store this directory before leaving
-    mark_latest
-    Dir.chdir(jumpdir)
+  when 'B' # Toggle borders
+    @border = !@border
     @break = true
-  when 'C-N' # navi integration (https://github.com/denisidoro/navi)
-    begin
-      @navi = `navi`
-    rescue
-      w_b_info(" navi not installed - see https://github.com/denisidoro/navi")
-    end
-    @break = true
-  when '/' # Get search string to mark items that match the input 
-    @w_b.nohistory = true
-    @searched = w_b_getstr("/ ", "")
-    l = `ls 2>/dev/null #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}`.split
-    m = l.each_index.select{|n| l[n] =~ /#{@searched}/}
-    @index = m[0] unless m == []
-    @index = 0 if @searched == ""
-    @w_r.update = true
-  when '\\'
-    @searched = ""
-  when 'n' # Jump to next occurence of search (after '/')
-    l = `ls 2>/dev/null #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}`.split
-    m = l.each_index.select{|n| l[n] =~ /#{@searched}/}
-    i = m.find { |n| n > @index }
-    if i == nil
-      @index = m.first
-    else
-      @index = i
-    end
-    @w_r.update = true
-  when 'N' # Jump to previous occurence of search (after '/')
-    l = `ls 2>/dev/null #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}`.split
-    m = l.each_index.select{|n| l[n] =~ /#{@searched}/}.reverse
-    i = m.find { |n| n < @index }
-    if i == nil
-      @index = m.first
-    else
-      @index = i
-    end
-    @w_r.update = true
   when ':' # Enter "command mode" in the bottom window - tries to execute the given command 
     @w_r.nohistory = false
     cmd = w_b_getstr(": ", "")
@@ -820,8 +832,17 @@ def main_getkey # GET KEY FROM USER
     @cont = @cont [1...-1]
     w_b_info(" Right pane copied to clipboard")
     system("echo -n '#{@cont}' | #{clip}")
+  when 'S' # Show comprehensive system info
+    sysinfo
+  when 'C-N' # navi integration (https://github.com/denisidoro/navi)
+    begin
+      @navi = `navi`
+    rescue
+      w_b_info(" navi not installed - see https://github.com/denisidoro/navi")
+    end
+    @break = true
   when '@' # Enter "Ruby debug"
-    @w_b.nohistory = true
+    @w_b.nohistory = false
     cmd = w_b_getstr("◆ ", "")
     @w_b.clr
     @w_b.refresh
@@ -903,7 +924,7 @@ def get_files(win) # The core of the directory listings
   ls_cmd += @selected_safe if win == "right"
   @files  = `#{ls_cmd}`.split("\n")
   ls_cmd += " -H " if win == "right"
-  ls_cmd += %q[ -lhgG --time-style="long-iso" | awk '{printf "%s%12s%6s%6s%5s", $1,$4,$5,$3,$2 "\n"}']
+  ls_cmd += %q[ -lh --time-style="long-iso" | awk '{printf "%s%s%s%11s%6s%6s", $1, " " $3, ":" $4,$6,$7,$5"\n"}']
   @fspes  = `#{ls_cmd}`.split("\n").drop(1)
   if @lsfiles != "" or @lsmatch != ""
     lsf      = @lsfiles.split(",").map! {|e| e.strip}
@@ -1183,9 +1204,9 @@ def w_r_doc # GET FULL CONTENT TO PAGE
 end
 def w_r_info(info) # SHOW INFO IN THE RIGHT WINDOW
   image_show("clear") if @image; @image = false
-  #@w_r.clr
-  #@w_r.refresh
-  w_r_width = Curses.cols - (Curses.cols/@width) - 2
+  @w_r.clr
+  @w_r.refresh
+  w_r_width = Curses.cols - (Curses.cols * @width / 10) - 2
   info.gsub!(/(.{1,#{w_r_width}})( +|$\n?)|(.{1,#{w_r_width}})/, "\\1\\3\n")
   @w_r.text      = info
   @w_r.pager_cmd = ""
@@ -1220,9 +1241,9 @@ def image_show(image)# SHOW THE SELECTED IMAGE IN THE RIGHT WINDOW
     term_h      = terminfo.match(/Height: (\d+)/)[1].to_i
     char_w      = term_w / Curses.cols
     char_h      = term_h / Curses.lines
-    img_x       = char_w * (Curses.cols/@width + 1)
+    img_x       = char_w * (Curses.cols * @width / 10 + 1)
     img_y       = char_h * 2
-    img_max_w   = char_w * (Curses.cols - Curses.cols/@width - 2)
+    img_max_w   = char_w * (Curses.cols - Curses.cols * @width / 10 - 2)
     img_max_h   = char_h * (Curses.lines - 4)
     if image == "clear"
       `clear`
@@ -1323,6 +1344,46 @@ def openai # INTERFACE TO OPENAI
 
   @w_r.fg = 229
   w_r_info(text)
+end
+def sysinfo
+  begin
+    @w_r.clr
+    @w_r.pager_cmd = ""
+    uname    = `uname -o`.chomp + "  "
+    uname   += `uname -r`.chomp + "  "
+    uname   += `uname -v`.chomp + "  "
+    uname   += `uname -p`.chomp + "  "
+    uname   += `awk -F '"' '/PRETTY/ {print $2}' /etc/os-release` + "\n"
+    text     = [[253, 1, uname]]
+    system   = "Shell & Terminal: " + `echo $SHELL`.sub(/.*\//, '').chomp + ", " + `echo $TERM`.chomp + "   "
+    packages = `pacman -Q 2>/dev/null | wc -l`.chomp
+    packages = `dpkg-query -l 2>/dev/null | grep -c '^.i'`.chomp if packages == "0"
+    packages = "Unrecognized" if packages == "0"
+    system  += "Packages: " + packages + "\n"
+    system  += "Desktop: " + `awk '/^DesktopNames/' /usr/share/xsessions/* | sed 's/DesktopNames=//g' | \\
+                sed 's/\\;/\\n/g' | sed '/^$/d' | sort -u | sed ':a;N;$!ba;s/\\n/, /g'`.chomp + "/"
+    system  += `grep 'gtk-theme-name' ~/.config/gtk-3.0/* | sed 's/gtk-theme-name=//g' | \\
+                sed 's/-/ /g'`.sub(/.*:/, '') + "\n"
+    text    += [[251, 0, system]]
+    cpu      = "CPUs = " + `nproc`.chop + "  "
+    cpuinfo  = `lscpu`
+    cpu     += cpuinfo[/^.*Model name:\s*(.*)/, 1] + "  "
+    cpu     += "Max: " + cpuinfo[/^.*CPU max MHz:\s*(.*)/, 1][/(.*),.*/, 1] + "MHz  "
+    cpu     += "Min: " + cpuinfo[/^.*CPU min MHz:\s*(.*)/, 1][/(.*),.*/, 1] + "MHz\n\n"
+    text    += [[154, 0, cpu]]
+    mem      = `free -h`  + "\n"
+    text    += [[229, 0, mem]]
+    ps       = `ps -eo comm,pid,user,pcpu,pmem,stat --sort -pcpu,-pmem | head` + "\n"
+    text    += [[195, 0, ps]]
+    disk     = `df -H | head -8`
+    text    += [[172, 0, disk]]
+    dmesg    = "\nDMESG (latest first):\n"
+    dmesg   += `dmesg | tail -6`.split("\n").sort.reverse.join("\n")
+    text    += [[219, 0, dmesg]]
+    w_r_info(ansifix(text))
+  rescue
+    w_r_info("Unable to show system info")
+  end
 end
 # BOTTOM WINDOW FUNCTIONS 
 def w_b_info(info) # SHOW INFO IN @W_B
@@ -1521,9 +1582,9 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     # Curses::Window.new(h,w,y,x)
     @w_t = Curses::Window.new(1, 0, 0, 0)
     @w_b = Curses::Window.new(1, 0, maxy - 1, 0)
-    @w_l = Curses::Window.new(maxy - 3, (maxx/@width) - 1, 2, 0)
-    @w_r = Curses::Window.new(maxy - 4, maxx - (maxx/@width), 2, maxx/@width)
-    @w_p = Curses::Window.new(1, maxx - (maxx/@width), maxy - 2, maxx/@width)
+    @w_l = Curses::Window.new(maxy - 3, (maxx * @width / 10) - 1, 2, 0)
+    @w_r = Curses::Window.new(maxy - 4, maxx - (maxx * @width / 10), 2, maxx * @width / 10)
+    @w_p = Curses::Window.new(1, maxx - (maxx * @width / 10), maxy - 2, maxx * @width / 10)
     @w_p.fg, @w_p.bg = 255, 0
     @w_p.refresh
     @w_t.fg, @w_t.bg = 232, 249

@@ -179,12 +179,18 @@ Key    | Description
 m      | Mark current dir (persistent). Next letter is the name of the mark [a-zA-Z'] The special mark "'" jumps to the last directory (makes toggling dirs easy) Press '-' and a letter to delete that mark
 M      | Show marked items in right pane
 '      | Jump to mark (next letter is the name of the mark [a-zA-Z']). The 5 latest directories visited are stored in marks 1-5 (1 being the very latest)
+~      | Jump to Home directory
+\>      | Follow symlink to the directory where the target resides
+
+### Searching
+
+Key    | Description
+-------|------------------------------------------------------------------
 /      | Enter search string in bottom window to highlight matching items and jump to the first match
 \\	   | Remove search pattern
 n      | Jump to the next item matched by '/'
 N      | Jump to the previous item matched by '/'
-~      | Jump to Home directory
-\>      | Follow symlink to the directory where the target resides
+g      | Run 'grep' to show files that contains the MATCH in current directory
 L      | Start 'locate' search for files, then use '#' to jump to desired line/directory
 Ctrl-l | Locate files via fzf from the current directory down (fuzzy file finder must be installed https://github.com/junegunn/fzf)
 
@@ -206,6 +212,8 @@ P      | PUT (move) tagged items here
 s      | Create symlink to tagged items here
 d      | Delete selected item and tagged items. Press 'y' to confirm
 c      | Change/rename selected (adds command to bottom window)
+Ctrl-o | Change ownership to user:group of selected and tagged items
+Ctrl-p | Change permissions of selected and tagged items. Format = rwxr-xr-x or 755 or rwx (applies the trio to user, group and others)
 z      | Extract tagged zipped archive to current directory
 Z      | Create zipped archive from tagged files/directories
 
@@ -240,7 +248,6 @@ Key    | Description
 -------|------------------------------------------------------------------
 f      | Show only files in the left pane matching extension(s) (e.g. "txt" or "pdf,png,jpg")
 F      | Show only files matching a pattern (Ruby Regex) (e.g. "abc" or "ab.+12(\w3)*")
-g      | Run 'grep' to show files that contains the MATCH in current directory
 B      | Toggle border
 :      | Enter "command mode" in bottom window (press ENTER to execute, press Ctrl-G to escape)
 ;      | Show command history in right pane
@@ -312,15 +319,15 @@ that session.
 The top line shows information about the currently item in the left pane. When
 you are at a file, the information is pretty self explanatory:
 
-`Path: /home/geir/RTFM/README.md (-rw-rw-r-- 6,0K)`
+`Path: /home/geir/RTFM/README.md (-rw-r--r-- geir:geir 2023-04-25 11:49  16K)`
 
-This shows the full path of the selected file as well as the permissions and
-the size of the file. When you are at a directory in the left pane, you get
-two numbers in brackets. The first number is the number of regular dirs/files
-in that directory. The second shows the total number of entries, including the
-hidden directories and files:
+This shows the full path of the selected file as well as the permissions,
+ownership, timestamp and the size of the file. When you are at a directory in
+the left pane, you get two numbers in brackets. The first number is the number
+of regular dirs/files in that directory. The second shows the total number of
+entries, including the hidden directories and files:
 
-`Path: /home/geir/RTFM (drwxrwxr-x 4,0K) [4 8]`
+`Path: /home/geir/RTFM (drwxr-xr-x geir:geir 2023-04-29 01:55  4,0) [4 8]`
 
 Different file types may have extra self explanatory information included in
 square brackets at the end of the top info line. Image files will have the
