@@ -158,6 +158,7 @@ R      | Reload configuration (~/.rtfm.conf)
 W      | Write parameters to ~/.rtfm.conf (@lsall, @lslong, @lsorder, @lsinvert, @border, @width, @preview, @tagged, @marks)
 q      | Quit
 Q      | QUIT (without writing changes to the config file)
+v      | Display RTFM version in bottom window/command bar
 
 ### Motion
 
