@@ -115,7 +115,7 @@ echo "source ~/.rtfm.launch" >> .zshrc # or .bashrc if you run bash as shell
 
 ## Screenshot
 
-![](img/screenshot.png)
+![RTFM screenshot](img/screenshot.png)
 
 ## Image preview in the terminal
 
@@ -254,10 +254,12 @@ B      | Toggle border
 ;      | Show command history in right pane
 y      | Copy path of selected item to primary selection (for pasting with middle mouse button)
 Y      | Copy path of selected item to clipboard
-C-Y    | Copy content of right pane to clipboard
+Ctrl-y | Copy content of right pane to clipboard
 S      | Show comprehensive system info (system, CPU, filesystem, latest dmesg messages)
 Ctrl-n | Invoke navi (see https://github.com/denisidoro/navi) with any output in right window
 
+## Keyboard cheat sheet
+![RTFM keyboard cheat sheet](img/rtfm-kb.png)
 
 ## A convenient shell function
 Add this line to your `.bashrc` or `.zshrc` to make RTFM exit to the current

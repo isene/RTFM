@@ -14,7 +14,7 @@
 #             for any damages resulting from its use. Further, I am under no
 #             obligation to maintain or extend this software. It is provided 
 #             on an 'as is' basis without any expressed or implied warranty.
-@version    = "3.0.1"
+@version    = "3.0.2"
 
 # PRELIMINARIES
 @help = <<HELPTEXT
@@ -110,7 +110,7 @@ ADDITIONAL COMMANDS
  ;       = Show command history in right pane
  y       = Copy path of selected item to primary selection (for pasting with middle mouse button)
  Y       = Copy path of selected item to clipboard
- C-Y     = Copy content of right pane to clipboard
+ Ctrl-y  = Copy content of right pane to clipboard
  S       = Show comprehensive System info (system, CPU, filesystem, latest dmesg messages)
  Ctrl-n  = Invoke navi (see https://github.com/denisidoro/navi) with any output in right window
 
