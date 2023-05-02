@@ -14,7 +14,7 @@
 #             for any damages resulting from its use. Further, I am under no
 #             obligation to maintain or extend this software. It is provided 
 #             on an 'as is' basis without any expressed or implied warranty.
-@version    = "3.0.2"
+@version    = "3.0.3"
 
 # PRELIMINARIES
 @help = <<HELPTEXT
@@ -1330,6 +1330,7 @@ def openai # INTERFACE TO OPENAI
   client = OpenAI::Client.new(access_token: @ai)
 
   c = @w_r.text
+  c = "" unless c
   @w_r.fg = 214
   w_r_info("OpenAI description...")
 
@@ -1340,10 +1341,10 @@ def openai # INTERFACE TO OPENAI
   p += "Give a brief summary of its content: " + c unless File.directory?(@selected) and c == ""
 
   response = client.completions( parameters: { model: "text-davinci-003", prompt: p, max_tokens: 200 })
-  begin
+  if response["error"]["message"] == ""
     text = "OpenAI description:\n" + response["choices"][0]["text"]
-  rescue
-    text = "No OpenAI response"
+  else
+    text = response["error"]["message"]
   end
 
   @w_r.fg = 229
