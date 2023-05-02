@@ -18,7 +18,7 @@ Note: RTFM works best with the (u)rxvt, xterm and Eterm terminal emulators.
 ## Features
 
 RTFM is one of the more feature rich terminal file managers. Some of the
-features:
+features are:
 
 * RTFM shows images inline in the terminal (can be turned off)
 * File contents is shown with proper syntax highlighting
@@ -64,17 +64,18 @@ of the selected item (directory or file) is shown in the right pane. The right
 pane is also used to show information such as the currently tagged items, your
 (book)marks, output from commands, etc. 
 
-You can run any command in the bottom "command line" and have the output
+You can run any command in the bottom "command bar" and have the output
 presented in the right pane. Use LEFT and RIGHT keys to go back and forth on
 the command line, HOME to beginning of line, END to end of line, Backspace or
 Ctrl-h to delete previous character, Ctrl-w to delete previous word, TAB to
 complete directories and file names and ENTER to issue the command, while
-Ctrl-u deletes the line. Issuing ENTER on a blank line has no effect.
+Ctrl-u deletes the line. Issuing ENTER on a blank line has no effect. Use
+Ctrl-g to leave the command bar without executing anything.
 
 ## Installation
 
-You can install RTFM by simply coloning this repo and put the file `rtfm` in
-your "bin" directory. Or you can simply run `gem install rtfm-filemanager`.
+You can install RTFM by coloning this repo and put the file `rtfm` in your
+"bin" directory. Or you can simply run `gem install rtfm-filemanager`.
 
 There are two basic prerequisites needed: `x11-utils` and `xdotool`. On
 Ubuntu these would be installed via `apt install x11-utils xdotool`.
@@ -82,12 +83,12 @@ Ubuntu these would be installed via `apt install x11-utils xdotool`.
 In order to run RTFM (without generating [a bunch of
 warnings](https://github.com/isene/RTFM/issues/1)), you need to do a `gem
 install curses` (gets version 1.3.2) instead of installing via `apt install
-ruby-curses` (gets version 1.2.4-1build1 on Ubuntu 20.04). 
+ruby-curses` (gets version 1.2.4-1build1 on Ubuntu 20.04). If you install RTFM
+via `gem install rtfm-filemanager`, this dependency is already taken care of.
 
 Content of text files are handled by `cat` - or by `bat` if you want beautiful
-highlighting. Other files are shown via external programs. It is shown if you
-have the program installed (Debian/Ubuntu family of Linux distros command in
-last column):
+highlighting. Other files are shown via external programs (Debian/Ubuntu
+family of Linux distros command in last column):
 
 File type                   | Requirements                     | Installation
 ----------------------------|----------------------------------|-------------------------------
@@ -112,6 +113,15 @@ sudo cp rtfm /usr/bin/
 cp .rtfm.launch ~/
 echo "source ~/.rtfm.launch" >> .zshrc # or .bashrc if you run bash as shell
 ```
+Or with a simpler gem install:
+```
+sudo apt update
+sudo apt install ruby-full git libncurses-dev x11-utils xdotool bat poppler-utils odt2txt docx2txt catdoc w3m imagemagick ffmpegthumbnailer
+gem install rtfm-filemanager
+echo "source ~/.rtfm.launch" >> .zshrc # or .bashrc if you run bash as shell
+```
+
+If you do a `sudo gem install rtfm-filemanager`, you must also do `cp /root/.rtfm.launch ~/" just immediately after.
 
 ## Screenshot
 
@@ -153,12 +163,12 @@ These are the set of keys to move around and do actions within RTFM:
 Key    | Description
 -------|------------------------------------------------------------------
 ?      | Show this help text
-r      | Refresh RTFM (recreates all windows. Use on terminal resize or when there is garbage somewhere)
+r      | Refresh RTFM (recreates the panes. Use on terminal resize or when there is garbage somewhere)
 R      | Reload configuration (~/.rtfm.conf)
 W      | Write parameters to ~/.rtfm.conf (@lsall, @lslong, @lsorder, @lsinvert, @border, @width, @preview, @tagged, @marks)
 q      | Quit
 Q      | QUIT (without writing changes to the config file)
-v      | Display RTFM version in bottom window/command bar
+v      | Display RTFM version in bottom command bar
 
 ### Motion
 
@@ -187,7 +197,7 @@ M      | Show marked items in right pane
 
 Key    | Description
 -------|------------------------------------------------------------------
-/      | Enter search string in bottom window to highlight matching items and jump to the first match
+/      | Enter search string in bottom command bar to highlight matching items and jump to the first match
 \\	   | Remove search pattern
 n      | Jump to the next item matched by '/'
 N      | Jump to the previous item matched by '/'
@@ -212,7 +222,7 @@ p      | Put (copy) tagged items here
 P      | PUT (move) tagged items here
 s      | Create symlink to tagged items here
 d      | Delete selected item and tagged items. Press 'y' to confirm
-c      | Change/rename selected (adds command to bottom window)
+c      | Change/rename selected (adds the proper command to change in the command bar)
 Ctrl-o | Change ownership to user:group of selected and tagged items
 Ctrl-p | Change permissions of selected and tagged items. Format = rwxr-xr-x or 755 or rwx (applies the trio to user, group and others)
 z      | Extract tagged zipped archive to current directory
@@ -226,7 +236,7 @@ a      | Show all (also hidden) items
 A      | Show All info per item (show item attributes)
 o      | Change the order/sorting of directories (circular toggle)
 i      | Invert/reverse the sorting
-O      | Show the Ordering in the bottom window (the full ls command)
+O      | Show the Ordering in the bottom command bar (the full ls command)
 G      | Show git status for current directory
 H      | Do a cryptographic hash of the current directory with subdirs. If a previous hash was made, compare and report if there has been any change
 I      | Show OpenAI's description of the selected item and its content (if available). You must have installed the ruby-openai gem and added your openai secret key in the .rtfm.conf (add `@ai = "your-secret-openai-key") for this to work. If RTFM is installed as a gem, the ruby-openai gem is included in the installation
@@ -238,7 +248,7 @@ Key    | Description
 ENTER  | Refresh the right pane
 TAB    | Next page of the preview (if doc long and ∇ in the bottom right)
 S-TAB  | Previous page (if you have moved down the document first - ∆ in the top right)
-w      | Change the width of the left/right panes (left pane ⇒ ⅓ ⇒ ¼ ⇒ ⅕ ⇒ ⅙ ⇒ ½ ⇒ ⅓)
+w      | Change the width of the left/right panes (left pane ⇒ 20%, 30%, 40%, 50%, 60%)
 \-      | Toggle preview in right pane (turn it off for faster traversing of directories)
 _      | Toggle preview of images in right pane
 b      | Toggle syntax highlighting (and line numbering)
@@ -248,22 +258,22 @@ b      | Toggle syntax highlighting (and line numbering)
 Key    | Description
 -------|------------------------------------------------------------------
 f      | Show only files in the left pane matching extension(s) (e.g. "txt" or "pdf,png,jpg")
-F      | Show only files matching a pattern (Ruby Regex) (e.g. "abc" or "ab.+12(\w3)*")
+F      | Show only files matching a pattern (Ruby Regex) (e.g. "abc" or "ab.+12(\w3)+")
 B      | Toggle border
-:      | Enter "command mode" in bottom window (press ENTER to execute, press Ctrl-G to escape)
+:      | Enter "command mode" in bottom command bar (press ENTER to execute, press Ctrl-G to escape)
 ;      | Show command history in right pane
 y      | Copy path of selected item to primary selection (for pasting with middle mouse button)
 Y      | Copy path of selected item to clipboard
 Ctrl-y | Copy content of right pane to clipboard
 S      | Show comprehensive system info (system, CPU, filesystem, latest dmesg messages)
-Ctrl-n | Invoke navi (see https://github.com/denisidoro/navi) with any output in right window
+Ctrl-n | Invoke navi (see https://github.com/denisidoro/navi) with any output in right pane
 
 ## Keyboard cheat sheet
 ![RTFM keyboard cheat sheet](img/rtfm-kb.png)
 
 ## A convenient shell function
-Add this line to your `.bashrc` or `.zshrc` to make RTFM exit to the current
-directory by launching the file manager via `r` in the terminal:
+Add this line to your `.bashrc` or `.zshrc` to launch RTFM simply via `r` and
+to exit RTFM to the current directory:
 
 `source ~/.rtfm.launch`
 
@@ -294,7 +304,8 @@ any files containg the word "test", you could do this:
 ```
 
 To change the default width of the left pane to something other than ⅓rd of
-the terminal width: `@width = 5` (would set the left pane width to ⅕th).
+the terminal width: `@width = 5` (would set the left pane width to 50% of the
+window size).
 
 To add borders in RTFM: `@border = true`
 
@@ -348,6 +359,6 @@ others I have found. If you come up with a feature request I feel is cool, I
 may include it. Bug reports are always welcome.
 
 A note to developers: You can hit the "@" key to enter the Ruby debug mode
-where anything you enter in the bottom command window will be sent to the Ruby
+where anything you enter in the bottom command bar will be sent to the Ruby
 eval() function and output to the right pane. You can for instance issue
 `puts @searched` to see the currently active search pattern. 
