@@ -110,18 +110,13 @@ sudo gem install curses
 git clone https://github.com/isene/RTFM
 cd RTFM
 sudo cp rtfm /usr/bin/
-cp .rtfm.launch ~/
-echo "source ~/.rtfm.launch" >> .zshrc # or .bashrc if you run bash as shell
 ```
 Or with a simpler gem install:
 ```
 sudo apt update
 sudo apt install ruby-full git libncurses-dev x11-utils xdotool bat poppler-utils odt2txt docx2txt catdoc w3m imagemagick ffmpegthumbnailer
 gem install rtfm-filemanager
-echo "source ~/.rtfm.launch" >> .zshrc # or .bashrc if you run bash as shell
 ```
-
-If you do a `sudo gem install rtfm-filemanager`, you must also do `cp /root/.rtfm.launch ~/" just immediately after.
 
 ## Screenshot
 
@@ -271,13 +266,12 @@ Ctrl-n | Invoke navi (see https://github.com/denisidoro/navi) with any output in
 ## Keyboard cheat sheet
 ![RTFM keyboard cheat sheet](img/rtfm-kb.png)
 
-## A convenient shell function
-Add this line to your `.bashrc` or `.zshrc` to launch RTFM simply via `r` and
-to exit RTFM to the current directory:
-
-`source ~/.rtfm.launch`
-
-... and place the file `.rtfm.launch` in your home directory.
+## First run
+The first time you run RTFM, you are greeted with a welcome message. RTFM will
+then create a file (`.rtfm.launch`) in your home directory that will let you
+launch RTFM via the one key command `r`. It also lets RTFM exit in the
+directory you are currently in (inside of RTFM) rather than where you launched
+RTFM.
 
 With this, you can jump around in your directory structure via RTFM, exit to
 the desired directory, do work in the terminal and go back into RTFM via `r`.

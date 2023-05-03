@@ -14,7 +14,7 @@
 #             for any damages resulting from its use. Further, I am under no
 #             obligation to maintain or extend this software. It is provided 
 #             on an 'as is' basis without any expressed or implied warranty.
-@version    = "3.0.3"
+@version    = "3.5"
 
 # PRELIMINARIES
 @help = <<HELPTEXT
@@ -116,30 +116,62 @@ ADDITIONAL COMMANDS
 
 COPYRIGHT: Geir Isene, 2020-3. No rights reserved. See http://isene.com for more.
 HELPTEXT
-@firstrun = <<FIRSTRUN
+def firstrun
+  @firstrun = <<~FIRSTRUN
 
-Welcome to RTFM - the Ruby Terminal File Manager. This help text is shown on the first run.
-To benefit fully from all the features, you need to install some auxilliary software.
-On Ubuntu Linux you would use "apt install":
+  Welcome to RTFM - the Ruby Terminal File Manager. This help text is shown on the first run.
+  Next time you run RTFM, you can launch it from your terminal with a one letter command: "r"
+  When launched this way, RTFM will also exit in the directory you are currently in.
 
-Basic requirments is "x11-utils" and "xdotool":           apt install x11-utils xdotool
-Syntax highlighting of text uses "bat":                   apt install bat
-Viewing PDFs uses "pdftotext":                            apt install poppler-utils
-Viewing LibreOffice docs uses "odt2txt":                  apt install odt2txt
-Viewing MS docx	uses "docx2txt":                          apt install docx2txt
-Viewing MS pptx	uses "unzip":                             apt install unzip
-Viewing MS xlsx uses "ssconvert":                         apt install gnumeric
-Viewing MS doc/xls/ppt uses "catdoc, xls2csv and catppt": apt install catdoc
-Viewing Images uses "w3m and ImageMagick":                apt install w3m imagemagick
-Viewing Video thumbnails uses "ffmpegthumbnailer"         apt install ffmpegthumbnailer
+  To benefit fully from all the features, you need to install some auxilliary software.
+  On Ubuntu Linux you would use "apt install":
+
+  Basic requirments is "x11-utils" and "xdotool":           apt install x11-utils xdotool
+  Syntax highlighting of text uses "bat":                   apt install bat
+  Viewing PDFs uses "pdftotext":                            apt install poppler-utils
+  Viewing LibreOffice docs uses "odt2txt":                  apt install odt2txt
+  Viewing MS docx	uses "docx2txt":                          apt install docx2txt
+  Viewing MS pptx	uses "unzip":                             apt install unzip
+  Viewing MS xlsx uses "ssconvert":                         apt install gnumeric
+  Viewing MS doc/xls/ppt uses "catdoc, xls2csv and catppt": apt install catdoc
+  Viewing Images uses "w3m and ImageMagick":                apt install w3m imagemagick
+  Viewing Video thumbnails uses "ffmpegthumbnailer"         apt install ffmpegthumbnailer
+
+  All of the above: 
+  apt install x11-utils xdotool bat poppler-utils odt2txt docx2txt unzip gnumeric catdoc w3m imagemagick ffmpegthumbnailer
 
 FIRSTRUN
-unless File.exist?(Dir.home+'/.rtfm.conf')
+  
+  if not File.exist?(Dir.home+'/.rtfm.launch')
+    @rtfmlaunch = <<RTFMLAUNCH
+# This is the RTFM launcher (https://github.com/isene/RTFM)
+function r { 
+	f=$(mktemp)
+  (
+  set +e
+	rtfm "$f"
+  code=$?
+  if [ "$code" != 0 ]; then
+    rm -f "$f"
+    exit "$code"
+  fi
+  )
+  code=$?
+  if [ "$code" != 0 ]; then
+    return "$code"
+  fi
+  d=$(<"$f")
+  rm -f "$f"
+  cd "$d"
+}
+RTFMLAUNCH
+    File.write(Dir.home+'/.rtfm.launch', @rtfmlaunch)
+    @shell = File.basename(`echo "$SHELL"`.chomp)
+    `echo "source ~/.rtfm.launch" >> .#{@shell}rc`
+  end
+
   puts @firstrun
-  puts "... hit ENTER to show the RTFM help text."
-  STDIN.gets
-  puts @help
-  puts "\n... hit ENTER to start RTFM. Enjoy :-)"
+  puts "\n... hit ENTER to start RTFM. Hit ? inside RTFM to show the help text. Enjoy :-)"
   STDIN.gets
 end
 begin # BASIC SETUP
@@ -149,6 +181,8 @@ begin # BASIC SETUP
   require 'timeout'
   require 'curses'
   include  Curses
+
+  firstrun unless File.exist?(Dir.home+'/.rtfm.conf')
 
   def cmd?(command)
     system("which #{command} > /dev/null 2>&1")
