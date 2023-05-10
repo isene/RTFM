@@ -64,6 +64,9 @@ of the selected item (directory or file) is shown in the right pane. The right
 pane is also used to show information such as the currently tagged items, your
 (book)marks, output from commands, etc. 
 
+When you start RTFM, you can supply a directory path as an argument to let
+RTFM start up in that directory.
+
 You can run any command in the bottom "command bar" and have the output
 presented in the right pane. Use LEFT and RIGHT keys to go back and forth on
 the command line, HOME to beginning of line, END to end of line, Backspace or

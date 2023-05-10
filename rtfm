@@ -14,7 +14,7 @@
 #             for any damages resulting from its use. Further, I am under no
 #             obligation to maintain or extend this software. It is provided 
 #             on an 'as is' basis without any expressed or implied warranty.
-@version    = "3.5"
+@version    = "3.8"
 
 # PRELIMINARIES
 @help = <<HELPTEXT
@@ -199,7 +199,6 @@ begin # BASIC SETUP
   cmd?('bat') ? @bat = "bat" : @bat = "batcat"
 
   STDIN.set_encoding(Encoding::UTF_8) # Set encoding for STDIN 
-  LScolors = `echo $LS_COLORS` # Import LS_COLORS 
 
   ## Curses setup 
   Curses.init_screen
@@ -251,8 +250,10 @@ begin # BASIC SETUP
   if File.exist?(Dir.home+'/.rtfm.conf')
     load(Dir.home+'/.rtfm.conf')
   end
+  Dir.chdir(ARGV[0]) if Dir.exist?(ARGV[0]) and ARGV[0] !~ /\/tmp/
 end
-class Curses::Window # CLASS EXTENSION 
+# CLASS EXTENSIONS
+class Curses::Window 
   attr_accessor :fg, :bg, :attr, :text, :update, :pager, :pager_more, :pager_cmd, :locate, :nohistory
   # General extensions (see https://github.com/isene/Ruby-Curses-Class-Extension)
   def clr
@@ -282,16 +283,6 @@ class Curses::Window # CLASS EXTENSION
   # RTFM specific extensions
 end
 # GENERIC FUNCTIONS 
-def get_ls_color(type) # GET THE COLOR FOR THE FILETYPE FROM IMPORTED LS_COLORS
-  bold    = 0
-  begin
-    color = LScolors.match(/#{type}=\d*;\d*;(\d*)/)[1]
-    bold  = 1 if LScolors.match(/#{type}=\d*;\d*;\d*;1/)
-  rescue
-    color = 7 # Default color
-  end
-  return color.to_i, bold
-end
 def syntax_highlight(input) # SYNTAX HIGHLIGHTING FROM ANSI COLOR CODES
   color_ary  = color_parse(input)
   color_ary.each do | pair |
@@ -308,13 +299,15 @@ def syntax_highlight(input) # SYNTAX HIGHLIGHTING FROM ANSI COLOR CODES
   end
 end
 def color_parse(input) # PARSE ANSI COLOR SEQUENCES
-  input.gsub!( /\e\[\d;38;5;(\d+);*(\d*)m/, '¤¤\1¤¤\2¤¤')
-  input.gsub!( /\e\[38;5;(\d+);*(\d*)m/, '¤¤\1¤¤\2¤¤')
-  input.gsub!( /\e\[\d;38;2;(\d+);*(\d*);\d*m/, '¤¤\1¤¤\2¤¤')
-  input.gsub!( /\e\[38;2;(\d+);*(\d*);\d*m/, '¤¤\1¤¤\2¤¤')
-  input.gsub!( /\e\[0m/, "\t")
+  input.gsub!(/\e\[\d;38;5;(\d+);*(\d*)m/, '¤¤\1¤¤\2¤¤')
+  input.gsub!(/\e\[38;5;(\d+);*(\d*)m/, '¤¤\1¤¤\2¤¤')
+  input.gsub!(/\e\[\d;38;2;(\d+);*(\d*);\d*m/, '¤¤\1¤¤\2¤¤')
+  input.gsub!(/\e\[38;2;(\d+);*(\d*);\d*m/, '¤¤\1¤¤\2¤¤')
+  input.gsub!(/\e\[\d+;(\d+);*(\d*)m/, '¤¤\1¤¤\2¤¤')
+  input.gsub!(/\e\[0m/, "")
   color_array = input.split("¤¤")
   color_array = color_array.drop(1)
+  #color_array.map! { |x| x || 0 }
   output = color_array.each_slice(3).to_a
   return output
 end
@@ -960,7 +953,8 @@ end
 def get_files(win) # The core of the directory listings
   ls_cmd  = "ls 2>/dev/null #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}" # Get files in current directory 
   ls_cmd += @selected_safe if win == "right"
-  @files  = `#{ls_cmd}`.split("\n")
+  @cfiles = `#{ls_cmd} --color`.split("\n")
+  @files  = @cfiles.map {|f| f.sub(/^\e\[.*\dm(..*$)/, '\1').sub(/\e.+/, '')}
   ls_cmd += " -H " if win == "right"
   ls_cmd += %q[ -lh --time-style="long-iso" | awk '{printf "%s%s%s%11s%6s%6s", $1, " " $3, ":" $4,$6,$7,$5"\n"}']
   @fspes  = `#{ls_cmd}`.split("\n").drop(1)
@@ -1027,7 +1021,8 @@ def list_dir(active) # LIST CONTENT OF A DIRECTORY (BOTH active AND RIGHT WINDOW
     @cont = ""
   end
   while ix < @files.size and t < win.maxy do
-    str = @files[ix]
+    str  = @files[ix]
+    cstr = @cfiles[ix]
     active ? str_path = str : str_path = "#{@selected}/#{str}" 
     begin # Add items matching @tag to @tagged
       if str.match(/#{@tag}/) and @tag != false
@@ -1036,25 +1031,9 @@ def list_dir(active) # LIST CONTENT OF A DIRECTORY (BOTH active AND RIGHT WINDOW
       end
     rescue
     end
-    # Determine the filetype of the item 
-    ftype = ""
-    ftype = str.match(/\.([^.]*$)/)[1] if str.match?(/\.([^.]*$)/)
-    # Set special filetypes (sequence matters)
-    ftype = "bd" if File.blockdev?(str_path)
-    ftype = "cd" if File.chardev?(str_path)
-    ftype = "pi" if File.pipe?(str_path)
-    ftype = "st" if File.sticky?(str_path)
-    ftype = "so" if File.socket?(str_path)
-    ftype = "ex" if File.executable?(str_path)
-    ftype = "di" if File.directory?(str_path)
-    ftype = "ln" if File.symlink?(str_path) 
-    begin
-      File.stat(str_path) # Checking if not an orphaned link
-    rescue
-      ftype = "or"        # Set to orphant if no link target
-    end
     fg = 7; bold = 0; bg = 0 # Set default color
-    fg, bold = get_ls_color(ftype) unless ftype == "" # Color from LS_COLORS
+    fl = color_parse(cstr)
+    fg, bold = fl[0][0].to_i, fl[0][1].to_i unless fl[0] == nil
     init_pair(fg, fg, bg)
     file_marker = color_pair(fg)
     file_marker = file_marker | Curses::A_BOLD if bold == 1
@@ -1708,7 +1687,7 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     close_screen
     # If launched via the script "r", return current dir and "r" will cd to that
     begin
-      File.write(ARGV[0], Dir.pwd) if ARGV[0] and ARGV[0].match(/\/tmp\/tmp/)
+      File.write(ARGV[0], Dir.pwd) if ARGV[0] and ARGV[0].match(/\/tmp/)
     rescue
     end
   end
