@@ -14,7 +14,7 @@
 #             for any damages resulting from its use. Further, I am under no
 #             obligation to maintain or extend this software. It is provided 
 #             on an 'as is' basis without any expressed or implied warranty.
-@version    = "3.8"
+@version    = "3.9"
 
 # PRELIMINARIES
 @help = <<HELPTEXT
@@ -177,6 +177,7 @@ end
 begin # BASIC SETUP
   require 'fileutils'
   require 'io/console'
+  require 'io/wait'
   require 'date'
   require 'timeout'
   require 'curses'
@@ -318,9 +319,9 @@ def getchr # PROCESS KEY PRESSES
   c = STDIN.getch(min: 0, time: 3)
   case c
   when "\e"    # ANSI escape sequences
-    case $stdin.getc
+    case STDIN.getc
     when '['   # CSI
-      case $stdin.getc
+      case STDIN.getc
       when 'A' then chr = "UP"
       when 'B' then chr = "DOWN"
       when 'C' then chr = "RIGHT"
@@ -334,7 +335,7 @@ def getchr # PROCESS KEY PRESSES
       when '8' then chr = "END"    ; chr = "C-END"    if STDIN.getc == "^"
       end
     when 'O'   # Set Ctrl+ArrowKey equal to ArrowKey; May be used for other purposes in the future
-      case $stdin.getc
+      case STDIN.getc
       when 'a' then chr = "C-UP"
       when 'b' then chr = "C-DOWN"
       when 'c' then chr = "C-RIGHT"
@@ -344,6 +345,7 @@ def getchr # PROCESS KEY PRESSES
   when "", "" then chr = "BACK"
   when "" then chr = "WBACK"
   when "" then chr = "LDEL"
+  when "" then chr = "C-C"
   when "" then chr = "C-G"
   when "" then chr = "C-L"
   when "" then chr = "C-N"
@@ -353,7 +355,7 @@ def getchr # PROCESS KEY PRESSES
   when "" then chr = "C-Y"
   when "\r" then chr = "ENTER"
   when "\t" then chr = "TAB"
-  when /./  then chr = c
+  when /[[:print:]]/  then chr = c
   end
   return chr
 end
@@ -1440,7 +1442,7 @@ def w_b_getstr(pretext, text) # A SIMPLE READLINE-LIKE ROUTINE
     @w_b.setpos(0,pretext.length + pos)
     @w_b.refresh
     chr = getchr
-    if chr == "C-G"
+    if chr == 'C-G' or chr == 'C-C'
       Curses.curs_set(0)
       Curses.noecho
       @w_b.update = true
@@ -1530,6 +1532,11 @@ def w_b_getstr(pretext, text) # A SIMPLE READLINE-LIKE ROUTINE
       @history[stk].sub!(c,compl)
       pos = pos - c.length + compl.length
     when /^.$/
+      @history[stk].insert(pos,chr)
+      pos += 1
+    end
+    while STDIN.ready?
+      chr = STDIN.getc
       @history[stk].insert(pos,chr)
       pos += 1
     end
