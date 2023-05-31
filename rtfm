@@ -14,7 +14,7 @@
 #             for any damages resulting from its use. Further, I am under no
 #             obligation to maintain or extend this software. It is provided 
 #             on an 'as is' basis without any expressed or implied warranty.
-@version    = "3.10"
+@version    = "3.11"
 
 # PRELIMINARIES
 @help = <<HELPTEXT
@@ -1433,10 +1433,11 @@ def w_b_getstr(pretext, text) # A SIMPLE READLINE-LIKE ROUTINE
   @history.insert(stk, text)
   pos = @history[stk].length
   chr = ""
+  @history_copy = @history.map(&:clone)
   while chr != "ENTER"
     @w_b.setpos(0,0)
     init_pair(250, 250, 238)
-    text = pretext + @history[stk]
+    text = pretext + @history_copy[stk]
     text += " " * (@w_b.maxx - text.length) if text.length < @w_b.maxx
     @w_b.attron(color_pair(250)) { @w_b << text }
     @w_b.setpos(0,pretext.length + pos)
@@ -1451,50 +1452,50 @@ def w_b_getstr(pretext, text) # A SIMPLE READLINE-LIKE ROUTINE
     case chr
     when 'UP'
       unless @w_b.nohistory
-        unless stk == @history.length - 1
+        unless stk == @history_copy.length - 1
           stk += 1 
-          pos = @history[stk].length
+          pos = @history_copy[stk].length
         end
       end
     when 'DOWN'
       unless @w_b.nohistory
         unless stk == 0
           stk -= 1 
-          pos = @history[stk].length
+          pos = @history_copy[stk].length
         end
       end
     when 'RIGHT'
-      pos += 1 unless pos > @history[stk].length
+      pos += 1 unless pos > @history_copy[stk].length
     when 'LEFT'
       pos -= 1 unless pos == 0
     when 'HOME'
       pos = 0
     when 'END'
-      pos = @history[stk].length
+      pos = @history_copy[stk].length
     when 'DEL'
-      @history[stk][pos] = ""
+      @history_copy[stk][pos] = ""
     when 'BACK'
       unless pos == 0
         pos -= 1
-        @history[stk][pos] = ""
+        @history_copy[stk][pos] = ""
       end
     when 'WBACK'
       unless pos == 0
-        until @history[stk][pos - 1] == " " or pos == 0
+        until @history_copy[stk][pos - 1] == " " or pos == 0
           pos -= 1
-          @history[stk][pos] = ""
+          @history_copy[stk][pos] = ""
         end
-        if @history[stk][pos - 1] == " "
+        if @history_copy[stk][pos - 1] == " "
           pos -= 1
-          @history[stk][pos] = ""
+          @history_copy[stk][pos] = ""
         end
       end
     when 'LDEL'
-      @history[stk] = ""
+      @history_copy[stk] = ""
       pos = 0
     when 'TAB' # Tab completion of dirs and files
       p1 = pos - 1
-      c  = @history[stk][0..(p1)].sub(/^.* /, '')
+      c  = @history_copy[stk][0..(p1)].sub(/^.* /, '')
       p0 = p1 - c.length
       compl = File.expand_path(c)
       compl += "/" if Dir.exist?(compl)
@@ -1529,20 +1530,21 @@ def w_b_getstr(pretext, text) # A SIMPLE READLINE-LIKE ROUTINE
           Curses.echo
         end
       end
-      @history[stk].sub!(c,compl)
+      @history_copy[stk].sub!(c,compl)
       pos = pos - c.length + compl.length
     when /^.$/
-      @history[stk].insert(pos,chr)
+      @history_copy[stk].insert(pos,chr)
       pos += 1
     end
     while STDIN.ready?
       chr = STDIN.getc
-      @history[stk].insert(pos,chr)
+      @history_copy[stk].insert(pos,chr)
       pos += 1
     end
   end
-  curstr = @history[stk]
-  @history.shift if @w_b.nohistory
+  curstr = @history_copy[stk]
+  @history_copy.shift if @w_b.nohistory
+  @history.insert(0, @history_copy[stk])
   unless @w_b.nohistory
     @history.uniq!
     @history.compact!
