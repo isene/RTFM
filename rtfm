@@ -211,42 +211,43 @@ begin # BASIC SETUP
 
   # INITIALIZE VARIABLES 
   ## These can be set by user in .rtfm.conf
-  @lsbase     = "--group-directories-first" # Basic ls setup
-  @lslong     = false # Set short form ls (toggled by pressing "l")
-  @lsall      = ""    # Set "ls -a" to false (toggled by pressing "a" - sets it to "-a")
-  @lsorder    = ""    # Change the order/sorting by pressing 'o' (circular toggle)
-  @lsinvert   = ""    # Set to "-r" to reverse/invert sorting order
-  @lsuser     = ""    # Set this variable in .rtfm.conf to any 'ls' switch you want to customize directory listings
-  @width      = 4     # Set width of the left pane to the default ⅓ of the terminal width
-  @history    = []    # Initialize the command line history array
-  @border     = false
-  @preview    = true
-  @runmailcap = false # Set to 'true' in .rtfm.conf if you want to use run-mailcap instead of xdg-open
-  @batuse     = true  # Use batcat for syntax highlighting
+  @lsbase      = "--group-directories-first" # Basic ls setup
+  @lslong      = false # Set short form ls (toggled by pressing "l")
+  @lsall       = ""    # Set "ls -a" to false (toggled by pressing "a" - sets it to "-a")
+  @lsorder     = ""    # Change the order/sorting by pressing 'o' (circular toggle)
+  @lsinvert    = ""    # Set to "-r" to reverse/invert sorting order
+  @lsuser      = ""    # Set this variable in .rtfm.conf to any 'ls' switch you want to customize directory listings
+  @width       = 4     # Set width of the left pane to the default ⅓ of the terminal width
+  @history     = []    # Initialize the command line history array
+  @rubyhistory = []    # Initialize the command line history array for ruby commands
+  @border      = false
+  @preview     = true
+  @runmailcap  = false # Set to 'true' in .rtfm.conf if you want to use run-mailcap instead of xdg-open
+  @batuse      = true  # Use batcat for syntax highlighting
   ## These are automatically written on exit
-  @marks      = {}    # Initialize (book)marks hash
-  @hash       = {}    # Initialize the sha directory hashing
-  @tagged     = []    # Initialize the tagged array - for collecting all tagged items
+  @marks       = {}    # Initialize (book)marks hash
+  @hash        = {}    # Initialize the sha directory hashing
+  @tagged      = []    # Initialize the tagged array - for collecting all tagged items
   ## These should not be set by user in .rtfm.conf
-  @directory  = {}    # Initialize the directory hash for remembering directories visited
-  @searched   = ""    # Initialize the active searched for items
-  @lsfiles    = ""    # File types to show (initially set to all file types) - not saved on exit
-  @lsmatch    = ""    # Files to match (initially set to matching all files) - not saved on exit
-  @index      = 0     # Set chosen item to first on startup
-  @cont       = ""
-  @tagsize    = 0
-  @navi       = ""
-  @marks["'"] = Dir.pwd
+  @directory   = {}    # Initialize the directory hash for remembering directories visited
+  @searched    = ""    # Initialize the active searched for items
+  @lsfiles     = ""    # File types to show (initially set to all file types) - not saved on exit
+  @lsmatch     = ""    # Files to match (initially set to matching all files) - not saved on exit
+  @index       = 0     # Set chosen item to first on startup
+  @cont        = ""
+  @tagsize     = 0
+  @navi        = ""
+  @marks["'"]  = Dir.pwd
   ## File type recognizers
-  @imagefile  = /\.jpg$|\.JPG$|\.jpeg$|\.png$|\.bmp$|\.gif$|\.tif$|\.tiff$/
-  @pptfile    = /\.ppt$/
-  @xlsfile    = /\.xls$/
-  @docfile    = /\.doc$/
-  @docxfile   = /\.docx$/
-  @xlsxfile   = /\.xlsx$/
-  @pptxfile   = /\.pptx$/
-  @oolofile   = /\.odt$|\.odc$|\.odp$|\.odg$/
-  @pdffile    = /\.pdf$|\.ps$/
+  @imagefile   = /\.jpg$|\.JPG$|\.jpeg$|\.png$|\.bmp$|\.gif$|\.tif$|\.tiff$/
+  @pptfile     = /\.ppt$/
+  @xlsfile     = /\.xls$/
+  @docfile     = /\.doc$/
+  @docxfile    = /\.docx$/
+  @xlsxfile    = /\.xlsx$/
+  @pptxfile    = /\.pptx$/
+  @oolofile    = /\.odt$|\.odc$|\.odp$|\.odg$/
+  @pdffile     = /\.pdf$|\.ps$/
   ## Get variables from config file (written back to .rtf.conf upon exit via 'q')
   if File.exist?(Dir.home+'/.rtfm.conf')
     load(Dir.home+'/.rtfm.conf')
@@ -876,7 +877,7 @@ def main_getkey # GET KEY FROM USER
     @break = true
   when '@' # Enter "Ruby debug"
     @w_b.nohistory = false
-    cmd = w_b_getstr("◆ ", "")
+    cmd = w_b_getstr("◆ ", "", true)
     @w_b.clr
     @w_b.refresh
     @w_b.update = true
@@ -912,6 +913,10 @@ def conf_write
   conf += "@hash = #{@hash}\n"
   conf.sub!(/^@tagged.*\[.*\]\n/, "")
   conf += "@tagged = #{@tagged}\n"
+  conf.sub!(/^@history.*\[.*\]\n/, "")
+  conf += "@history = #{@history}\n"
+  conf.sub!(/^@rubyhistory.*\[.*\]\n/, "")
+  conf += "@rubyhistory = #{@rubyhistory}\n"
   if @write_conf_all
     conf.sub!(/^@lslong.*\n/, "") 
     conf += "@lslong = #{@lslong}\n"
@@ -1426,14 +1431,19 @@ def w_b_info(info) # SHOW INFO IN @W_B
   @w_b.write
   @w_b.update = false
 end
-def w_b_getstr(pretext, text) # A SIMPLE READLINE-LIKE ROUTINE
+def w_b_getstr(pretext, text, ruby=false) # A SIMPLE READLINE-LIKE ROUTINE
   Curses.curs_set(1)
   Curses.echo
   stk = 0
-  @history.insert(stk, text)
-  pos = @history[stk].length
   chr = ""
-  @history_copy = @history.map(&:clone)
+  if ruby
+    @rubyhistory.insert(stk, text)
+    @history_copy = @rubyhistory.map(&:clone)
+  else
+    @history.insert(stk, text)
+    @history_copy = @history.map(&:clone)
+  end
+  pos = @history_copy[stk].length
   while chr != "ENTER"
     @w_b.setpos(0,0)
     init_pair(250, 250, 238)
@@ -1544,11 +1554,14 @@ def w_b_getstr(pretext, text) # A SIMPLE READLINE-LIKE ROUTINE
   end
   curstr = @history_copy[stk]
   @history_copy.shift if @w_b.nohistory
-  @history.insert(0, @history_copy[stk])
+  ruby ? @rubyhistory.insert(0, @history_copy[stk]) : @history.insert(0, @history_copy[stk])
   unless @w_b.nohistory
     @history.uniq!
     @history.compact!
     @history.delete("")
+    @rubyhistory.uniq!
+    @rubyhistory.compact!
+    @rubyhistory.delete("")
   end
   Curses.curs_set(0)
   Curses.noecho
