@@ -14,7 +14,7 @@
 #             for any damages resulting from its use. Further, I am under no
 #             obligation to maintain or extend this software. It is provided 
 #             on an 'as is' basis without any expressed or implied warranty.
-@version    = "3.12" 
+@version    = "3.14" 
 
 # PRELIMINARIES
 @help = <<HELPTEXT
@@ -885,8 +885,8 @@ def main_getkey # GET KEY FROM USER
     info = "Command: #{cmd}\n\n"
     begin
       info += eval(cmd).to_s
-    rescue StandardError => e
-      info += "Error: #{e.inspect}"
+    rescue Exception => err
+      info += "Error: #{err.inspect}"
     end
     w_r_info(info)
     @w_r.update = false
@@ -1133,7 +1133,7 @@ def copy_move_link(type) # COPY OR MOVE TAGGED ITEMS (COPY IF "keep == true")
         FileUtils.ln_s(item, dest)
         w_b_info(" Item(s) symlinked here.")
       end
-    rescue StandardError => err
+    rescue Exception => err
       w_b_info(err.to_s)
     end
   end
@@ -1227,16 +1227,19 @@ def w_r_doc # GET FULL CONTENT TO PAGE
   @w_r << @w_r.text
 end
 def w_r_info(info) # SHOW INFO IN THE RIGHT WINDOW
-  image_show("clear") if @image; @image = false
-  @w_r.clr
-  @w_r.refresh
-  w_r_width = Curses.cols - (Curses.cols * @width / 10) - 2
-  info.gsub!(/(.{1,#{w_r_width}})( +|$\n?)|(.{1,#{w_r_width}})/, "\\1\\3\n")
-  @w_r.text      = info
-  @w_r.pager_cmd = ""
-  pager_start
-  pager_show
-  @w_r.update = false
+  begin
+    image_show("clear") if @image; @image = false
+    @w_r.clr
+    @w_r.refresh
+    w_r_width = Curses.cols - (Curses.cols * @width / 10) - 2
+    info.gsub!(/(.{1,#{w_r_width}})( +|$\n?)|(.{1,#{w_r_width}})/, "\\1\\3\n")
+    @w_r.text      = info
+    @w_r.pager_cmd = ""
+    pager_start
+    pager_show
+    @w_r.update = false
+  rescue
+  end
 end
 def marks_info # SHOW MARKS IN RIGHT WINDOW
   @w_r.fg = 183
@@ -1702,6 +1705,9 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       break if Curses.cols != maxx or Curses.lines != maxy # break on terminal resize 
       break if @break    # Break to outer loop, redrawing windows, if user hit 'r'
     end
+  rescue Exception => err # Throw error nicely
+    w_r_info(err)
+    @w_r.update = false
   ensure # On exit: close curses, clear terminal 
     @write_conf_all = false
     conf_write if @write_conf # Write marks to config file
