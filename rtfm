@@ -1705,7 +1705,7 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       break if Curses.cols != maxx or Curses.lines != maxy # break on terminal resize 
       break if @break    # Break to outer loop, redrawing windows, if user hit 'r'
     end
-  rescue Exception => err # Throw error nicely
+  rescue StandardError => err # Throw error nicely
     w_r_info(err)
     @w_r.update = false
   ensure # On exit: close curses, clear terminal 
