@@ -252,7 +252,7 @@ begin # BASIC SETUP
   if File.exist?(Dir.home+'/.rtfm.conf')
     load(Dir.home+'/.rtfm.conf')
   end
-  Dir.chdir(ARGV[0]) if Dir.exist?(ARGV[0]) and ARGV[0] !~ /\/tmp/
+  Dir.chdir(ARGV[0]) if ARGV[0] and Dir.exist?(ARGV[0]) and ARGV[0] !~ /\/tmp/
 end
 # CLASS EXTENSIONS
 class Curses::Window 
