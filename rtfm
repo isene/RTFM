@@ -14,7 +14,7 @@
 #             for any damages resulting from its use. Further, I am under no
 #             obligation to maintain or extend this software. It is provided 
 #             on an 'as is' basis without any expressed or implied warranty.
-@version    = "3.14" 
+@version    = "3.14.15" 
 
 # PRELIMINARIES
 @help = <<HELPTEXT
@@ -1100,12 +1100,12 @@ def open_selected(html = nil) # OPEN SELECTED ITEM (when pressing RIGHT)
       if File.read(@selected).force_encoding("UTF-8").valid_encoding? and not html
         system("exec $EDITOR #{@selected_safe}")
       else
-          if @runmailcap
-            Thread.new { system("run-mailcap #{@selected_safe} 2>/dev/null") }
-          else
-            Thread.new { system("xdg-open #{@selected_safe} 2>/dev/null") }
-          end
+        if @runmailcap
+          Thread.new { system("run-mailcap #{@selected_safe} 2>/dev/null") }
+        else
+          Thread.new { system("xdg-open #{@selected_safe} 2>/dev/null") }
         end
+      end
       @break = true
     rescue
     end
@@ -1643,8 +1643,6 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       tagged_info
       @w_r.update = false
     end
-    @change     = true
-    @change_tag = true # For future need to force @change
     loop do # INNER, CORE LOOP 
       begin # Jump to home dir if current dir is externally removed
         Dir.pwd
@@ -1676,13 +1674,8 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
       @selected       = @files[@index]                     # Get text of selected item
       sel_old         = @selected_safe
       @selected_safe  = "\"#{@selected}\""                 # Make it safe for commands
-      @selected_safe == sel_old ? @change = false : @change = true
-      @change         = true if @change_tag; @change_tag = false
-      if @change
-        system("printf \"\033]0;RTFM: #{Dir.pwd}\007\"")   # Set Window title to path 
-        # Top window (info line) 
-        w_t_info
-      end
+      system("printf \"\033]0;RTFM: #{Dir.pwd}\007\"")     # Set Window title to path 
+      w_t_info                                             # Top window (info line) 
       @w_l.setpos(0,0)
       list_dir(true)
       @w_l.refresh
