@@ -263,8 +263,9 @@ B      | Toggle border
 y      | Copy path of selected item to primary selection (for pasting with middle mouse button)
 Y      | Copy path of selected item to clipboard
 Ctrl-y | Copy content of right pane to clipboard
-S      | Show comprehensive system info (system, CPU, filesystem, latest dmesg messages)
+Ctrl-d | Create a new directory (a shortcut for ":mkdir ")
 Ctrl-n | Invoke navi (see https://github.com/denisidoro/navi) with any output in right pane
+S      | Show comprehensive system info (system, CPU, filesystem, latest dmesg messages)
 
 ## Keyboard cheat sheet
 ![RTFM keyboard cheat sheet](img/rtfm-kb.png)

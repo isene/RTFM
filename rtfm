@@ -14,7 +14,7 @@
 #             for any damages resulting from its use. Further, I am under no
 #             obligation to maintain or extend this software. It is provided 
 #             on an 'as is' basis without any expressed or implied warranty.
-@version    = "3.14.15" 
+@version    = "3.14.159" 
 
 # PRELIMINARIES
 @help = <<HELPTEXT
@@ -111,10 +111,11 @@ ADDITIONAL COMMANDS
  y       = Copy path of selected item to primary selection (for pasting with middle mouse button)
  Y       = Copy path of selected item to clipboard
  Ctrl-y  = Copy content of right pane to clipboard
- S       = Show comprehensive System info (system, CPU, filesystem, latest dmesg messages)
+ Ctrl-d  = Create a new directory (a shortcut for ":mkdir ")
  Ctrl-n  = Invoke navi (see https://github.com/denisidoro/navi) with any output in right window
+ S       = Show comprehensive System info (system, CPU, filesystem, latest dmesg messages)
 
-COPYRIGHT: Geir Isene, 2020-3. No rights reserved. See http://isene.com for more.
+COPYRIGHT: Geir Isene, 2020-4. No rights reserved. See http://isene.com for more.
 HELPTEXT
 def firstrun
   @firstrun = <<~FIRSTRUN
@@ -347,6 +348,7 @@ def getchr # PROCESS KEY PRESSES
   when "" then chr = "WBACK"
   when "" then chr = "LDEL"
   when "" then chr = "C-C"
+  when "" then chr = "C-D"
   when "" then chr = "C-G"
   when "" then chr = "C-L"
   when "" then chr = "C-N"
@@ -868,6 +870,9 @@ def main_getkey # GET KEY FROM USER
     system("echo -n '#{@cont}' | #{clip}")
   when 'S' # Show comprehensive system info
     sysinfo
+  when 'C-D' # Create new directory (shortcut for ":mkdir ")
+    cmd = w_b_getstr(": ", "mkdir ")
+    w_b_exec(cmd)
   when 'C-N' # navi integration (https://github.com/denisidoro/navi)
     begin
       @navi = `navi`
@@ -1073,7 +1078,7 @@ def list_dir(active) # LIST CONTENT OF A DIRECTORY (BOTH active AND RIGHT WINDOW
     win.attron(file_marker) { win << str } # Implement color/bold to the item
     win.clrtoeol
     win << "\n"
-    ix += 1; t  += 1
+    ix += 1; t += 1
   end
   (win.maxy - win.cury).times {win.deleteln()} # Clear to bottom of window
   if active
@@ -1623,8 +1628,8 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     maxx = Curses.cols
     maxy = Curses.lines
     # Curses::Window.new(h,w,y,x)
-    @w_t = Curses::Window.new(1, 0, 0, 0)
-    @w_b = Curses::Window.new(1, 0, maxy - 1, 0)
+    @w_t = Curses::Window.new(1, maxx, 0, 0)
+    @w_b = Curses::Window.new(1, maxx, maxy - 1, 0)
     @w_l = Curses::Window.new(maxy - 3, (maxx * @width / 10) - 1, 2, 0)
     @w_r = Curses::Window.new(maxy - 4, maxx - (maxx * @width / 10), 2, maxx * @width / 10)
     @w_p = Curses::Window.new(1, maxx - (maxx * @width / 10), maxy - 2, maxx * @width / 10)
