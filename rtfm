@@ -14,7 +14,7 @@
 #             for any damages resulting from its use. Further, I am under no
 #             obligation to maintain or extend this software. It is provided 
 #             on an 'as is' basis without any expressed or implied warranty.
-@version    = "3.14.159" 
+@version    = "3.14.1592" 
 
 # PRELIMINARIES
 @help = <<HELPTEXT
@@ -1066,7 +1066,7 @@ def list_dir(active) # LIST CONTENT OF A DIRECTORY (BOTH active AND RIGHT WINDOW
       base_length = base_name.length
       ext_name    = File.extname(str)
       ext_length  = ext_name.length
-      nbl = win.maxx - 5 - ext_length # nbl: new_base_length
+      nbl = win.maxx - 6 - ext_length # nbl: new_base_length
       str = base_name[0..nbl] + "…" + ext_name
     end
     if !active and ix == win.maxy - 1 # Add indicator of more at bottom @w_r list 
