@@ -5,15 +5,15 @@
 What other features can I cram into this file manager?
 
 ## What?
-RTFM is a file manager for the terminal written in Ruby. It lets you browse
-directories and view the content of directories and files. Files are syntax
-highlighted, images are shown in the terminal, videos are thumbnailed, etc.
-You can bookmark and jump around easily, delete, rename, copy, symlink and
-move files. RTFM has a a wide range of other features. Read on for what it can
-do. RTFM consists of just one executable file and thereby easily ported across
-systems.
+RTFM is a terminal file manager jam packed with features.
 
-Note: RTFM works best with the (u)rxvt, xterm and Eterm terminal emulators.
+Apart from viewing and manipulating directories, you get syntax highlighting
+of file content, image and video thumbnailing in the terminal, OpenAI
+integration, system info panel, git status, fzf and navi integration and much,
+much more.
+
+Note: RTFM (Ruby Terminal File Manager) works best with the (u)rxvt, xterm and
+Eterm terminal emulators.
 
 ## Features
 
