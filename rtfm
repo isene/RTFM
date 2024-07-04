@@ -14,7 +14,7 @@
 #             for any damages resulting from its use. Further, I am under no
 #             obligation to maintain or extend this software. It is provided 
 #             on an 'as is' basis without any expressed or implied warranty.
-@version    = "3.14.15926" 
+@version    = "3.15"
 
 # PRELIMINARIES
 @help = <<HELPTEXT
@@ -1403,8 +1403,8 @@ def sysinfo
     cpu      = "CPUs = " + `nproc`.chop + "  "
     cpuinfo  = `lscpu`
     cpu     += cpuinfo[/^.*Model name:\s*(.*)/, 1] + "  "
-    cpu     += "Max: " + cpuinfo[/^.*CPU max MHz:\s*(.*)/, 1][/(.*),.*/, 1] + "MHz  "
-    cpu     += "Min: " + cpuinfo[/^.*CPU min MHz:\s*(.*)/, 1][/(.*),.*/, 1] + "MHz\n\n"
+    cpu     += "Max: " + cpuinfo[/^.*CPU max MHz:\s*(.*)/, 1].to_i.to_s + "MHz  "
+    cpu     += "Min: " + cpuinfo[/^.*CPU min MHz:\s*(.*)/, 1].to_i.to_s + "MHz\n\n"
     text    += [[154, 0, cpu]]
     mem      = `free -h`  + "\n"
     text    += [[229, 0, mem]]
@@ -1413,7 +1413,8 @@ def sysinfo
     disk     = `df -H | head -8`
     text    += [[172, 0, disk]]
     dmesg    = "\nDMESG (latest first):\n"
-    dmesg   += `dmesg | tail -6`.split("\n").sort.reverse.join("\n")
+    dcmd     = `dmesg 2>/dev/null | tail -6`.split("\n").sort.reverse.join("\n")
+    dcmd != "" ? dmesg += dcmd : dmesg   += "dmesg requires root, run 'sudo sysctl kernel.dmesg_restrict=0' if you need permission\n"
     text    += [[219, 0, dmesg]]
     w_r_info(ansifix(text))
   rescue
