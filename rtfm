@@ -14,7 +14,7 @@
 #             for any damages resulting from its use. Further, I am under no
 #             obligation to maintain or extend this software. It is provided 
 #             on an 'as is' basis without any expressed or implied warranty.
-@version    = "3.15"
+@version    = "3.16"
 
 # PRELIMINARIES
 @help = <<HELPTEXT
@@ -872,7 +872,7 @@ def main_getkey # GET KEY FROM USER
     sysinfo
   when 'C-D' # Create new directory (shortcut for ":mkdir ")
     cmd = w_b_getstr(": ", "mkdir ")
-    w_b_exec(cmd)
+    w_b_exec(cmd + " -p")
   when 'C-N' # navi integration (https://github.com/denisidoro/navi)
     begin
       @navi = `navi`
@@ -1595,11 +1595,11 @@ def w_b_exec(cmd) # EXECUTE COMMAND FROM @W_B
     status = Timeout::timeout(15) {
       @w_r.clr
       begin
-        @w_r.pager_cmd = "#{cmd} | #{@bat} -n --color=always 2>/dev/null"
-        @w_r.text = `#{@w_r.pager_cmd}`
+        @w_r.pager_cmd = "#{cmd} 2>&1 | #{@bat} -n --color=always"
+        @w_r.text = %x(#{@w_r.pager_cmd})
       rescue
-        @w_r.pager_cmd = "#{cmd} 2>/dev/null"
-        @w_r.text = `#{@w_r.pager_cmd}`
+        @w_r.pager_cmd = "#{cmd} 2>&1"
+        @w_r.text = %x(#{@w_r.pager_cmd})
       end
       unless @w_r.text == "" or @w_r.text == nil
         pager_start
