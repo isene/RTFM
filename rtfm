@@ -14,7 +14,7 @@
 #             for any damages resulting from its use. Further, I am under no
 #             obligation to maintain or extend this software. It is provided 
 #             on an 'as is' basis without any expressed or implied warranty.
-@version    = "3.16"
+@version    = "3.17"
 
 # PRELIMINARIES
 @help = <<HELPTEXT
@@ -905,6 +905,7 @@ def main_getkey # GET KEY FROM USER
     @w_r.update = true if dir != Dir.pwd
   rescue
   end
+  $STDIN = ""
 end
 def conf_write
   if File.exist?(Dir.home+'/.rtfm.conf')
