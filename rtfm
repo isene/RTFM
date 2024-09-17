@@ -14,7 +14,7 @@
 #             for any damages resulting from its use. Further, I am under no
 #             obligation to maintain or extend this software. It is provided 
 #             on an 'as is' basis without any expressed or implied warranty.
-@version    = "3.17"
+@version    = "3.17.1"
 
 # PRELIMINARIES
 @help = <<HELPTEXT
@@ -335,6 +335,7 @@ def getchr # PROCESS KEY PRESSES
       when '6' then chr = "PgDOWN" ; chr = "C-PgDOWN" if STDIN.getc == "^"
       when '7' then chr = "HOME"   ; chr = "C-HOME"   if STDIN.getc == "^"
       when '8' then chr = "END"    ; chr = "C-END"    if STDIN.getc == "^"
+      else chr = ""
       end
     when 'O'   # Set Ctrl+ArrowKey equal to ArrowKey; May be used for other purposes in the future
       case STDIN.getc
@@ -342,6 +343,7 @@ def getchr # PROCESS KEY PRESSES
       when 'b' then chr = "C-DOWN"
       when 'c' then chr = "C-RIGHT"
       when 'd' then chr = "C-LEFT"
+      else chr = ""
       end
     end
   when "", "" then chr = "BACK"
@@ -359,6 +361,7 @@ def getchr # PROCESS KEY PRESSES
   when "\r" then chr = "ENTER"
   when "\t" then chr = "TAB"
   when /[[:print:]]/  then chr = c
+  else chr = ""
   end
   return chr
 end
@@ -905,7 +908,7 @@ def main_getkey # GET KEY FROM USER
     @w_r.update = true if dir != Dir.pwd
   rescue
   end
-  $STDIN = ""
+  #$STDIN = ""
 end
 def conf_write
   if File.exist?(Dir.home+'/.rtfm.conf')
