@@ -5,7 +5,7 @@
 What other features can I cram into this file manager?
 
 ## What?
-![RTFM](img/logo.jpg | width=100) RTFM is a terminal file manager jam packed with features.
+<img src="img/logo.jpg" width="100" height="100"> RTFM is a terminal file manager jam packed with features.
 
 Apart from viewing and manipulating directories, you get syntax highlighting
 of file content, image and video thumbnailing in the terminal, OpenAI
