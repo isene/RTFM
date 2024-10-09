@@ -4,7 +4,9 @@
 
 What other features can I cram into this file manager?
 
-## What?  <img src="img/logo.jpg" width="150" height="150"> RTFM is a terminal
+## What?  
+
+<img src="img/logo.jpg" width="150" height="150"> RTFM is a terminal
 file manager jam packed with features. Apart from viewing and manipulating
 directories, you get syntax highlighting of file content, image and video
 thumbnailing in the terminal, OpenAI integration, system info panel, git
