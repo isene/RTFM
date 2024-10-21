@@ -202,7 +202,7 @@ RTFMLAUNCH
 
   puts @firstrun
   puts "\n... hit ENTER to start RTFM. Hit ? inside RTFM to show the help text. Enjoy :-)"
-  STDIN.gets
+  $stdin.gets
 end
 begin # BASIC SETUP
   require 'fileutils'
@@ -229,7 +229,7 @@ begin # BASIC SETUP
   
   cmd?('bat') ? @bat = "bat" : @bat = "batcat"
 
-  STDIN.set_encoding(Encoding::UTF_8) # Set encoding for STDIN 
+  $stdin.set_encoding(Encoding::UTF_8) # Set encoding for $stdin 
 
   ## Curses setup 
   Curses.init_screen
@@ -347,27 +347,28 @@ def getchr # PROCESS KEY PRESSES
   # Note: Curses.getch blanks out @w_t
   # @w_l.getch makes Curses::KEY_DOWN etc not work
   # Therefore resorting to the generic method
-  c = STDIN.getch(min: 0, time: 3)
+  c = $stdin.getch(min: 0, time: 3)
   case c
   when "\e"    # ANSI escape sequences
-    case STDIN.getc
+    return "ESC" if $stdin.ready? == nil
+    case $stdin.getc
     when '['   # CSI
-      case STDIN.getc
+      case $stdin.getc
       when 'A' then chr = "UP"
       when 'B' then chr = "DOWN"
       when 'C' then chr = "RIGHT"
       when 'D' then chr = "LEFT"
       when 'Z' then chr = "S-TAB"
-      when '2' then chr = "INS"    ; chr = "C-INS"    if STDIN.getc == "^"
-      when '3' then chr = "DEL"    ; chr = "C-DEL"    if STDIN.getc == "^"
-      when '5' then chr = "PgUP"   ; chr = "C-PgUP"   if STDIN.getc == "^"
-      when '6' then chr = "PgDOWN" ; chr = "C-PgDOWN" if STDIN.getc == "^"
-      when '7' then chr = "HOME"   ; chr = "C-HOME"   if STDIN.getc == "^"
-      when '8' then chr = "END"    ; chr = "C-END"    if STDIN.getc == "^"
+      when '2' then chr = "INS"    ; chr = "C-INS"    if $stdin.getc == "^"
+      when '3' then chr = "DEL"    ; chr = "C-DEL"    if $stdin.getc == "^"
+      when '5' then chr = "PgUP"   ; chr = "C-PgUP"   if $stdin.getc == "^"
+      when '6' then chr = "PgDOWN" ; chr = "C-PgDOWN" if $stdin.getc == "^"
+      when '7' then chr = "HOME"   ; chr = "C-HOME"   if $stdin.getc == "^"
+      when '8' then chr = "END"    ; chr = "C-END"    if $stdin.getc == "^"
       else chr = ""
       end
     when 'O'   # Set Ctrl+ArrowKey equal to ArrowKey; May be used for other purposes in the future
-      case STDIN.getc
+      case $stdin.getc
       when 'a' then chr = "C-UP"
       when 'b' then chr = "C-DOWN"
       when 'c' then chr = "C-RIGHT"
@@ -376,17 +377,19 @@ def getchr # PROCESS KEY PRESSES
       end
     end
   when "", "" then chr = "BACK"
-  when "" then chr = "WBACK"
-  when "" then chr = "LDEL"
   when "" then chr = "C-C"
   when "" then chr = "C-D"
+  when "" then chr = "C-E"
   when "" then chr = "C-G"
+  when "" then chr = "C-K"
   when "" then chr = "C-L"
   when "" then chr = "C-N"
   when "" then chr = "C-O"
   when "" then chr = "C-P"
   when "" then chr = "C-T"
   when "" then chr = "C-Y"
+  when "" then chr = "WBACK"
+  when "" then chr = "LDEL"
   when "\r" then chr = "ENTER"
   when "\t" then chr = "TAB"
   when /[[:print:]]/  then chr = c
@@ -484,11 +487,11 @@ def main_getkey # GET KEY FROM USER
   # JUMPING AND MARKS
   when 'm' # Set mark 
     marks_info
-    m = STDIN.getc
+    m = $stdin.getc
     if m.match(/[\w']/)
       @marks[m] = Dir.pwd
     elsif m == "-"
-      r = STDIN.getc
+      r = $stdin.getc
       @marks.delete(r)
     end
     marks_info
@@ -643,7 +646,7 @@ def main_getkey # GET KEY FROM USER
       @tagged.push("\"#{Dir.pwd}/#{@selected}\"")
       @tagged.uniq!
       deletes = @tagged.join(" ")
-      if STDIN.getc == 'y'
+      if $stdin.getc == 'y'
         `rm -rf #{deletes} 2>/dev/null` 
         items_number = @tagged.length
         @tagged = []
@@ -937,7 +940,6 @@ def main_getkey # GET KEY FROM USER
     @w_r.update = true if dir != Dir.pwd
   rescue
   end
-  #$STDIN = ""
 end
 def conf_write
   if File.exist?(Dir.home+'/.rtfm.conf')
@@ -1592,8 +1594,8 @@ def w_b_getstr(pretext, text, ruby=false) # A SIMPLE READLINE-LIKE ROUTINE
       @history_copy[stk].insert(pos,chr)
       pos += 1
     end
-    while STDIN.ready?
-      chr = STDIN.getc
+    while $stdin.ready?
+      chr = $stdin.getc
       @history_copy[stk].insert(pos,chr)
       pos += 1
     end
