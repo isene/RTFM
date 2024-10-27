@@ -14,7 +14,7 @@
 #             for any damages resulting from its use. Further, I am under no
 #             obligation to maintain or extend this software. It is provided 
 #             on an 'as is' basis without any expressed or implied warranty.
-@version    = "3.27"
+@version    = "3.3"
 
 # PRELIMINARIES
 @help = <<HELPTEXT
@@ -254,6 +254,7 @@ begin # BASIC SETUP
   @preview     = true
   @runmailcap  = false # Set to 'true' in .rtfm.conf if you want to use run-mailcap instead of xdg-open
   @batuse      = true  # Use batcat for syntax highlighting
+  @aimodel     = "gpt-3.5-turbo-instruct" # The default OpenAI model, set another in .rtfm.conf if you like
   ## These are automatically written on exit
   @marks       = {}    # Initialize (book)marks hash
   @hash        = {}    # Initialize the sha directory hashing
@@ -1414,11 +1415,13 @@ def openai # INTERFACE TO OPENAI
   p += "#{f}? "
   p += "Give a brief summary of its content: " + c unless File.directory?(@selected) and c == ""
 
-  response = client.completions( parameters: { model: "text-davinci-003", prompt: p, max_tokens: 200 })
-  if response["error"]["message"] == ""
+  begin
+    response = client.completions( parameters: { model: @aimodel, prompt: p, max_tokens: 200 })
     text = "OpenAI description:\n" + response["choices"][0]["text"]
-  else
-    text = response["error"]["message"]
+  rescue
+    text  = "Error retrieving OpenAI request.\n\n"
+    text += "Check your connection and @ai secret key (in .rtfm.conf).\n\n"
+    text += response.to_s
   end
 
   @w_r.fg = 229
