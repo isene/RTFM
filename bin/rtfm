@@ -14,7 +14,7 @@
 #             for any damages resulting from its use. Further, I am under no
 #             obligation to maintain or extend this software. It is provided 
 #             on an 'as is' basis without any expressed or implied warranty.
-@version    = "3.30"
+@version    = "3.32" # Fixed forking upon opening external apps
 
 # PRELIMINARIES
 @help = <<HELPTEXT
@@ -1152,10 +1152,10 @@ def open_selected(html = nil) # OPEN SELECTED ITEM (when pressing RIGHT)
       else
         if @runmailcap
           #Thread.new { system("run-mailcap #{@selected_safe} 2>/dev/null") }
-          system("run-mailcap #{@selected_safe} 2>/dev/null")
+          system("run-mailcap #{@selected_safe} & 2>/dev/null")
         else
           #Thread.new { system("xdg-open #{@selected_safe} 2>/dev/null") }
-          system("xdg-open #{@selected_safe} 2>/dev/null")
+          system("xdg-open #{@selected_safe} & 2>/dev/null")
         end
       end
       @break = true
