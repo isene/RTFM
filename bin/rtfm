@@ -14,7 +14,7 @@
 #             for any damages resulting from its use. Further, I am under no
 #             obligation to maintain or extend this software. It is provided 
 #             on an 'as is' basis without any expressed or implied warranty.
-@version    = "3.32" # Fixed forking upon opening external apps
+@version    = "3.33" # Bugfix after fixing forking upon opening external apps
 
 # PRELIMINARIES
 @help = <<HELPTEXT
@@ -396,7 +396,6 @@ def getchr # PROCESS KEY PRESSES
   when /[[:print:]]/  then chr = c
   else chr = ""
   end
-  #stdin_clear
   return chr
 end
 def main_getkey # GET KEY FROM USER
@@ -943,12 +942,6 @@ def main_getkey # GET KEY FROM USER
   rescue
   end
 end
-def stdin_clear
-  begin
-    $stdin.getc while $stdin.ready?
-  rescue
-  end
-end
 def conf_write
   if File.exist?(Dir.home+'/.rtfm.conf')
     conf = File.read(Dir.home+'/.rtfm.conf')
@@ -1152,10 +1145,10 @@ def open_selected(html = nil) # OPEN SELECTED ITEM (when pressing RIGHT)
       else
         if @runmailcap
           #Thread.new { system("run-mailcap #{@selected_safe} 2>/dev/null") }
-          system("run-mailcap #{@selected_safe} & 2>/dev/null")
+          system("run-mailcap #{@selected_safe} 2>/dev/null &")
         else
           #Thread.new { system("xdg-open #{@selected_safe} 2>/dev/null") }
-          system("xdg-open #{@selected_safe} & 2>/dev/null")
+          system("xdg-open #{@selected_safe} 2>/dev/null &")
         end
       end
       @break = true
