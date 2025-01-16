@@ -14,7 +14,7 @@
 #             for any damages resulting from its use. Further, I am under no
 #             obligation to maintain or extend this software. It is provided 
 #             on an 'as is' basis without any expressed or implied warranty.
-@version    = "3.33" # Bugfix after fixing forking upon opening external apps
+@version    = "3.35" # Added number of items tagged
 
 # PRELIMINARIES
 @help = <<HELPTEXT
@@ -1300,7 +1300,7 @@ def marks_info # SHOW MARKS IN RIGHT WINDOW
   w_r_info(info)
 end
 def tagged_info # SHOW THE LIST OF TAGGED ITEMS IN @w_r
-  info = "TAGGED:\n"
+  info = "TAGGED: (#{@tagged.size} items)\n"
   @tagged.empty? ? info += "(None)" : info += @tagged.join("\n")
   w_r_info(info)
 end
