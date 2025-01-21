@@ -14,7 +14,7 @@
 #             for any damages resulting from its use. Further, I am under no
 #             obligation to maintain or extend this software. It is provided 
 #             on an 'as is' basis without any expressed or implied warranty.
-@version    = "3.35" # Added number of items tagged
+@version    = "3.36" # Fixed mv of very long filenames
 
 # PRELIMINARIES
 @help = <<HELPTEXT
@@ -660,9 +660,11 @@ def main_getkey # GET KEY FROM USER
       w_b_info(err.to_s)
     end
   when 'c' # Change/rename selected @selected 
-    cmd = w_b_getstr(": ", "mv \"#{@selected}\" \"#{@selected}\"")
-    el1 = cmd.sub(/mv \"(.*)\" \"(.*)\"/, '\1')
-    el2 = cmd.sub(/mv \"(.*)\" \"(.*)\"/, '\2')
+    @selected.length > 12 ? source = @selected[0...12] + "…" : source = @selected
+    cmd = w_b_getstr(": ", "mv \"#{source}\" \"#{@selected}\"")
+    el1 = @selected_safe
+    el2 = cmd.split(' "').last[0..-2]
+    cmd = "mv #{el1} \"#{el2}\""
     begin
       if el1 == el2
         w_b_info(" Source and target are the same. No action done.")
@@ -672,7 +674,7 @@ def main_getkey # GET KEY FROM USER
     rescue StandardError => err
       w_b_info(err.to_s)
     end
-    @w_r.update = true
+    @w_r.update = false
   when 'C-O' # Change ownerships
     require 'etc'
     gnm = Etc.getgrgid(File.stat(@selected).gid).name
@@ -1002,7 +1004,7 @@ def get_files(win) # The core of the directory listings
   ls_cmd  = "ls 2>/dev/null #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}" # Get files in current directory 
   ls_cmd += @selected_safe if win == "right"
   @cfiles = `#{ls_cmd} --color`.split("\n")
-  @files  = @cfiles.map {|f| f.sub(/^.*\d+m(.+)\e\[0m/, '\1')}
+  @files  = @cfiles.map {|f| f.sub(/^.*\d+m(.+)\e\[0m/, '\1').gsub(/\e\[K/, "")}
   ls_cmd += " -H " if win == "right"
   ls_cmd += %q[ -lh --time-style="long-iso" | awk '{printf "%s%s%s%11s%6s%6s", $1, " " $3, ":" $4,$6,$7,$5"\n"}']
   @fspes  = `#{ls_cmd}`.split("\n").drop(1)
@@ -1102,7 +1104,7 @@ def list_dir(active) # LIST CONTENT OF A DIRECTORY (BOTH active AND RIGHT WINDOW
       base_length = base_name.length
       ext_name    = File.extname(str)
       ext_length  = ext_name.length
-      nbl = win.maxx - 5 - ext_length # nbl: new_base_length
+      nbl = win.maxx - 6 - ext_length # nbl: new_base_length
       nbl -= 1 if dir  != ""          # Account for one extra character
       nbl -= 1 if link != ""          # Account for one extra character
       str = base_name[0..nbl] + "…" + ext_name
@@ -1144,10 +1146,8 @@ def open_selected(html = nil) # OPEN SELECTED ITEM (when pressing RIGHT)
         system("exec $EDITOR #{@selected_safe}")
       else
         if @runmailcap
-          #Thread.new { system("run-mailcap #{@selected_safe} 2>/dev/null") }
           system("run-mailcap #{@selected_safe} 2>/dev/null &")
         else
-          #Thread.new { system("xdg-open #{@selected_safe} 2>/dev/null") }
           system("xdg-open #{@selected_safe} 2>/dev/null &")
         end
       end
