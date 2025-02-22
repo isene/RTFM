@@ -5,7 +5,6 @@
 What other features can I cram into this file manager?
 
 ## What?  
-
 <img src="img/logo.jpg" align="left" width="150" height="150"> RTFM is a
 terminal file manager jam packed with features. 
 
@@ -17,8 +16,8 @@ much more.
 Note: RTFM (Ruby Terminal File Manager) works best with the (u)rxvt, xterm and
 Eterm terminal emulators.
 
-## Features
 
+## Features
 RTFM is one of the more feature rich terminal file managers. Some of the
 features are:
 
@@ -48,6 +47,8 @@ features are:
 * Show comprehensive system info (processes running, disk space, dmesg, etc.)
 * See if a directory (with sub dirs) has changed using cryptographic hashes
 * Integration with OpenAI to get an executive summary of file content
+* Possibility to change top line background when matching a path
+
 
 ## Why?
 RTFM parses your LS_COLORS to ensure color consistency with the terminal experience.
@@ -59,6 +60,7 @@ ranger to mimic a massive LS_COLOR setup is rather stupid. File managers
 should parse LS_COLORS as default rather than implement their own themes. This
 became an itch that I kept scratching until I could happily replace ranger two
 weeks later.
+
 
 ## How?
 RTFM is a two-pane file manager. You navigate in the left pane and the content
@@ -77,8 +79,8 @@ complete directories and file names and ENTER to issue the command, while
 Ctrl-u deletes the line. Issuing ENTER on a blank line has no effect. Use
 Ctrl-g to leave the command bar without executing anything.
 
-## Installation
 
+## Installation
 You can install RTFM by coloning this repo and put the file `rtfm` in your
 "bin" directory. Or you can simply run `gem install rtfm-filemanager`.
 
@@ -123,12 +125,12 @@ sudo apt install ruby-full git libncurses-dev x11-utils xdotool bat poppler-util
 gem install rtfm-filemanager
 ```
 
-## Screenshot
 
+## Screenshot
 ![RTFM screenshot](img/screenshot.png)
 
-## Image preview in the terminal
 
+## Image preview in the terminal
 RTFM uses w3mimgdisplay (part of the w3m package) to show images in the
 terminal. Some terminals have an issue with this - either the images don't
 show, the previous image is not cleared (new image overlaps the previous) or
@@ -155,7 +157,6 @@ qterminal     |   X   |            |
 
 
 ## Keys
-
 These are the set of keys to move around and do actions within RTFM:
 
 ### Basic keys 
@@ -269,8 +270,10 @@ Ctrl-d | Create a new directory (a shortcut for ":mkdir ")
 Ctrl-n | Invoke navi (see https://github.com/denisidoro/navi) with any output in right pane
 S      | Show comprehensive system info (system, CPU, filesystem, latest dmesg messages)
 
+
 ## Keyboard cheat sheet
 ![RTFM keyboard cheat sheet](img/rtfm-kb.png)
+
 
 ## First run
 The first time you run RTFM, you are greeted with a welcome message. RTFM will
@@ -347,6 +350,26 @@ Different file types may have extra self explanatory information included in
 square brackets at the end of the top info line. Image files will have the
 size of the image included while pdf files will have the number of pages. More
 file specific information will be included when I feel like adding such.
+
+
+## Top line background color when matching a path
+You can set the variable `@topmatch` in your `.rtfm.conf` so that it will change
+the background color of the top line/pane when you are in a directory matching
+a pattern.
+
+Example:
+```
+@topmatch =  [["passionfruit", 165], ["dualog", 50], ["", 238]]
+```
+With this, the background color of the top line/pane will be set to `165` if
+you are in a directory path that includes "passionfruits". The last pair is
+the default background color when no match is found. If you don't set this
+variable in your `.rtfm.conf`, rtfm will set this value to:
+```
+@topmatch =  [["", 238]]
+```
+Make sure to have a default value set as the last pair in `@topmatch`.
+
 
 ## Screencast
 [![RTFM screencast](/img/screenshot-logo.png)](https://youtu.be/ANUOlDryUng)

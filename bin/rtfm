@@ -14,7 +14,7 @@
 #             for any damages resulting from its use. Further, I am under no
 #             obligation to maintain or extend this software. It is provided 
 #             on an 'as is' basis without any expressed or implied warranty.
-@version    = "3.36" # Fixed mv of very long filenames
+@version    = "4.01" # Added possibility to change top line background when matching a path
 
 # PRELIMINARIES
 @help = <<HELPTEXT
@@ -115,7 +115,7 @@ ADDITIONAL COMMANDS
  Ctrl-n  = Invoke navi (see https://github.com/denisidoro/navi) with any output in right window
  S       = Show comprehensive System info (system, CPU, filesystem, latest dmesg messages)
 
-COPYRIGHT: Geir Isene, 2020-4. No rights reserved. See http://isene.com for more.
+COPYRIGHT: Geir Isene, 2020-5. No rights reserved. See http://isene.com for more.
 HELPTEXT
 def firstrun
   @firstrun = <<~FIRSTRUN
@@ -251,10 +251,11 @@ begin # BASIC SETUP
   @history     = []    # Initialize the command line history array
   @rubyhistory = []    # Initialize the command line history array for ruby commands
   @border      = false
+  @topmatch    = [["", 249]]
   @preview     = true
   @runmailcap  = false # Set to 'true' in .rtfm.conf if you want to use run-mailcap instead of xdg-open
   @batuse      = true  # Use batcat for syntax highlighting
-  @aimodel     = "gpt-3.5-turbo-instruct" # The default OpenAI model, set another in .rtfm.conf if you like
+  @aimodel     = "gpt-4o-mini" # The default OpenAI model, set another in .rtfm.conf if you like
   ## These are automatically written on exit
   @marks       = {}    # Initialize (book)marks hash
   @hash        = {}    # Initialize the sha directory hashing
@@ -1706,6 +1707,8 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
           @index    = 0
         end
       end
+      dir_path = Dir.pwd.downcase
+      @w_t.bg = @topmatch.find { |name, _| name == "" || dir_path.include?(name.downcase) }&.last
       dir_old    = Dir.pwd
       @index     = 0 if @index == nil
       index_old  = @index
