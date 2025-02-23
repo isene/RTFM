@@ -14,7 +14,7 @@
 #             for any damages resulting from its use. Further, I am under no
 #             obligation to maintain or extend this software. It is provided 
 #             on an 'as is' basis without any expressed or implied warranty.
-@version    = "4.05" # Visual cue when entering commands or Ruby code in bottom line/pane
+@version    = "4.06" # Better Ruby code output (when entering Ruby code with '@')
 
 # PRELIMINARIES
 @help = <<HELPTEXT
@@ -927,13 +927,12 @@ def main_getkey # GET KEY FROM USER
     @w_b.refresh
     @w_b.update = true
     @w_r.clr
-    info = "Command: #{cmd}\n\n"
+    w_r_info("Command: #{cmd}\n")
     begin
-      info += eval(cmd).to_s
+      eval(cmd).to_s
     rescue Exception => err
-      info += "Error: #{err.inspect}"
+      w_r_info("Error: #{err.inspect}")
     end
-    w_r_info(info)
     @w_r.update = false
   end
   if @w_r.update == true
