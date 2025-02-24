@@ -14,7 +14,7 @@
 #             for any damages resulting from its use. Further, I am under no
 #             obligation to maintain or extend this software. It is provided 
 #             on an 'as is' basis without any expressed or implied warranty.
-@version    = "4.06" # Better Ruby code output (when entering Ruby code with '@')
+@version    = "4.08" # Fixed OpenAI interface, updated model to gpt-4o-mini
 
 # PRELIMINARIES
 @help = <<HELPTEXT
@@ -1410,8 +1410,8 @@ def openai # INTERFACE TO OPENAI
   p += "Give a brief summary of its content: " + c unless File.directory?(@selected) and c == ""
 
   begin
-    response = client.completions( parameters: { model: @aimodel, prompt: p, max_tokens: 200 })
-    text = "OpenAI description:\n" + response["choices"][0]["text"]
+    response = client.chat(parameters: { model: @aimodel, messages: [{ role: "user", content: p }], max_tokens: 400 })
+    text = "OpenAI description:\n" + response["choices"][0]["message"]["content"]
   rescue
     text  = "Error retrieving OpenAI request.\n\n"
     text += "Check your connection and @ai secret key (in .rtfm.conf).\n\n"
