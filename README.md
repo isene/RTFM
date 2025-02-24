@@ -37,11 +37,9 @@ features are:
 * Follow a symlink to where it points with one key stroke
 * Highlight files and directories matching a given pattern
 * Find items using `locate` and jump directly to the desired item
-* Find items and jump there using fuzzy search (uses
-  [fzf](https://github.com/junegunn/fzf))
+* Find items and jump there using fuzzy search (uses [fzf](https://github.com/junegunn/fzf))
 * Execute any shell command from inside RTFM
-* [navi](https://github.com/denisidoro/navi) integration for easier command
-  executions
+* [navi](https://github.com/denisidoro/navi) integration for easier command executions
 * Easily unpack or create archives
 * Show git status for the current directory
 * Show comprehensive system info (processes running, disk space, dmesg, etc.)
