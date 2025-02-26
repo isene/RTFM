@@ -350,7 +350,16 @@ size of the image included while pdf files will have the number of pages. More
 file specific information will be included when I feel like adding such.
 
 
-## Top line background color when matching a path
+## Top and bottom line background colors
+You can customize the background colors for the top and bottom lines/panes.
+
+Bottom color is by default `238`. Change it by setting @bottomcolor to your
+desired colors in your `.rtfm.conf`.
+
+You can also set the background color at the bottom when you enter command
+mode (via `:`) by setting @cmdcolor and the Ruby mode (via `@`) by setting
+@rubycolor.
+
 You can set the variable `@topmatch` in your `.rtfm.conf` so that it will change
 the background color of the top line/pane when you are in a directory matching
 a pattern.

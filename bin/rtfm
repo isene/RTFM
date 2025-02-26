@@ -14,7 +14,7 @@
 #             for any damages resulting from its use. Further, I am under no
 #             obligation to maintain or extend this software. It is provided 
 #             on an 'as is' basis without any expressed or implied warranty.
-@version    = "4.09" # Made path not lowercase for coloring
+@version    = "4.10" # Adjustable top/bottom colors
 
 # PRELIMINARIES
 @help = <<HELPTEXT
@@ -251,7 +251,11 @@ begin # BASIC SETUP
   @history     = []    # Initialize the command line history array
   @rubyhistory = []    # Initialize the command line history array for ruby commands
   @border      = false
+  @rubycolor   = 52
+  @cmdcolor    = 18
+  @topcolor    = 249
   @topmatch    = [["", 249]]
+  @bottomcolor = 238
   @preview     = true
   @runmailcap  = false # Set to 'true' in .rtfm.conf if you want to use run-mailcap instead of xdg-open
   @batuse      = true  # Use batcat for syntax highlighting
@@ -1465,7 +1469,7 @@ end
 # BOTTOM WINDOW FUNCTIONS 
 def w_b_info(info) # SHOW INFO IN @W_B
   @w_b.clr
-  @w_b.fg, @w_b.bg = 250, 238
+  @w_b.fg, @w_b.bg = 250, @bottomcolor
   if info == nil
     info      = ": for command (use @s for selected item, @t for tagged items) - press ? for help" 
     info      = " Showing only files matching '#{@lsmatch}'" if @lsmatch != ""
@@ -1499,9 +1503,9 @@ def w_b_getstr(pretext, text, ruby=false) # A SIMPLE READLINE-LIKE ROUTINE
   while chr != "ENTER"
     @w_b.setpos(0,0)
     if ruby
-      init_pair(250, 250, 52)
+      init_pair(250, 250, @rubycolor)
     else
-      init_pair(250, 250, 22)
+      init_pair(250, 250, @cmdcolor)
     end
     text = pretext + @history_copy[stk]
     text += " " * (@w_b.maxx - text.length) if text.length < @w_b.maxx
@@ -1683,9 +1687,9 @@ loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
     @w_p = Curses::Window.new(1, maxx - (maxx * @width / 10), maxy - 2, maxx * @width / 10)
     @w_p.fg, @w_p.bg = 255, 0
     @w_p.refresh
-    @w_t.fg, @w_t.bg = 232, 249
+    @w_t.fg, @w_t.bg = 232, @topcolor
     @w_t.attr        = Curses::A_BOLD
-    @w_b.fg, @w_b.bg = 250, 238
+    @w_b.fg, @w_b.bg = 250, @bottomcolor
     @w_b.update = true
     @w_r.update = true
     @w_r.pager  = 0
