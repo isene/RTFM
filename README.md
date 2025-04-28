@@ -131,7 +131,7 @@ gem install rtfm-filemanager
 ```
 
 ## Screenshot
-![RTFM screenshot](img/screenshot.png)
+![RTFM screenshot](img/screenshot-logo.png)
 
 
 ## Image preview in the terminal
@@ -434,12 +434,12 @@ variable in your `.rtfm/conf`, rtfm will set this value to:
 Make sure to have a default value set as the last pair in `@topmatch`.
 
 ## Plugin architecture
-***Upon first running RTFM, a few files are created in the `.rtfm/` directory.
+***Upon first running RTFM, a few files are created in the `.rtfm/` directory.***
 
 One is `preview.rb`, the other is `keys.rb`.
 
 You can add new "previewers" to show files with extensions that is not
-previewed by default in RTFM. The `preview.rb` explains how you add thesea:***
+previewed by default in RTFM. The `preview.rb` explains how you add thesea:
 ```
 # ~/.rtfm/preview.rb
 #
@@ -461,8 +461,8 @@ previewed by default in RTFM. The `preview.rb` explains how you add thesea:***
 #   # PDFs
 #   pdf = pdftotext -f 1 -l 4 @s -
 ```
-***Likewise, you can add or rewrite any keys in RTFM and add new functionality to
-RTFM by following the instructions in `keys.rb`:***
+Likewise, you can add or rewrite any keys in RTFM and add new functionality to
+RTFM by following the instructions in `keys.rb`:
 ```
 # ~/.rtfm/keys.rb
 #
@@ -492,7 +492,7 @@ RTFM by following the instructions in `keys.rb`:***
 
 ## Screencast
 Here's a screencast for an early version of RTFM, but it shows the basic stuff:
-[![RTFM screencast](/img/screenshot-logo.png)](https://youtu.be/ANUOlDryUng)
+[![RTFM screencast](/img/screenshot.png)](https://youtu.be/ANUOlDryUng)
 
 ## Development
 I don't expect this program to be used by others. I do this for my own
