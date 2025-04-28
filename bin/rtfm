@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
-# encoding: utf-8
-#
-# SCRIPT INFO 
+# frozen_string_literal: true
+
+# SCRIPT INFO {{{1
 # Name:       RTFM - Ruby Terminal File Manager
 # Language:   Pure Ruby, best viewed in VIM
 # Author:     Geir Isene <g@isene.com>
@@ -12,1326 +12,2007 @@
 #             this software for any purpose. I make no guarantee about the
 #             suitability of this software for any purpose and I am not liable
 #             for any damages resulting from its use. Further, I am under no
-#             obligation to maintain or extend this software. It is provided 
+#             obligation to maintain or extend this software. It is provided
 #             on an 'as is' basis without any expressed or implied warranty.
-@version    = "4.10" # Adjustable top/bottom colors
+# Docs:       Apart from the extensive documentation found on Github, you can
+#             get a great understanding of the code itself by simply sending
+#             or pasting this whole file into you favorite AI for coding with
+#             a prompt like this: "Help me understand every part of this code".
+@version    = '5.0' # A full rewrite using https://github.com/isene/rcurses
 
-# PRELIMINARIES
-@help = <<HELPTEXT
-RTFM - Ruby Terminal File Manager (https://github.com/isene/RTFM)
+# BOOTSNAP {{{1
+cache_dir = ENV.fetch('BOOTSNAP_CACHE_DIR', File.join(Dir.home, '.rtfm', 'bootsnap-cache'))
+ENV['BOOTSNAP_CACHE_DIR'] = cache_dir
+require 'fileutils'
+FileUtils.mkdir_p(cache_dir)
+require 'bootsnap/setup' # Speed up subsequent requires
 
-BASIC KEYS
- ?       = Show this help text
- r       = Refresh RTFM (recreates all windows. Use on terminal resize or when there is garbage somewhere)
- R       = Reload configuration (~/.rtfm.conf)
- W       = Write parameters to ~/.rtfm.conf 
-           (@lsall, @lslong, @lsorder, @lsinvert, @border, @width, @preview, @tagged, @marks)
- q       = Quit
- Q       = QUIT (without writing changes to the config file)
- v       = Display RTFM version in bottom window/command bar
+# ENCODING {{{1
+# encoding: utf-8
 
-MOTION
- j/DOWN  = Go one item down in left pane (rounds to top)
- k/UP    = Go one item up in left pane (rounds to bottom)
- h/LEFT  = Go up one directory level
- l/RIGHT = Enter directory or open file (using run-mailcap or xdg-open)
-           Use the key 'x' to force open using xdg-open (or run-mailcap) - used for opening html files
-           in a browser rather than editing the file in your text editor
- PgDown  = Go one page down in left pane
- PgUp    = Go one page up in left pane
- END     = Go to last item in left pane
- HOME    = Go to first item in left pane
+# PROFILER {{{1
+#$start_time      = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+#$last_checkpoint = $start_time
+#$checkpoints     = []
+#def checkpoint(label)
+#  now      = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+#  delta_ms = ((now - $last_checkpoint) * 1000).round(2)
+#  total_ms = ((now - $start_time)     * 1000).round(2)
+#  $checkpoints << "#{label.ljust(20)}: #{delta_ms} ms"
+#  $checkpoints.reject! { |line| line.start_with?("Total:") }
+#  $checkpoints << "Total: #{total_ms} ms"
+#  $last_checkpoint = now
+#end
 
-JUMPING AND MARKS
- m       = Mark current dir (persistent). Next letter is the name of the mark [a-zA-Z']
-           The special mark "'" jumps to the last directory (makes toggling dirs easy)
-           Press '-' and a letter to delete that mark
- M       = Show marked items in right pane
- '       = Jump to mark (next letter is the name of the mark [a-zA-Z'])
-           The 5 latest directories visited are stored in marks 1-5 (1 being the very latest)
- ~       = Jump to Home directory
- >       = Follow symlink to the directory where the target resides
+# LOAD LIBRARIES {{{1
+begin
+  require 'rcurses'
+  class Object
+    include Rcurses
+    include Rcurses::Input
+  end
+rescue StandardError => e
+  puts 'RTFM is built using rcurses (https://github.com/isene/rcurses). Install rcurses to run RTFM.'
+  exit 1
+end
+require 'tmpdir'
+# Lazy-load to speed up startup
+autoload :Shellwords, 'shellwords'
+autoload :Timeout,    'timeout'
+autoload :Open3,      'open3'
+autoload :PTY,        'pty'
+autoload :OpenAI,     'ruby/openai'
+#checkpoint("Libraries loaded")
 
-SEARCHING
- /       = Enter search string in bottom window to highlight matching items and jump to the first match
- \\       = Remove search pattern
- n       = Jump to the next item matched by '/'
- N       = Jump to the previous item matched by '/'
- g       = Run 'grep' to show files that contains the MATCH in current directory
- L       = Start 'locate' search for files, then use '#' to jump to desired line/directory
- Ctrl-l  = Locate files via fzf from the current directory down
-           (fuzzy file finder must be installed https://github.com/junegunn/fzf)
+# FIX TERMINAL MESSAGE BLEED-THROUGH {{{1
+LOG_PATH     = File.join(Dir.tmpdir, 'rtfm.log')
+MAX_LOG_SIZE = 128 * 1024
+if File.exist?(LOG_PATH) && File.size(LOG_PATH) > MAX_LOG_SIZE
+  # keep just the last MAX_LOG_SIZE bytes
+  File.open(LOG_PATH, 'r+b') do |f|
+    f.seek(-MAX_LOG_SIZE, IO::SEEK_END)
+    tail = f.read
+    f.rewind
+    f.truncate(0)
+    f.write(tail)
+  end
+end
+logfile = File.open(LOG_PATH, 'a+')
+logfile.sync = true
+$stderr.reopen(logfile)
+#checkpoint("Bleed-through fix")
 
-TAGGING
- t       = Tag item (toggles)
- Ctrl-t  = Add items matching a pattern to list of tagged items (Ctrl-t and then . will tag all items)
- T       = Show currently tagged items in right pane
- u       = Untag all tagged items
+# RCURSES CLASS EXTENSION {{{1
+module Rcurses
+  # Add attributes, amend 'say' to set update to false
+  class Pane
+    attr_accessor :update, :locate
+    alias original_say say
+    def say(text)
+      original_say(text)
+      self.update = false
+    end
+  end
+end
 
-MANIPULATE ITEMS
- p       = Put (copy) tagged items here
- P       = PUT (move) tagged items here
- s       = Create symlink to tagged items here
- d       = Delete selected item and tagged items. Press 'y' to confirm
- c       = Change/rename selected (adds command to bottom window)
- Ctrl-o  = Change ownership to user:group of selected and tagged items
- Ctrl-p  = Change permissions of selected and tagged items
-           Format = rwxr-xr-x or 755 or rwx (applies the trio to user, group and others)
- z       = Extract tagged zipped archive to current directory
- Z       = Create zipped archive from tagged files/directories
+# CREATE DIRS & SET FILE CONSTS {{{1
+RTFM_HOME     = File.join(Dir.home, '.rtfm')
+PLUGINS_DIR   = File.join(RTFM_HOME, 'plugins')
+TRASH_DIR     = File.join(RTFM_HOME, 'trash')
+[RTFM_HOME, PLUGINS_DIR, TRASH_DIR].each { |d| FileUtils.mkdir_p(d) }
+PREVIEW_FILE  = File.join(RTFM_HOME, 'preview.rb')
+KEYS_FILE     = File.join(RTFM_HOME, 'keys.rb') unless defined?(KEYS_FILE)
+CONFIG_FILE   = File.join(RTFM_HOME, 'conf')
+@plugin_errors = []
 
-DIRECTORY VIEWS
- a       = Show all (also hidden) items
- A       = Show long info per item (show item attributes)
- o       = Change the order/sorting of directories (circular toggle)
- i       = Invert/reverse the sorting
- O       = Show the Ordering in the bottom window (the full ls command)
- G       = Show git status for current directory
- H       = Do a cryptographic hash of the current directory with subdirs
-           If a previous hash was made, compare and report if there has been any change
- I       = Show OpenAI's description of the selected item and its content (if available)
-           You must have installed the ruby-openai gem and added your openai secret key
-           in the .rtfm.conf (add `@ai = "your-secret-openai-key") for this to work.
+# SAVE TERMINAL {{{1
+ORIG_STTY = `stty -g`.chomp
 
-RIGHT PANE
- ENTER   = Refresh the right pane
- TAB     = Next page of the preview (if doc long and ∇ in the bottom right)
- S-TAB   = Previous page (if you have moved down the document first - ∆ in the top right)
- w       = Change the width of the left/right panes (left pane ⇒ 20%, 30%, 40%, 50%, 60%)
- -       = (Minus sign) Toggle preview in right pane (turn it off for faster traversing of directories)
- _       = (Underscore) Toggle preview of images in right pane
- b       = Toggle syntax highlighting (and line numbering)
+# HELP {{{1
+@help = <<~HELPTEXT
+  RTFM - Ruby Terminal File Manager (https://github.com/isene/RTFM)
 
-ADDITIONAL COMMANDS
- f       = Show only files in the left pane matching extension(s) (e.g. "txt" or "pdf,png,jpg")
- F       = Show only files matching a pattern (Ruby Regex) (e.g. "abc" or "ab.+12(\w3)+")
- B       = Toggle border
- :       = Enter "command mode" in bottom window (press ENTER to execute, press Ctrl-G to escape)
- ;       = Show command history in right pane
- y       = Copy path of selected item to primary selection (for pasting with middle mouse button)
- Y       = Copy path of selected item to clipboard
- Ctrl-y  = Copy content of right pane to clipboard
- Ctrl-d  = Create a new directory (a shortcut for ":mkdir ")
- Ctrl-n  = Invoke navi (see https://github.com/denisidoro/navi) with any output in right window
- S       = Show comprehensive System info (system, CPU, filesystem, latest dmesg messages)
+  BASIC KEYS
+    ?       = Show this help text
+    v       = Display RTFM version (and latest Gem version) in bottom window/command bar
+    r       = Refresh RTFM (recreates all windows. Use on terminal resize or when there is garbage somewhere)
+    R       = Reload configuration (~/.rtfm/conf)
+    W       = Write parameters to ~/.rtfm/conf: @marks, @hash, @history, @rubyhistory, @aihistory
+              @lslong, @lsall, @lsorder, @lsinvert, @width, @border, @preview, @trash
+    C       = Show the current configuration in ~/.rtfm/conf
+    q       = Quit (save basic configuration: @marks, @hash, @history, @rubyhistory, @aihistory)
+    Q       = QUIT (without writing any changes to the config file)
 
-COPYRIGHT: Geir Isene, 2020-5. No rights reserved. See http://isene.com for more.
+  LAYOUT
+    w       = Change the width of the left/right panes (left pane ⇒ 20%, 30%, 40%, 50%, 60%)
+    B       = Cycle border
+    -       = (Minus sign) Toggle preview in right pane (turn it off for faster traversing of directories)
+    _       = (Underscore) Toggle preview of images in right pane
+    b       = Toggle syntax highlighting (and line numbering)
+
+  MOTION
+    j/DOWN  = Go one item down in left pane (rounds to top)
+    k/UP    = Go one item up in left pane (rounds to bottom)
+    h/LEFT  = Go up one directory level
+    l/RIGHT = Enter directory or open file (using run-mailcap or xdg-open)
+              Use the key 'x' to force open using xdg-open (or run-mailcap) - used for opening html files
+              in a browser rather than editing the file in your text editor
+    PgDown  = Go one page down in left pane
+    PgUp    = Go one page up in left pane
+    END     = Go to last item in left pane
+    HOME    = Go to first item in left pane
+
+  MARKS AND JUMPING
+    m       = Mark current dir (persistent). Next letter is the name of the mark [a-zA-Z']
+              The special mark "'" jumps to the last directory (makes toggling dirs easy)
+              Press '-' and a letter to delete that mark. Mark '0' is the dir where RTFM was started.
+              Marks '1' - '5' are the past five directories visited.
+    M       = Show marked items in right pane
+    '       = Jump to mark (next letter is the name of the mark [a-zA-Z'])
+              The 5 latest directories visited are stored in marks 1-5 (1 being the very latest)
+    ~       = Jump to Home directory
+    >       = Follow symlink to the directory where the target resides
+
+  DIRECTORY VIEWS
+    a       = Show all (also hidden) items
+    A       = Show long info per item (show item attributes)
+    o       = Change the order/sorting of directories (circular toggle)
+    i       = Invert/reverse the sorting
+    O       = Show the Ordering in the bottom window (the full ls command)
+
+  TAGGING
+    t       = Tag item (toggles)
+    Ctrl-t  = Add items matching a pattern to list of tagged items (Ctrl-t and then . will tag all items)
+    T       = Show currently tagged items in right pane
+    u       = Untag all tagged items
+
+  MANIPULATE ITEMS
+    p       = Put (copy) tagged items here
+    P       = PUT (move) tagged items here
+    c       = Change/rename selected (adds command to bottom window)
+    s       = Create symlink to tagged items here
+    d       = Delete selected item and tagged items. Confirm with 'y'. 
+              Moves items to trash directory (~/.rtfm/trash/) if @trash = true
+    D       = Empty trash directory
+    Ctrl-d  = Toggle use of trash directory
+    Ctrl-o  = Change ownership to user:group of selected and tagged items
+    Ctrl-p  = Change permissions of selected and tagged items
+              Format = rwxr-xr-x or 755 or rwx (applies the trio to user, group and others)
+
+  FILTER AND SEARCH
+    f       = Show only files in the left pane matching extension(s) (e.g. "txt" or "pdf,png,jpg")
+    F       = Show only files matching a pattern (Ruby Regex) (e.g. "abc" or "ab.+12(\w3)+")
+    Ctrl-f  = Clear all filtering
+    /       = Enter search string in bottom window to highlight matching items and jump to the first match
+    \\       = Remove search pattern
+    n       = Jump to the next item matched by '/'
+    N       = Jump to the previous item matched by '/'
+    g       = Run 'grep' to show files that contains the MATCH in current directory
+    L       = Start 'locate' search for files, then use '#' to jump to desired line/directory
+    Ctrl-l  = Locate files via fzf from the current directory down
+              (fuzzy file finder must be installed https://github.com/junegunn/fzf)
+
+  ARCHIVES
+    z       = Extract tagged zipped archive to current directory
+    Z       = Create zipped archive from tagged files/directories
+
+  GIT/HASH/OPENAI
+    G       = Show git status for current directory
+    H       = Do a cryptographic hash of the current directory with subdirs
+              If a previous hash was made, compare and report if there has been any change
+    I       = Show OpenAI's description of the selected item and its content (if available)
+              You must have installed the ruby-openai gem and added your openai secret key
+              in the ~/.rtfm/conf (add `@ai = "your-secret-openai-key") for this to work.
+    Ctrl-a  = Start an OpenAI chat (the context window is kept until you exit RTFM)
+              The OpenAI agent is specialized in answering questions about cli, files and dirs
+
+  RIGHT PANE CONTROLS
+    ENTER   = Refresh the right pane
+    S-RIGHT = One line down in the preview
+    S-LEFT  = One line up in the preview
+    S-DOWN  = Next page of the preview (if doc long and ∇ in the bottom right) (TAB does the same)
+    S-UP    = Previous page (if you have moved down the document first - ∆ in the top right) (or S-TAB)
+
+  CLIPBOARD COPY
+    y       = Copy path of selected item to primary selection (for pasting with middle mouse button)
+    Y       = Copy path of selected item to clipboard
+    Ctrl-y  = Copy content of right pane to clipboard
+              Turn off batcat syntax highlighting with 'b' for a clean copy of content
+
+  SYSTEM SHORTCUTS
+    S       = Show comprehensive System info (system, CPU, filesystem, latest dmesg messages)
+    =       = Create a new directory (a shortcut for ":mkdir ")
+    Ctrl-n  = Invoke navi (see https://github.com/denisidoro/navi) with any output in right window
+
+  COMMAND MODE
+    :       = Enter "command mode" in bottom window (press ENTER to execute, press ESC to escape)
+              Prefix the command with a '§' to force the program to run in interactive mode
+              Full screen TUI programs like htop, vim or any shell must run in interactive mode
+    ;       = Show command history in right pane
+    +       = Add program(s) to the list of full-UI interactive terminal programs
+
+  RUBY DEBUG MODE
+    @       = Enter Ruby mode to execute any Ruby command (ENTER to execute, ESC to escape)
+
+  COPYRIGHT: Geir Isene, 2025+. No rights reserved. See http://isene.com for more.
 HELPTEXT
-def firstrun
-  @firstrun = <<~FIRSTRUN
 
+# FIRST RUN # {{{1
+def firstrun # {{{2
+  setup_launch_script
+  setup_config
+  load_config
+  setup_templates
+  display_welcome_message
+  getchr
+rescue StandardError => e
+  errormsg('⚠ Errors during RTFM first-run.', e)
+  exit 1
+end
+
+def setup_launch_script # {{{2
+  shell_name = File.basename(ENV['SHELL'].to_s)
+  if shell_name == 'fish'
+    fish_cfg = File.join(Dir.home, '.config', 'fish', 'config.fish')
+    FileUtils.mkdir_p(File.dirname(fish_cfg))
+    line = 'function r; rtfm; cd (cat ~/.rtfm_last_dir); end # rtfm launcher'
+    File.write(fish_cfg, "#{line}\n", mode: 'a')
+  else
+    rc_file = File.join(Dir.home, ".#{shell_name}rc")
+    FileUtils.mkdir_p(File.dirname(rc_file))
+    line = 'r(){ rtfm; cd "$(cat ~/.rtfm_last_dir)"; } # rtfm launcher'
+    File.write(rc_file, "#{line}\n", mode: 'a')
+  end
+end
+
+def setup_config # {{{2
+  File.write CONFIG_FILE, <<~CONFIG
+    # Configuration file for RTFM (https://github.com/isene/RTFM)
+    # BASICS
+    @width       = 2
+    @border      = 1
+    @trash       = true
+
+    # LS
+    @lslong      = ""
+    @lsall       = ""
+    @lsorder     = ""
+    @lsinvert    = ""
+
+    # RIGHT PANE
+    @runmailcap  = true
+    @preview     = true
+    @showimage   = true
+
+    # TOP PANE
+    @topmatch = [["", 249]]
+
+    # INTERACTIVE
+    @interactive = "fzf,navi,top,htop,less,vi,vim,ncdu,sh,zsh,bash,fish"
+
+    # AI
+    @ai      = "Replace_This_With_Your_OpenAI_Key"
+    @aimodel = "gpt-4o-mini"
+
+    # LISTS
+    @marks       = {}
+    @hash        = {}
+    @history     = []
+    @rubyhistory = []
+    @aihistory   = []
+  CONFIG
+end
+
+def setup_templates # {{{2
+  unless File.exist?(PREVIEW_FILE) # {{{3
+    File.write PREVIEW_FILE, <<~TEMPLATE
+      # ~/.rtfm/preview.rb
+      #
+      # Define one handler per line in the form:
+      #
+      #   ext1, ext2, ext3 = command with @s placeholder
+      #
+      # @s will be replaced by the shell-escaped filename.
+      #
+      # Lines beginning with # or blank are ignored.
+      #
+      # Examples:
+      #   # plain text, Ruby, Python, shell
+      #   txt, rb, py, sh = bat -n --color=always @s
+      #
+      #   # markdown via pandoc
+      #   md = pandoc @s -t plain
+      #
+      #   # PDFs
+      #   pdf = pdftotext -f 1 -l 4 @s -
+      #
+    TEMPLATE
+  end
+
+  unless File.exist?(KEYS_FILE) # {{{3
+    File.write KEYS_FILE, <<~TEMPLATE
+      # ~/.rtfm/keys.rb
+      #
+      # Override or add key bindings simply by assigning into KEYMAP
+      # and defining the corresponding handler methods.
+      #
+      # Syntax:
+      #   KEYMAP['X'] = :my_handler
+      #
+      #   def my_handler(chr)
+      #     # anything you like—use @pB, @pR, Dir.pwd, etc.
+      #     @pB.say("You pressed X!")
+      #   end
+      #
+      # Examples:
+      #
+      #   # remap 'C' to show config
+      #   KEYMAP['C'] = :show_config
+      #
+      #   # add a new binding: 'Z'
+      #   KEYMAP['Z'] = :zap_all
+      #   def zap_all(_chr)
+      #     @pB.say("ZAPPED!") 
+      #   end
+    TEMPLATE
+  end
+end
+
+def display_welcome_message # {{{2
+# rubocop:disable Layout/IndentationWidth
+@firstrun = "
   Welcome to RTFM - the Ruby Terminal File Manager. This help text is shown on the first run.
-  Next time you run RTFM, you can launch it from your terminal with a one letter command: "r"
-  When launched this way, RTFM will also exit in the directory you are currently in.
+  Next time you run RTFM, you can launch it from your terminal with a one letter command: 'r'
+  When launched this way, RTFM will also exit in the directory you are currently in.\n".b.fg(226)
+@firstrun += "
+  To benefit fully from all the features, you need to install some auxiliary software.
+  On Ubuntu Linux you would use 'apt install':\n".fg(230)
+@firstrun += "
+  Basic requirements is 'x11-utils' and 'xdotool':          apt install x11-utils xdotool
 
-  To benefit fully from all the features, you need to install some auxilliary software.
-  On Ubuntu Linux you would use "apt install":
+  Viewers (you may install more sepcialised viewers later:
+  Syntax highlighting of text uses 'bat':                   apt install bat
+  Viewing Markdown uses 'pandoc':                           apt install pandoc
+  Viewing PDFs uses 'pdftotext':                            apt install poppler-utils
+  Viewing LibreOffice docs uses 'odt2txt':                  apt install odt2txt
+  Viewing MS docx uses 'docx2txt':                          apt install docx2txt
+  Viewing MS pptx uses 'unzip':                             apt install unzip
+  Viewing MS xlsx uses 'ssconvert':                         apt install gnumeric
+  Viewing MS doc/xls/ppt uses 'catdoc, xls2csv and catppt': apt install catdoc
+  Viewing Images uses 'w3m and ImageMagick':                apt install w3m imagemagick
+  Viewing Video thumbnails uses 'ffmpegthumbnailer'         apt install ffmpegthumbnailer\n".fg(195)
+@firstrun += "
+  All of the above in one fell swoop:\n".fg(159)
+@firstrun += "
+  sudo apt install ruby-full git libncurses-dev x11-utils xdotool bat pandoc poppler-utils odt2txt docx2txt unzip gnumeric catdoc w3m imagemagick ffmpegthumbnailer".b.fg(87)
+@firstrun += "\n\n
+  You need to install the basic requirements and you should install the viewers before you...
+  ... hit any key to start RTFM. Hit ? inside RTFM to show the full help text. Enjoy :-)\n".fg(214)
+# rubocop:enable Layout/IndentationWidth
+puts @firstrun
+end
+#checkpoint("Preliminaries done")
 
-  Basic requirments is "x11-utils" and "xdotool":           apt install x11-utils xdotool
-  Syntax highlighting of text uses "bat":                   apt install bat
-  Viewing PDFs uses "pdftotext":                            apt install poppler-utils
-  Viewing LibreOffice docs uses "odt2txt":                  apt install odt2txt
-  Viewing MS docx	uses "docx2txt":                          apt install docx2txt
-  Viewing MS pptx	uses "unzip":                             apt install unzip
-  Viewing MS xlsx uses "ssconvert":                         apt install gnumeric
-  Viewing MS doc/xls/ppt uses "catdoc, xls2csv and catppt": apt install catdoc
-  Viewing Images uses "w3m and ImageMagick":                apt install w3m imagemagick
-  Viewing Video thumbnails uses "ffmpegthumbnailer"         apt install ffmpegthumbnailer
+# BASIC SETUP {{{1
+## Check for installed basic applications {{{2
+def cmd?(cmd) # Helper function
+  system("which #{cmd} > /dev/null 2>&1")
+end
 
-  All of the above: 
-  apt install x11-utils xdotool bat poppler-utils odt2txt docx2txt unzip gnumeric catdoc w3m imagemagick ffmpegthumbnailer
+if cmd?('/usr/lib/w3m/w3mimgdisplay')
+  @imgdisplay = '/usr/lib/w3m/w3mimgdisplay'
+  @showimage = true
+else
+  @showimage = false
+end
+@showimage = false unless cmd?('xwininfo') && cmd?('xdotool')
 
-FIRSTRUN
-  
-  @shell = File.basename(`echo "$SHELL"`.chomp)
-  if @shell == "fish"
-    if not File.exist?(Dir.home+'/.config/fish/config.fish')
-      @rtfmlaunch = <<RTFMFISHLAUNCH
-# This is the RTFM launcher (https://github.com/isene/RTFM) for fish
-function r { 
-	f=$(mktemp)
-  (
-  set +e
-	rtfm "$f"
-  code=$?
-  if [ "$code" != 0 ]; then
-    rm -f "$f"
-    exit "$code"
-  fi
-  )
-  code=$?
-  if [ "$code" != 0 ]; then
-    return "$code"
-  fi
-  d=$(<"$f")
-  rm -f "$f"
-  cd "$d"
-}
-RTFMFISHLAUNCH
-      File.write(Dir.home+'/.config/fish/config.fish', @rtfmlaunch)
-      `echo "source ~/.config/fish/config.fish" >> .#{@shell}rc`
-    end
+@bat = cmd?('bat') ? 'bat' : 'batcat'
+
+## Set encoding for $stdin to utf-8 {{{2
+$stdin.set_encoding(Encoding::UTF_8)
+
+# INITIALIZE VARIABLES {{{1
+## These can be set by user in ~/.rtfm/conf
+### Saved on quit ('q')
+@history     = []      # Initialize the command line history array
+@rubyhistory = []      # Initialize the command line history array for ruby commands
+@aihistory   = []      # Initialize the command line history array for AI chat
+### Saved on Write Config ('W')
+@lslong      = ''      # Set short form ls (toggled by pressing "A")
+@lsall       = ''      # Set "ls -a" to false (toggled by pressing "a" - sets it to "-a")
+@lsorder     = ''      # Change the order/sorting by pressing 'o' (circular toggle)
+@lsinvert    = ''      # Set to "-r" to reverse/invert sorting order
+@width       = 4       # Set width of the left pane to the default ⅓ of the terminal width
+@border      = 1       # Set initial border config; 0 = none, 1 = Right pane, 2 = both panes, 3 = Left pane
+@preview     = true    # Preview in the Right pane
+@trash       = false   # Delete files permanently rather than moving them to ~/.rtfm/trash
+@interactive = 'fzf,navi,top,htop,less,vi,vim,ncdu,sh,zsh,bash,fish'
+### Not saved (but can be set in ~/.rtfm/conf)
+@topcolor    = 249     # Default Top pane bg color
+@topmatch    = [['', 249]] # Default Top pane bg color for matching directories
+@bottomcolor = 236     # Default Bottom pane color
+@searchcolor = 23      # Default color for Search pane at bottom
+@cmdcolor    = 18      # Default color for Command pane at bottom
+@rubycolor   = 52      # Default color for Ruby pane at bottom
+@aicolor     = 58
+@lsbase      = '--group-directories-first' # Basic ls setup
+@lsuser      = ''      # Set this variable in ~/.rtfm/conf to any 'ls' switch you want to customize directory listings
+@batuse      = true    # Use batcat for syntax highlighting
+@runmailcap  = false   # Set to 'true' in ~/.rtfm/conf if you want to use run-mailcap instead of xdg-open
+@aimodel     = 'gpt-4o-mini' # The default OpenAI model, set another in ~/.rtfm/conf if you like
+
+## These are automatically written to ~/.rtfm/conf upon exit
+@marks       = {}      # Initialize (book)marks hash
+@hash        = {}      # Initialize the sha directory hashing
+
+## Do not set these in ~/.rtfm/conf
+@tagged      = []      # Initialize the tagged array - for collecting all tagged items
+@directory   = {}      # Initialize the directory hash for remembering directories visited
+@searched    = ''      # Initialize the active searched for items
+@lsfiles     = ''      # File types to show (initially set to all file types) - not saved on exit
+@lsmatch     = ''      # Files to match (initially set to matching all files) - not saved on exit
+@index       = 0       # Set chosen item to first on startup
+@tagsize     = 0       # Size (in MB) of tagged items
+@navi        = ''      # Navi result when navi is invoked
+
+# LOAD CONFIG {{{1
+## Get variables from config file (written back to ~/.rtfm/conf when exit via 'q')
+def load_config
+  if File.exist?(CONFIG_FILE)
+    load(CONFIG_FILE)
+    @conf = File.read(CONFIG_FILE).dup
   else
-    if not File.exist?(Dir.home+'/.rtfm.launch')
-      @rtfmlaunch = <<RTFMLAUNCH
-# This is the RTFM launcher (https://github.com/isene/RTFM) for bash/zsh
-function r { 
-	f=$(mktemp)
-  (
-  set +e
-	rtfm "$f"
-  code=$?
-  if [ "$code" != 0 ]; then
-    rm -f "$f"
-    exit "$code"
-  fi
-  )
-  code=$?
-  if [ "$code" != 0 ]; then
-    return "$code"
-  fi
-  d=$(<"$f")
-  rm -f "$f"
-  cd "$d"
+    firstrun
+  end
+rescue StandardError => e
+  errormsg("⚠ Errors while loading #{CONFIG_FILE}\nCheck your config file or delete it to remake in a fresh RTFM start.", e)
+end
+load_config
+@marks['0']  = Dir.pwd # Original dir
+@marks["'"]  = Dir.pwd # Initial mark
+#checkpoint("Vars/config loaded")
+
+# Handle start dir {{{2
+Dir.chdir(ARGV.shift) if ARGV[0] && File.directory?(ARGV[0])
+
+# OPENAI SETUP {{{1
+def chat_history # {{{2
+  @chat_history ||= [
+    { role: 'system',
+      content: 'You are a helpful assistant embedded in a terminal file manager. ' \
+               'Answer questions about files, directories, or shell commands.' }
+  ]
+end
+
+def openai_client # {{{2
+  require 'ruby/openai' unless defined?(OpenAI)
+  @openai_client ||= OpenAI::Client.new(access_token: @ai)
+end
+
+# SET UP VIEWER SYSTEM {{{1
+# rubocop:disable Style/StringLiterals
+preview_specs = {
+  'txt, rb, py, sh'    => "#{@bat} -n --color=always @s",
+  'md'                 => "pandoc @s -t plain",
+  'pdf'                => "pdftotext -f 1 -l 4 @s -",
+  'odt, odp, odg, odc' => "odt2txt @s",
+  'docx'               => "docx2txt @s -",
+  'xlsx'               => "ssconvert -O 'separator=   ' -T Gnumeric_stf:stf_assistant @s fd://1",
+  'pptx'               => "unzip -qc @s | ruby -e '$stdin.each_line{ |i| i.force_encoding(\"ISO-8859-1\").scan(/<a:t>(.+?)<\\/a:t>/).each{ |j| puts j } }'",
+  'doc'                => "catdoc @s 2>/dev/null",
+  'xls'                => "xls2csv @s 2>/dev/null",
+  'ppt'                => "catppt @s 2>/dev/null",
+  # images ⇒ nil => call showimage
+  'png, jpg, jpeg, bmp, gif, webp, tif, tiff' => nil,
+  # video ⇒ nil, but detected via pattern below
+  'mpg, mpeg, avi, mov, mkv, mp4'             => nil
 }
-RTFMLAUNCH
-      File.write(Dir.home+'/.rtfm.launch', @rtfmlaunch)
-      `echo "source ~/.rtfm.launch" >> .#{@shell}rc`
+@imagefile ||= /\.(?:png|jpe?g|bmp|gif|webp|tiff?)$/i
+@pdffile   ||= /\.pdf$/i
+# rubocop:enable Style/StringLiterals
+
+# USER PLUGINS {{{1
+# Merge in any user overrides from ~/.rtfm/preview.rb
+if File.exist?(PREVIEW_FILE)
+  begin
+    File.readlines(PREVIEW_FILE).each_with_index do |line, idx|
+      line = line.strip
+      next if line.empty? || line.start_with?('#')
+
+      if line =~ /\A([0-9A-Za-z_,\s]+)\s*=\s*(.+)\z/
+        exts_str = $1.strip
+        cmd_str  = $2.strip
+        preview_specs[exts_str] = cmd_str
+      else
+        @plugin_errors << "Invalid preview.rb line #{idx + 1}: #{line}"
+      end
+    end
+  rescue => e
+    @plugin_errors << "Error loading preview.rb: #{e.class}: #{e.message}"
+  end
+end
+# Compile into an array of [Regexp, template] for fast lookup
+PREVIEW_HANDLERS = preview_specs.map do |exts_str, tmpl|
+  exts = exts_str.split(',').map(&:strip).map { |ext| Regexp.escape(ext) }.join('|')
+  [/\.#{exts}$/i, tmpl]
+end
+#checkpoint("Plugins loaded")
+
+# KEY DISPATCH TABLE & HANDLERS {{{1
+KEYMAP = { # {{{2
+  # BASIC KEYS {{{3
+  '?'       => :show_help,
+  'v'       => :show_version,
+  'r'       => :refresh_all,
+  'R'       => :load_config,
+  'C'       => :show_config,
+  'W'       => :write_config,
+  'q'       => :quit_and_save,
+  'Q'       => :quit_no_save,
+
+  # LAYOUT {{{3
+  'w'       => :change_width,
+  'B'       => :toggle_border,
+  '-'       => :toggle_preview,
+  '_'       => :toggle_image,
+  'b'       => :toggle_syntax,
+
+  # MOTION {{{3
+  'DOWN'    => :move_down,
+  'j'       => :move_down,
+  'C-DOWN'  => :move_down,
+  'UP'      => :move_up,
+  'k'       => :move_up,
+  'C-UP'    => :move_up,
+  'LEFT'    => :move_left,
+  'h'       => :move_left,
+  'C-LEFT'  => :move_left,
+  'RIGHT'   => :move_right,
+  'l'       => :move_right,
+  'C-RIGHT' => :move_right,
+  'x'       => :open_force,
+  'PgDOWN'  => :page_down,
+  'PgUP'    => :page_up,
+  'END'     => :go_last,
+  'HOME'    => :go_first,
+
+  # MARKS & JUMPING {{{3
+  'm'       => :set_mark,
+  'M'       => :show_marks,
+  "'"       => :jump_to_mark,
+  '~'       => :go_home,
+  '>'       => :follow_symlink,
+
+  # DIRECTORY VIEWS {{{3
+  'a'       => :toggle_all,
+  'A'       => :toggle_long,
+  'o'       => :toggle_order,
+  'i'       => :toggle_invert,
+  'O'       => :show_ls_command,
+
+  # TAGGING {{{3
+  't'       => :tag_current,
+  'C-T'     => :tag_pattern,
+  'T'       => :show_tagged,
+  'u'       => :clear_tagged,
+
+  # MANIPULATE ITEMS {{{3
+  'p'       => :copy_items,
+  'P'       => :move_items,
+  'c'       => :rename_item,
+  's'       => :link_items,
+  'd'       => :delete_items,
+  'D'       => :empty_trash,
+  'C-D'     => :toggle_trash,
+  'C-O'     => :change_ownership,
+  'C-P'     => :change_permissions,
+
+  # FILTER AND SEARCH {{{3
+  'f'       => :filter_types,
+  'F'       => :filter_regex,
+  'C-F'     => :filter_clear,
+  '/'       => :search_text,
+  '\\'      => :clear_search,
+  'n'       => :search_next,
+  'N'       => :search_prev,
+  'g'       => :grep_current,
+  'L'       => :locate,
+  '#'       => :jump_locate,
+  'C-L'     => :fzf_jump,
+
+  # ARCHIVES {{{3
+  'z'       => :unzip_items,
+  'Z'       => :zip_items,
+
+  # GIT/HASH/OPENAI {{{3
+  'G'       => :git_status,
+  'H'       => :hash_directory,
+  'I'       => :openai_description,
+  'C-A'     => :chat_mode,
+
+  # RIGHT PANE CONTROLS {{{3
+  'ENTER'   => :refresh_right,
+  'S-DOWN'  => :line_down_right,
+  'S-UP'    => :line_up_right,
+  'S-RIGHT' => :page_down_right,
+  'TAB'     => :page_down_right,
+  'S-LEFT'  => :page_up_right,
+  'S-TAB'   => :page_up_right,
+
+  # CLIPBOARD COPY {{{3
+  'y'       => :copy_path,
+  'Y'       => :copy_path,
+  'C-Y'     => :copy_right,
+
+  # SYSTEM SHORTCUTS {{{3
+  'S'       => :system_info,
+  '='       => :make_directory,
+  'C-N'     => :navi_invoke,
+
+  # COMMAND MODE {{{3
+  ':'       => :command_mode,
+  ';'       => :show_history,
+  '+'       => :add_interactive,
+
+  # RUBY MODE {{{3
+  '@'       => :ruby_debug
+}
+
+# USER KEYS (override or extend KEYMAP) {{{2
+if File.exist?(KEYS_FILE)
+  begin
+    load KEYS_FILE
+  rescue => e
+    @plugin_errors << "Error loading keys.rb: #{e.class}: #{e.message}"
+  end
+end
+
+# MAIN GETKEY FOR USER INPUT {{{2
+def getkey # {{{3
+  chr = getchr(1)
+  return unless chr
+
+  showimage('clear') if @image
+  @image = false
+  if handler = KEYMAP[chr]  # rubocop:disable Lint/AssignmentInCondition
+    m = method(handler)
+    m.arity == 1 ? m.call(chr) : m.call
+  end
+rescue StandardError => e
+  errormsg('⚷ Error in getkey', e)
+end
+
+# BASIC KEYS {{{2
+def show_help # {{{3
+  @pR.say(@help.fg(249))
+end
+
+def show_version # {{{3
+  @pB.say(" RTFM version = #{@version} (latest RubyGems version is #{Gem.latest_version_for('rtfm-filemanager').version} - https://github.com/isene/RTFM)".b)
+end
+
+def refresh_all # {{{3
+  refresh
+end
+
+def show_config
+  @pR.say('Configuration'.u.fg(254) + ":\n\n" + @conf.fg(249))
+end
+
+def write_config # {{{3
+  conf_write(all: true)
+  show_config
+end
+
+def quit_and_save # {{{3
+  shell("printf \"\e]0;#{Dir.pwd}\007\"")
+  conf_write
+  exit_rtfm
+end
+
+def quit_no_save # {{{3
+  shell("printf \"\e]0;#{Dir.pwd}\007\"")
+  exit_rtfm
+end
+
+# LAYOUT {{{2
+def change_width # {{{3
+  @width += 1
+  @width = 2 if @width == 8
+  refresh
+  @pR.update = @pB.update = true
+end
+
+def toggle_border # {{{3
+  @border = (@border + 1) % 4
+  setborder
+end
+
+def toggle_preview # {{{3
+  @preview = !@preview
+  @pB.say("Preview = #{@preview ? 'On' : 'Off'}")
+  @pR.clear unless @preview
+end
+
+def toggle_image # {{{3
+  @showimage = !@showimage
+  @pB.say("Image preview = #{@showimage ? 'On' : 'Off'}")
+  getch
+end
+
+def toggle_syntax # {{{3
+  @batuse = !@batuse
+  @pB.say("Syntax highlighting = #{@batuse ? 'On' : 'Off'}")
+  @pR.update = true
+end
+
+# MOTION {{{2
+def move_down # {{{3
+  @index = @index >= @max_index ? @min_index : @index + 1
+  @pR.update = @pB.update = true
+end
+
+def move_up # {{{3
+  @index = @index <= @min_index ? @max_index : @index - 1
+  @pR.update = @pB.update = true
+end
+
+def move_left # {{{3
+  old_dir = Dir.pwd
+  parent  = File.dirname(old_dir)
+  child   = File.basename(old_dir)
+  purels = command(
+    "ls #{Shellwords.escape(parent)} #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}"
+  ).pure.split("\n")
+  child_idx = purels.index(child) || 0
+  @directory[parent] = child_idx
+  mark_latest
+  Dir.chdir(parent)
+  @pL.update = @pR.update = @pB.update = true
+end
+
+def move_right # {{{3
+  @directory[Dir.pwd] = @index
+  mark_latest
+  open_selected
+  @index = @directory[Dir.pwd] || 0
+  @pB.update = true
+end
+
+def open_force # {{{3
+  @directory[Dir.pwd] = @index
+  mark_latest
+  open_selected(true)
+  @pB.update = true
+end
+
+def page_down # {{{3
+  @index += @pL.h - 2
+  @index = @max_index if @index > @max_index
+  @pR.update = @pB.update = true
+end
+
+def page_up # {{{3
+  @index -= @pL.h - 2
+  @index = @min_index if @index < @min_index
+  @pR.update = @pB.update = true
+end
+
+def go_last # {{{3
+  @index = @max_index
+  @pR.update = @pB.update = true
+end
+
+def go_first # {{{3
+  @index = @min_index
+  @pR.update = @pB.update = true
+end
+
+# MARKS & JUMPING {{{2
+def set_mark # {{{3
+  marks_info
+  @pB.say("Set mark by pressing any letter. Delete mark by pressing '-' and the letter of the mark to remove.".fg(156))
+  m = getchr
+  return if m == 'ESC'
+
+  if m =~ /[\w']/
+    @marks[m] = Dir.pwd
+  elsif m == '-'
+    @pB.say('Press the letter of the mark to remove.'.fg(156))
+    r = getchr; @marks.delete(r)
+  end
+  marks_info
+  @pB.update = true
+end
+
+def show_marks # {{{3
+  marks_info
+  @pB.update = true
+end
+
+def jump_to_mark # {{{3
+  marks_info
+  m = getchr
+  if m =~ /[\w']/ && @marks[m]
+    @directory[Dir.pwd] = @index
+    dir_before = Dir.pwd
+    begin; Dir.chdir(@marks[m]); rescue; @pB.say(' No such directory'); end
+    mark_latest
+    @marks["'"] = dir_before
+  end
+  @pR.update = @pB.update = true
+end
+
+def go_home # {{{3
+  @directory[Dir.pwd] = @index
+  mark_latest
+  Dir.chdir
+  @pR.update = @pB.update = true
+end
+
+def follow_symlink # {{{3
+  @directory[Dir.pwd] = @index; mark_latest
+  if File.symlink?(@selected)
+    begin
+      target = File.readlink(@selected)
+      target = File.expand_path(target, File.dirname(@selected)) unless target.start_with?('/')
+      Dir.chdir(target)
+    rescue => e
+      @pB.say("Error following symlink: #{e}")
     end
   end
-
-  puts @firstrun
-  puts "\n... hit ENTER to start RTFM. Hit ? inside RTFM to show the help text. Enjoy :-)"
-  $stdin.gets
+  @pB.update = true
 end
-begin # BASIC SETUP
-  require 'fileutils'
-  require 'io/console'
-  require 'io/wait'
-  require 'date'
-  require 'timeout'
-  require 'curses'
-  include  Curses
 
-  firstrun unless File.exist?(Dir.home+'/.rtfm.conf')
+# DIRECTORY VIEWS {{{2
+def toggle_all # {{{3
+  @lsall = @lsall.empty? ? '-a' : ''
+  @pR.update = @pB.update = true
+end
 
-  def cmd?(command)
-    system("which #{command} > /dev/null 2>&1")
-  end
-  
-  if cmd?('/usr/lib/w3m/w3mimgdisplay')
-    @imgdisplay = "/usr/lib/w3m/w3mimgdisplay"
-    @showimage = true
+def toggle_long # {{{3
+  @lslong = @lslong.empty? ? '-lh --time-style=long-iso' : ''
+  @pR.update = @pB.update = true
+end
+
+def toggle_order # {{{3
+  case @lsorder
+  when ''
+    @lsorder = '-S'; @pB.say(' Sorting by size')
+  when '-S'
+    @lsorder = '-t'; @pB.say(' Sorting by time')
+  when '-t'
+    @lsorder = '-X'; @pB.say(' Sorting by extension')
   else
-    @showimage = false
+    @lsorder = '';  @pB.say(' Normal sorting')
   end
-  @showimage = false unless (cmd?('xwininfo') and cmd?('xdotool'))
-  
-  cmd?('bat') ? @bat = "bat" : @bat = "batcat"
+  @pR.update = true; @orderchange = true
+end
 
-  $stdin.set_encoding(Encoding::UTF_8) # Set encoding for $stdin 
+def toggle_invert # {{{3
+  @lsinvert = @lsinvert.empty? ? '-r' : ''
+  @pB.say(' Sorting inverted')
+  @pR.update = true; @orderchange = true
+end
 
-  ## Curses setup 
-  Curses.init_screen
-  Curses.start_color
-  Curses.curs_set(0)
-  Curses.noecho
-  Curses.cbreak
-  Curses.stdscr.keypad = true
+def show_ls_command # {{{3
+  @pB.say(" Full 'ls' command: ls #{@lsbase} #{@lslong} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}".gsub(/ +/, ' '))
+  @pB.update = false
+end
 
-  # INITIALIZE VARIABLES 
-  ## These can be set by user in .rtfm.conf
-  @lsbase      = "--group-directories-first" # Basic ls setup
-  @lslong      = false # Set short form ls (toggled by pressing "l")
-  @lsall       = ""    # Set "ls -a" to false (toggled by pressing "a" - sets it to "-a")
-  @lsorder     = ""    # Change the order/sorting by pressing 'o' (circular toggle)
-  @lsinvert    = ""    # Set to "-r" to reverse/invert sorting order
-  @lsuser      = ""    # Set this variable in .rtfm.conf to any 'ls' switch you want to customize directory listings
-  @width       = 4     # Set width of the left pane to the default ⅓ of the terminal width
-  @history     = []    # Initialize the command line history array
-  @rubyhistory = []    # Initialize the command line history array for ruby commands
-  @border      = false
-  @rubycolor   = 52
-  @cmdcolor    = 18
-  @topcolor    = 249
-  @topmatch    = [["", 249]]
-  @bottomcolor = 238
-  @preview     = true
-  @runmailcap  = false # Set to 'true' in .rtfm.conf if you want to use run-mailcap instead of xdg-open
-  @batuse      = true  # Use batcat for syntax highlighting
-  @aimodel     = "gpt-4o-mini" # The default OpenAI model, set another in .rtfm.conf if you like
-  ## These are automatically written on exit
-  @marks       = {}    # Initialize (book)marks hash
-  @hash        = {}    # Initialize the sha directory hashing
-  @tagged      = []    # Initialize the tagged array - for collecting all tagged items
-  ## These should not be set by user in .rtfm.conf
-  @directory   = {}    # Initialize the directory hash for remembering directories visited
-  @searched    = ""    # Initialize the active searched for items
-  @lsfiles     = ""    # File types to show (initially set to all file types) - not saved on exit
-  @lsmatch     = ""    # Files to match (initially set to matching all files) - not saved on exit
-  @index       = 0     # Set chosen item to first on startup
-  @cont        = ""
-  @tagsize     = 0
-  @navi        = ""
-  @marks["'"]  = Dir.pwd
-  ## File type recognizers
-  @imagefile   = /\.jpg$|\.JPG$|\.jpeg$|\.png$|\.bmp$|\.gif$|\.tif$|\.tiff$/
-  @pptfile     = /\.ppt$/
-  @xlsfile     = /\.xls$/
-  @docfile     = /\.doc$/
-  @docxfile    = /\.docx$/
-  @xlsxfile    = /\.xlsx$/
-  @pptxfile    = /\.pptx$/
-  @oolofile    = /\.odt$|\.odc$|\.odp$|\.odg$/
-  @pdffile     = /\.pdf$|\.ps$/
-  ## Get variables from config file (written back to .rtf.conf upon exit via 'q')
-  if File.exist?(Dir.home+'/.rtfm.conf')
-    load(Dir.home+'/.rtfm.conf')
+# TAGGING {{{2
+def tag_current # {{{3
+  item = @selected
+  if @tagged.include?(item)
+    @tagged.delete(item); @tagsize -= File.size(item) rescue 0
+  else
+    @tagged.push(item); @tagsize += File.size(item) rescue 0
   end
-  Dir.chdir(ARGV[0]) if ARGV[0] and Dir.exist?(ARGV[0]) and ARGV[0] !~ /\/tmp/
+  @index = [@index + 1, (@files.size - 1)].min
+  @pB.say(" Tagged #{@tagged.size} files (#{(@tagsize.to_f / 1_000_000).round(2)}MB)".fg(204))
+  @pB.update = false; @pR.update = true; @pL.update = true
 end
-# CLASS EXTENSIONS
-class Curses::Window 
-  attr_accessor :fg, :bg, :attr, :text, :update, :pager, :pager_more, :pager_cmd, :locate, :nohistory
-  # General extensions (see https://github.com/isene/Ruby-Curses-Class-Extension)
-  def clr
-    self.setpos(0, 0)
-    self.maxy.times {self.deleteln()}
-    self.refresh
-    self.setpos(0, 0)
+
+def tag_pattern # {{{3
+  pat = @pB.ask('Tag pattern (ruby regex): ', '')
+  re  = Regexp.new(pat)
+  matches = @files.grep(re).map { |t| File.join(Dir.pwd, t) }
+  matches.each do |f|
+    @tagsize += File.size(f) rescue nil
   end
-  def fill # Fill window with color as set by :bg
-    self.setpos(0, 0)
-    self.bg = 0 if self.bg   == nil
-    self.fg = 255 if self.fg == nil
-    init_pair(self.fg, self.fg, self.bg)
-    blank = " " * self.maxx
-    self.maxy.times {self.attron(color_pair(self.fg)) {self << blank}}
-    self.refresh
-    self.setpos(0, 0)
-  end
-  def write # Write context of :text to window with attributes :attr
-    self.bg = 0 if self.bg   == nil
-    self.fg = 255 if self.fg == nil
-    init_pair(self.fg, self.fg, self.bg)
-    self.attr = 0 if self.attr == nil
-    self.attron(color_pair(self.fg) | self.attr) { self << self.text }
-    self.refresh
-  end
-  # RTFM specific extensions
+  @tagged.concat(matches)
+  @tagged.uniq!
+  @pB.say(" Tagged #{@tagged.size} files (#{(@tagsize.to_f / 1_000_000).round(2)}MB)".fg(204))
+  @pB.update = false
+  @pR.update = true
 end
-# GENERIC FUNCTIONS 
-def syntax_highlight(input) # SYNTAX HIGHLIGHTING FROM ANSI COLOR CODES
-  color_ary  = color_parse(input)
-  color_ary.each do | pair |
-    begin
-      fg   = pair[0].to_i
-      atr  = pair[1].to_i
-      atr == 1 ? atr = Curses::A_BOLD : atr = 0
-      text = pair[2]
-      text.gsub!(/\t/, '')
-      init_pair(fg, fg, 0)
-      @w_r.attron(color_pair(fg) | atr) { @w_r << text }
-    rescue
+
+def show_tagged # {{{3
+  tagged_info
+  @pB.update = true
+end
+
+def clear_tagged # {{{3
+  @tagged = []
+  tagged_info
+  @pB.update = true
+end
+
+# MANIPULATE ITEMS {{{2
+def copy_items # {{{3
+  copy_move_link('copy')
+  @pR.update = true
+end
+
+def move_items # {{{3
+  copy_move_link('move')
+  @pR.update = true
+end
+
+def rename_item # {{{3
+  basename = File.basename(@selected)
+  dir      = File.dirname(@selected)
+  display  = basename.length > 12 ? basename[0, 12] + '…' : basename
+  tpl      = "mv \"#{display}\" \"#{basename}\""
+  cmd      = @pCmd.ask(': ', tpl).pure
+  match        = cmd.match(/mv\s+"[^"]+"\s+"([^"]+)"/)
+  new_basename = match ? match[1] : basename
+  old_esc      = Shellwords.escape(@selected)
+  new_path     = File.join(dir, new_basename)
+  new_esc      = Shellwords.escape(new_path)
+  shellexec("mv #{old_esc} #{new_esc}")
+  dirlist
+  # point @selected and @index at the new name
+  @selected = new_path
+  new_idx   = @files.index(new_basename)
+  @index    = new_idx if new_idx
+  render
+end
+
+def link_items # {{{3
+  copy_move_link('link')
+  @pR.update = true
+end
+
+def delete_items # {{{3
+  tagged_info
+  @pR.text << "\n\n Selected:\n\n #{@selected}".fg(204).b
+  @pR.refresh
+  # choose wording based on @trash
+  action      = @trash ? 'Move (to ~/.rtfm/trash)' : 'Delete'
+  past_action = @trash ? 'Moved'                   : 'Deleted'
+  @pB.say(" #{action} selected and tagged? (press 'y')")
+  if getchr == 'y'
+    # collect & escape every path
+    paths = (@tagged + [@selected]).uniq
+    esc   = paths.map { |p| Shellwords.escape(p) }.join(' ')
+    if @trash
+      esc_trash = Shellwords.escape(TRASH_DIR)
+      command("mv -f #{esc} #{esc_trash}")
+    else
+      command("rm -rf #{esc}")
+    end
+    @tagged.clear
+    refresh_right
+    @pR.say("#{past_action} #{paths.size} items#{@trash ? " to #{TRASH_DIR}" : ''}".fg(204))
+  else
+    @pB.update = true
+  end
+end
+
+def empty_trash # {{{3
+  @pB.say(" Really empty Trash (~/.rtfm/trash)? (press 'y')")
+  return unless  getchr == 'y'
+
+  command("rm -rf #{TRASH_DIR}/*")
+  @pB.say('Trash is now empty')
+  render
+end
+
+def toggle_trash # {{{3
+  @trash = !@trash
+  @pB.say("Trash (~/.rtfm/trash) = #{@trash ? 'On' : 'Off'}")
+end
+
+def change_ownership # {{{3
+  require 'etc'
+  gnm = Etc.getgrgid(File.stat(@selected).gid).name
+  unm = Etc.getpwuid(File.stat(@selected).uid).name
+  ans = @pB.ask('Change ownership (user:group): ', "#{unm}:#{gnm}")
+  user, group = ans.split(':')
+  uid = Etc.getpwnam(user).uid
+  gid = Etc.getgrnam(group).gid
+  File.chown(uid, gid, @selected)
+  @tagged.each { |t| File.chown(uid, gid, t) rescue nil }
+  if user == unm && group == gnm
+    @pB.say('No change in ownership')
+  else
+    @pB.say("Ownership changed to #{user}:#{group}")
+  end
+end
+
+def change_permissions # {{{3
+  # strip leading “-” off e.g. "-rwxr-xr-x" → "rwxr-xr-x"
+  default = @fileattr.split[1][1..]
+  ans = @pB.ask('Permissions: ', default)
+  mode = if ans =~ /^\d{3}$/          # "755"
+           ans.to_i(8)
+         elsif ans.length == 3           # "rwx" → "rwxrwxrwx"
+           # compute the single octal digit
+           digit = ans.chars.map do |c|
+             (c == 'r' ? 4 : 0) +
+             (c == 'w' ? 2 : 0) +
+             (c == 'x' ? 1 : 0)
+           end.sum
+           # replicate for user, group, other
+           (digit * 64) + (digit * 8) + digit
+         elsif ans.length == 9           # "rwxr-xr-x"
+           # split into three triads and compute each
+           triads = ans.scan(/.{3}/)
+           perms  = triads.map do |tri|
+             (tri[0] == 'r' ? 4 : 0) +
+             (tri[1] == 'w' ? 2 : 0) +
+             (tri[2] == 'x' ? 1 : 0)
+           end
+           (perms[0] * 64) + (perms[1] * 8) + perms[2]
+         end
+  if mode.nil?
+    @pB.say('Invalid mode')
+  else
+    current = File.stat(@selected).mode & 0o777
+    if mode == current
+      @pB.say("No change needed (already #{mode.to_s(8)})")
+    else
+      File.chmod(mode, @selected)
+      @tagged.each { |t| File.chmod(mode, t) rescue nil }
+      @pB.say("Permissions changed to: #{mode.to_s(8)}")
     end
   end
 end
-def color_parse(input) # PARSE ANSI COLOR SEQUENCES
-  input.gsub!(/\e\[\d;38;5;(\d+);*(\d*)m/, '¤¤\1¤¤\2¤¤')
-  input.gsub!(/\e\[38;5;(\d+);*(\d*)m/, '¤¤\1¤¤\2¤¤')
-  input.gsub!(/\e\[\d;38;2;(\d+);*(\d*);\d*m/, '¤¤\1¤¤\2¤¤')
-  input.gsub!(/\e\[38;2;(\d+);*(\d*);\d*m/, '¤¤\1¤¤\2¤¤')
-  input.gsub!(/\e\[\d+;(\d+);*(\d*)m/, '¤¤\1¤¤\2¤¤')
-  input.gsub!(/\e\[0m/, "")
-  color_array = input.split("¤¤")
-  color_array = color_array.drop(1)
-  #color_array.map! { |x| x || 0 }
-  output = color_array.each_slice(3).to_a
-  return output
+
+# FILTER AND SEARCH {{{2
+def filter_types # {{{3
+  @lsfiles = @pB.ask('Filetype(s) to show: ', @lsfiles)
+  @pR.update = @pB.update = true
 end
-def getchr # PROCESS KEY PRESSES
-  # Note: Curses.getch blanks out @w_t
-  # @w_l.getch makes Curses::KEY_DOWN etc not work
-  # Therefore resorting to the generic method
-  c = $stdin.getch(min: 0, time: 3)
-  case c
-  when "\e"    # ANSI escape sequences
-    return "ESC" if $stdin.ready? == nil
-    case $stdin.getc
-    when '['   # CSI
-      case $stdin.getc
-      when 'A' then chr = "UP"
-      when 'B' then chr = "DOWN"
-      when 'C' then chr = "RIGHT"
-      when 'D' then chr = "LEFT"
-      when 'Z' then chr = "S-TAB"
-      when '2' then chr = "INS"    ; chr = "C-INS"    if $stdin.getc == "^"
-      when '3' then chr = "DEL"    ; chr = "C-DEL"    if $stdin.getc == "^"
-      when '5' then chr = "PgUP"   ; chr = "C-PgUP"   if $stdin.getc == "^"
-      when '6' then chr = "PgDOWN" ; chr = "C-PgDOWN" if $stdin.getc == "^"
-      when '7' then chr = "HOME"   ; chr = "C-HOME"   if $stdin.getc == "^"
-      when '8' then chr = "END"    ; chr = "C-END"    if $stdin.getc == "^"
-      else chr = ""
-      end
-    when 'O'   # Set Ctrl+ArrowKey equal to ArrowKey; May be used for other purposes in the future
-      case $stdin.getc
-      when 'a' then chr = "C-UP"
-      when 'b' then chr = "C-DOWN"
-      when 'c' then chr = "C-RIGHT"
-      when 'd' then chr = "C-LEFT"
-      else chr = ""
-      end
-    end
-  when "", "" then chr = "BACK"
-  when "" then chr = "C-C"
-  when "" then chr = "C-D"
-  when "" then chr = "C-E"
-  when "" then chr = "C-G"
-  when "" then chr = "C-K"
-  when "" then chr = "C-L"
-  when "" then chr = "C-N"
-  when "" then chr = "C-O"
-  when "" then chr = "C-P"
-  when "" then chr = "C-T"
-  when "" then chr = "C-Y"
-  when "" then chr = "WBACK"
-  when "" then chr = "LDEL"
-  when "\r" then chr = "ENTER"
-  when "\t" then chr = "TAB"
-  when /[[:print:]]/  then chr = c
-  else chr = ""
+
+def filter_regex # {{{3
+  @lsmatch = @pB.ask('Files match RegEx: ', @lsmatch)
+  @pB.say(nil)
+  @pR.update = @pB.update = true
+end
+
+def filter_clear # {{{3
+  @lsfiles = @lsmatch = ''
+  @pB.say('All filtering cleared.')
+end
+
+def search_text # {{{3
+  @searched = @pSearch.ask('/ ', '')
+  l = command("ls #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}").split
+  m = l.each_index.select { |n| l[n] =~ /#{@searched}/ }
+  @index = m.first unless m.empty?
+  @index = 0 if @searched.empty?
+  @pR.update = true; @pB.full_refresh
+end
+
+def clear_search # {{{3
+  @searched = ''
+end
+
+def search_next # {{{3
+  l = command("ls #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}").split
+  m = l.each_index.select { |n| l[n] =~ /#{@searched}/ }
+  i = m.find { |n| n > @index }
+  @index = i || m.first
+  @pR.update = true
+end
+
+def search_prev # {{{3
+  l = command("ls #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}").split
+  m = l.each_index.select { |n| l[n] =~ /#{@searched}/ }.reverse
+  i = m.find { |n| n < @index }
+  @index = i || m.first
+  @pR.update = true
+end
+
+def grep_current # {{{3
+  cmd = @pCmd.ask(': ', 'grep -s MATCH *')
+  shellexec(cmd)
+end
+
+def locate # {{{3
+  cmd = @pCmd.ask(': ', 'locate ')
+  cmd += " | #{@bat} -n --color=always"
+  shellexec(cmd)
+  @locate = true
+end
+
+def jump_locate # {{{3
+  @pB.update = true; return unless @locate
+
+  nr = @pB.ask('# ', '').to_i
+  line = @pR.text.lines[nr - 1]
+  unless line
+    @pB.say('Error: No such file or directory.'); @pB.update = false; return
   end
-  return chr
+  jump = line.pure[%r{/\S+}]
+  dir = File.dirname(jump); tgt = File.basename(jump)
+  @directory[Dir.pwd] = @index; mark_latest; Dir.chdir(dir); @dir_old = Dir.pwd
+  l = command("ls #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}").split("\n")
+  @index = l.index { |t| t == tgt }
 end
-def main_getkey # GET KEY FROM USER
-  dir = Dir.pwd
-  chr = getchr
-  case chr
-  # BASIC KEYS
-  when '?' # Show helptext in right window 
-    @w_r.fg = 249
-    w_r_info(@help)
-    @w_b.update = true
-  when 'r' # Refresh all windows 
-    @break = true
-  when 'R' # Reload .rtfm.conf
-    if File.exist?(Dir.home+'/.rtfm.conf')
-      load(Dir.home+'/.rtfm.conf')
-    end
-    w_b_info(" Config reloaded")
-  when 'W' # Write all parameters to .rtfm.conf
-    @write_conf_all = true
-    conf_write
-    @w_b.update = true
-  when 'q' # Exit 
-    @tagged = []
-    @write_conf = true
-    exit 0
-  when 'Q' # Exit without writing to .rtfm.conf
-    @tagged = []
-    system("printf \"\033]0;#{Dir.pwd}\007\"")
-    @write_conf = false
-    exit 0
-  when 'v'
-    w_b_info("RTFM version = #{@version} (latest RubyGems version is #{Gem.latest_version_for("rtfm-filemanager").version} - https://github.com/isene/RTFM)")
-  # MOTION
-  when 'DOWN', 'j', 'C-DOWN'
-    var_resets
-    @index = @index >= @max_index ? @min_index : @index + 1
-    @w_r.update = true
-    @w_b.update = true
-  when 'UP', 'k', 'C-UP'
-    var_resets
-    @index = @index <= @min_index ? @max_index : @index - 1
-    @w_r.update = true
-    @w_b.update = true
-  when 'LEFT', 'h', 'C-LEFT'
-    var_resets
-    cur_dir = Dir.pwd
-    @directory[Dir.pwd] = @selected # Store this directory before leaving
-    mark_latest
-    Dir.chdir("..")
-    @directory[Dir.pwd] = File.basename(cur_dir) unless @directory.key?(Dir.pwd)
-    @w_r.update = true
-    @w_b.update = true
-  when 'RIGHT', 'l', 'C-RIGHT'
-    var_resets
-    @directory[Dir.pwd] = @selected # Store this directory before leaving
-    mark_latest
-    open_selected()
-    @w_r.update = true
-    @w_b.update = true
-  when 'x'   # Force open with file opener (used to open HTML files in browser)
-    var_resets
-    @directory[Dir.pwd] = @selected # Store this directory before leaving
-    mark_latest
-    open_selected(true)
-    @w_r.update = true
-    @w_b.update = true
-  when 'PgDOWN'
-    var_resets
-    @index += @w_l.maxy - 2
-    @index = @max_index if @index > @max_index
-    @w_r.update = true
-    @w_b.update = true
-  when 'PgUP'
-    var_resets
-    @index -= @w_l.maxy - 2
-    @index = @min_index if @index < @min_index
-    @w_r.update = true
-    @w_b.update = true
-  when 'END'
-    var_resets
-    @index = @max_index
-    @w_r.update = true
-    @w_b.update = true
-  when 'HOME'
-    var_resets
-    @index = @min_index
-    @w_r.update = true
-    @w_b.update = true
-  # JUMPING AND MARKS
-  when 'm' # Set mark 
-    marks_info
-    m = $stdin.getc
-    if m.match(/[\w']/)
-      @marks[m] = Dir.pwd
-    elsif m == "-"
-      r = $stdin.getc
-      @marks.delete(r)
-    end
-    marks_info
-    @w_r.update = false
-    @w_b.update = true
-  when 'M' # Show marks 
-    marks_info
-    @w_r.update = false
-    @w_b.update = true
-  when "'" # Jump to mark 
-    marks_info
-    m = stdscr.getch.to_s
-    if m.match(/[\w']/) and @marks[m]
-      var_resets
-      @directory[Dir.pwd] = @selected # Store this directory before leaving
-      dir_before  = Dir.pwd
-      begin
-        Dir.chdir(@marks[m]) 
-      rescue
-        w_b_info(" No such directory")
-      end
-      mark_latest
-      @marks["'"] = dir_before
-    end
-    @w_r.update = true
-    @w_b.update = true
-  when '~' # Go to home dir
-    var_resets
-    @directory[Dir.pwd] = @selected # Store this directory before leaving
-    mark_latest
-    Dir.chdir
-    @w_r.update = true
-    @w_b.update = true
-  when '>' # Follow symlink
-    @directory[Dir.pwd] = @selected # Store this directory before leaving
-    mark_latest
-    if File.symlink?(@selected) 
-      begin
-        Dir.chdir(File.dirname(File.readlink(@selected)))
-      rescue
-      end
-    end
-    @w_b.update = true
-  # SEARCHING
-  when '/' # Get search string to mark items that match the input 
-    @w_b.nohistory = true
-    @searched = w_b_getstr("/ ", "")
-    l = `ls 2>/dev/null #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}`.split
-    m = l.each_index.select{|n| l[n] =~ /#{@searched}/}
-    @index = m[0] unless m == []
-    @index = 0 if @searched == ""
-    @w_r.update = true
-  when '\\' # Clear search string
-    @searched = ""
-  when 'n' # Jump to next occurence of search (after '/')
-    l = `ls 2>/dev/null #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}`.split
-    m = l.each_index.select{|n| l[n] =~ /#{@searched}/}
-    i = m.find { |n| n > @index }
-    if i == nil
-      @index = m.first
+
+def fzf_jump # {{{ 3
+  unless system('which fzf > /dev/null 2>&1')
+    @pB.say(' fzf not installed – see https://github.com/junegunn/fzf')
+    return
+  end
+  # 2) Prepare a temp file for the single-line selection
+  tmp = File.join(Dir.tmpdir, 'rtfm_fzf_selection')
+  # Launch fzf:
+  #  - stdin  <- /dev/tty so fzf reads from terminal
+  #  - stdout -> tmp to capture only the chosen entry
+  #  - stderr -> /dev/tty so fzf can draw its full-screen UI
+  system("fzf < /dev/tty > #{Shellwords.escape(tmp)} 2> /dev/tty")
+  jump = File.exist?(tmp) ? File.read(tmp).chomp : ''
+  File.delete(tmp)
+  return if jump.empty?
+
+  dir = File.dirname(jump)
+  tgt = File.basename(jump)
+  @directory[Dir.pwd] = @index
+  mark_latest
+  Dir.chdir(dir)
+  @dir_old = Dir.pwd
+  l = command("ls #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}").split("\n")
+  @index = l.index { |t| t == tgt } || 0
+  @pL.update = @pR.update = @pB.update = true
+end
+
+# ARCHIVES {{{2
+def unzip_items # {{{3
+  first = @tagged.first
+  tar   = Shellwords.escape(first)
+  cmd   = @pCmd.ask('Command: ', "tar xfz #{tar}")
+  shellexec(cmd)
+  render
+end
+
+def zip_items # {{{3
+  arc = @pCmd.ask('Archive name: ', '')
+  # escape archive base and all paths
+  arc_esc    = Shellwords.escape(arc)
+  tagged_esc = @tagged.map { |p| Shellwords.escape(p) }.join(' ')
+  cmd        = @pCmd.ask('Command: ', "tar cfz #{arc_esc}.gz #{tagged_esc}")
+  shellexec(cmd + ' 2>/dev/null')
+  render
+end
+
+# GIT/HASH/OPENAI {{{2
+def git_status # {{{3
+  @pR.clear
+  out, err   = command('git status', return_both: true)
+  @pR.text  += err.fg(196) unless err.empty?
+  @pR.text  += out.fg(214) unless out.empty?
+  @pR.full_refresh
+  @pR.update = false
+  @pB.update = true
+end
+
+def hash_directory # {{{3
+  dir = Shellwords.escape(Dir.pwd)
+  @pB.say("Creating hash for #{dir}. May take a while…")
+  hashcmd = <<~CMD.chomp
+    (find #{dir} -type f -print0 |
+      sort -z |
+      xargs -0 sha1sum;
+    find #{dir} \\( -type f -o -type d \\) -print0 |
+      sort -z |
+      xargs -0 stat -c '%n %a') |
+    sha1sum |
+    cut -c -40
+  CMD
+  hashdir = command(hashcmd, timeout: 300).chomp
+  hashtime = DateTime.now.strftime('%Y-%m-%d %H:%M')
+  if @hash.key?(Dir.pwd)
+    old_time, old_hash = @hash[Dir.pwd]
+    if old_hash == hashdir
+      @pB.say(" Hash for #{Dir.pwd} has NOT changed since #{old_time} (#{hashdir})".fg(213))
     else
-      @index = i
-    end
-    @w_r.update = true
-  when 'N' # Jump to previous occurence of search (after '/')
-    l = `ls 2>/dev/null #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}`.split
-    m = l.each_index.select{|n| l[n] =~ /#{@searched}/}.reverse
-    i = m.find { |n| n < @index }
-    if i == nil
-      @index = m.first
-    else
-      @index = i
-    end
-    @w_r.update = true
-  when 'g' # Run 'grep' in the current directory
-    cmd = w_b_getstr(": ", "grep -s MATCH *")
-    w_b_exec(cmd)
-  when 'L' # Run 'locate' and let user jump to a result (by '#') 
-    cmd = w_b_getstr(": ", "locate ")
-    w_b_exec(cmd)
-    @w_r.locate = true
-    @w_b.update = true
-  when '#' # Jump to the line number in list of matches to 'locate' 
-    if @w_r.locate
-      jumpnr   = w_b_getstr("# ", "").to_i
-      jumpline = @w_r.text.lines[jumpnr - 1]
-      jumpdir  = jumpline[/\/[^\e]*/]
-      unless Dir.exist?(jumpdir) 
-        @searched = File.basename(jumpdir)
-        jumpdir = File.dirname(jumpdir)
-      end
-      @directory[Dir.pwd] = @selected # Store this directory before leaving
-      mark_latest
-      Dir.chdir(jumpdir)
-      @w_r.pager = 0
-    end
-    @w_b.update = true
-  when 'C-L' # fzf integration (https://github.com/junegunn/fzf)
-    begin
-      jump     = `fzf`.chomp
-    rescue
-      w_b_info(" fzf not installed - see https://github.com/junegunn/fzf")
-    end
-    jumpdir  = File.dirname(jump)
-    @searched = File.basename(jump)
-    @directory[Dir.pwd] = @selected # Store this directory before leaving
-    mark_latest
-    Dir.chdir(jumpdir)
-    @break = true
-  # TAGGING
-  when 't' # Add item to tagged list 
-    item = "\"#{Dir.pwd}/#{@selected}\""
-    if @tagged.include?(item)
-      @tagged.delete(item)
-      @tagsize -= File.size(item[1...-1])
-    else
-      @tagged.push(item)
-      @tagsize += File.size(item[1...-1])
-    end
-    @index += 1
-    @w_r.update = true
-    @w_b.update = true
-  when 'C-T' # Tag items matching a pettern
-    @w_b.nohistory = true
-    @tag = w_b_getstr("~ ", "")
-    @w_r.update = true
-    @w_b.update = true
-  when 'T' # Show tagged list 
-    @w_r.fg = 196
-    tagged_info
-    @w_r.update = false
-    @w_b.update = true
-  when 'u' # Clear tagged list 
-    @tagged = []
-    tagged_info
-    @w_r.update = false
-    @w_b.update = true
-  # MANIPULATE ITEMS
-  when 'p' # Copy tagged items here 
-    copy_move_link("copy")
-    @w_r.update = true
-  when 'P' # Move tagged items here 
-    copy_move_link("move")
-    @w_r.update = true
-  when 's' # Create symlink to tagged items here 
-    copy_move_link("link")
-    @w_r.update = true
-  when 'd' # Delete items tagged and @selected 
-    tagged_info
-    w_b_info(" Delete selected and tagged? (press 'y' to delete)")
-    begin
-      @tagged.push("\"#{Dir.pwd}/#{@selected}\"")
-      @tagged.uniq!
-      deletes = @tagged.join(" ")
-      if $stdin.getc == 'y'
-        `rm -rf #{deletes} 2>/dev/null` 
-        items_number = @tagged.length
-        @tagged = []
-        w_b_info("Deleted #{items_number} items: #{deletes}")
-      else
-        @w_b.update = true
-      end
-      @w_r.update = true
-    rescue StandardError => err
-      w_b_info(err.to_s)
-    end
-  when 'c' # Change/rename selected @selected 
-    @selected.length > 12 ? source = @selected[0...12] + "…" : source = @selected
-    cmd = w_b_getstr(": ", "mv \"#{source}\" \"#{@selected}\"")
-    el1 = @selected_safe
-    el2 = cmd.split(' "').last[0..-2]
-    cmd = "mv #{el1} \"#{el2}\""
-    begin
-      if el1 == el2
-        w_b_info(" Source and target are the same. No action done.")
-      else
-        w_b_exec(cmd + " 2>/dev/null")
-      end
-    rescue StandardError => err
-      w_b_info(err.to_s)
-    end
-    @w_r.update = false
-  when 'C-O' # Change ownerships
-    require 'etc'
-    gnm = Etc.getgrgid(File.stat(@selected).gid).name
-    unm = Etc.getpwuid(File.stat(@selected).uid).name
-    p   = "Change ownership of selected"
-    p  += " and tagged" unless @tagged.empty?
-    p  += ". Selected ownership (user:group) = "
-    own = w_b_getstr(p, "#{unm}:#{gnm}").split(":")
-    gnm, unm = own[0], own[1]
-    begin
-      gid = Etc.getgrnam(gnm).gid.to_i
-      uid = Etc.getpwnam(unm).uid.to_i
-      File.chown(uid, gid, @selected)
-      @tagged.each {|t| File.chown(uid, gid, t[1...-1])} unless @tagged.empty? 
-      w_b_info("Ownership changed to #{gnm}:#{unm}")
-    rescue StandardError => err
-      w_b_info(err.to_s)
-    end
-  when 'C-P' # Change permissions
-    mode = @fspes[@index][1..9]
-    p   = "Change permissions of selected"
-    p  += " and tagged" unless @tagged.empty?
-    p  += ". Selected permissions = "
-    mode = w_b_getstr(p, mode)
-    mode = mode * 3 if mode.length == 3 and mode.to_i == 0
-    if mode.length == 9 and mode.to_i == 0
-      x  = 0
-      x += 400 if mode[0] == "r"
-      x += 200 if mode[1] == "w"
-      x += 100 if mode[2] == "x"
-      x +=  40 if mode[3] == "r"
-      x +=  20 if mode[4] == "w"
-      x +=  10 if mode[5] == "x"
-      x +=   4 if mode[6] == "r"
-      x +=   2 if mode[7] == "w"
-      x +=   1 if mode[8] == "x"
-      mode = x
-    end
-    if mode.to_s.length == 3 and mode.to_i != 0
-      mode = mode.to_s.to_i(8)
-      begin
-        File.chmod(mode, @selected)
-        @tagged.each {|t| File.chmod(mode, t[1...-1])} unless @tagged.empty?
-      rescue StandardError => err
-        w_b_info(err.to_s)
-      end
-    else
-      w_b_info("Not a valid permissions mode. Nothing changed.")
-    end
-  when 'z' # Unzip selected archive file
-    cmd = w_b_getstr("Command = ", "tar xfz #{@tagged.first}")
-    begin
-      w_b_exec(cmd + " 2>/dev/null")
-    rescue StandardError => err
-      w_b_info(err.to_s)
-    end
-  when 'Z' # Create archive file
-    arc = w_b_getstr("Archive name: ", "")
-    cmd = w_b_getstr("Command = ", "tar cfz #{arc}.gz #{@tagged.join(" ")}")
-    begin
-      w_b_exec(cmd + " 2>/dev/null")
-    rescue StandardError => err
-      w_b_info(err.to_s)
-    end
-  # DIRECTORY VIEWS
-  when 'a' # Show all items 
-    @lsall == "" ? @lsall = "-a" : @lsall = ""
-    @w_r.update = true
-    @w_b.update = true
-  when 'A' # Show all info for all items 
-    @lslong = !@lslong
-    @w_r.update = true
-    @w_b.update = true
-  when 'o' # Circular toggle the order/sorting of directory views
-    case @lsorder
-    when ""
-      @lsorder = "-S"
-      w_b_info(" Sorting by size, largest first")
-    when "-S"
-      @lsorder = "-t"
-      w_b_info(" Sorting by modification time")
-    when "-t"
-      @lsorder = "-X"
-      w_b_info(" Sorting by extension (alphabetically)")
-    when "-X"
-      @lsorder = ""
-      w_b_info(" Normal sorting")
-    end
-    @w_r.update  = true
-    @orderchange = true
-  when 'i' # Invert the order/sorting of directory views
-    case @lsinvert
-    when ""
-      @lsinvert = "-r"
-      w_b_info(" Sorting inverted")
-    when "-r"
-      @lsinvert = ""
-      w_b_info(" Sorting NOT inverted")
-    end
-    @w_r.update  = true
-    @orderchange = true
-  when 'O' # Show the Ordering in the bottom window (the full ls command)
-    w_b_info(" Full 'ls' command: ls <@s> #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}")
-  when 'G' # Git status for selected item or current dir
-    @w_r.fg = 214
-    if File.exist?(".git")
-      w_r_info(`git status 2>/dev/null`)
-    else
-      w_r_info("This is not a git repository.")
-    end
-    @w_r.update = false
-    @w_b.update = true
-  when 'H' # Compare with previous hash status or write hash status if no existing hash
-    @w_r.fg = 213
-    hashcmd = "\(find #{Dir.pwd} -type f -print0  | sort -z | xargs -0 sha1sum; find #{Dir.pwd}"\
-              " \\( -type f -o -type d \\) -print0 | sort -z | xargs -0 stat -c '%n %a'\) | sha1sum | cut -c -40"
-    begin
-      hashdir = `#{hashcmd}`.chomp
-    rescue StandardError => e
-      w_r_info("Error: #{e.inspect}")
-    end
-    hashtime = DateTime.now.strftime "%Y-%m-%d %H:%M"
-    if @hash.include?(Dir.pwd)
-      if @hash[Dir.pwd][1] == hashdir
-        w_b_info(" Hash for #{Dir.pwd} has NOT changed since #{hashtime} (#{hashdir})")
-      else
-        w_b_info(" Hash for #{Dir.pwd} has CHANGED since #{hashtime} (#{@hash[Dir.pwd][1]} -> #{hashdir})")
-        @hash[Dir.pwd] = [hashtime, hashdir]
-      end
-    else
-      hashtime = DateTime.now.strftime "%Y-%m-%d %H:%M"
+      @pB.say(" Hash for #{Dir.pwd} has CHANGED: #{old_time}→#{hashtime} (#{old_hash}→#{hashdir})".fg(213))
       @hash[Dir.pwd] = [hashtime, hashdir]
-      w_b_info(" New hash for #{Dir.pwd}: #{hashtime}: #{hashdir}")
     end
-    @w_r.update = true
-    @w_b.update = false
-  when 'I' # OpenAI integration
-    if @ai
-      openai
-    else
-      w_b_info("No OpenAI key in config file. Add `@ai = 'your-secret-openai-key'` to .rtfm.conf")
-    end
-  # RIGHT PANE
-  when 'ENTER' # Refresh right pane
-    @w_r.fill # First clear the window, then clear any previously showing image
-    image_show("clear") if @image; @image = false
-    @w_r.update = true
-    @w_b.update = true
-  when 'TAB' # Start paging/Down one page
-    if @w_r.pager == 1 and @w_r.pager_cmd != ""
-      @w_r.text = `#{@w_r.pager_cmd} 2>/dev/null` 
-    end
-    if @w_r.pager_more
-      @w_r.pager += 1
-      pager_show 
-    end
-    @w_b.update = true
-  when 'S-TAB' # Up one page
-    if @w_r.pager > 1
-      @w_r.pager -= 1
-      pager_show
-    end
-    @w_b.update = true
-  when 'w' # Change width of left/right panes
-    @width += 1
-    @width  = 2 if @width == 7
-    @break = true
-    @w_r.update = true
-    @w_b.update = true
-  when '-' # Toggle content view in right pane
-    @preview = !@preview
-    @preview ? p = "On" : p = "Off"
-    w_b_info("Preview = " + p)
-    getch
-    @break = true
-  when '_' # Toggle image view
-    @showimage = !@showimage
-    @showimage ? i = "On" : i = "Off"
-    w_b_info("Image preview = " + i)
-    getch
-    @break = true
-  when 'b' # Toggle syntax highlighting (via bat/batcat)
-    @batuse = !@batuse
-    @break  = true
-  # ADDITIONAL COMMANDS
-  when 'f' # Filter out filetypes not matching @lsfiles
-    loop do
-      @lsfiles = w_b_getstr("Filetype(s) to show: ", @lsfiles)
-      break if @lsfiles.match(/^$|\w+(,\w+)*$/)
-    end
-    w_b_info(nil)
-  when 'F' # Filter out files not matching @lsmatch
-    @lsmatch = w_b_getstr("Files will match RegEx: ", @lsmatch)
-    w_b_info(nil)
-  when 'B' # Toggle borders
-    @border = !@border
-    @break = true
-  when ':' # Enter "command mode" in the bottom window - tries to execute the given command 
-    @w_r.nohistory = false
-    cmd = w_b_getstr(": ", "")
-    w_b_exec(cmd)
-    @w_b.update = true
-  when ';' # Show command history 
-    w_r_info("Command history (latest on top):\n\n" + @history.join("\n"))
-    @w_b.update = true
-  when 'y', 'Y' # Copy path of selected item
-    if @selected == nil
-      w_b_info(" No selected item path to copy")
-    else
-      path = Dir.pwd + "/" + @selected
-      if chr == 'Y'
-        clip = "xclip -selection clipboard" 
-        w_b_info(" Path copied to clipboard")
+  else
+    @hash[Dir.pwd] = [hashtime, hashdir]
+    @pB.say(" New hash for #{Dir.pwd}: #{hashtime}: #{hashdir}".fg(213))
+  end
+  @pR.update = true
+end
+
+def openai_description # {{{3
+  begin
+    require 'ruby/openai'
+  rescue LoadError
+    @pB.say('To enable AI-descriptions: `gem install ruby-openai` and set @ai in ~/.rtfm/conf')
+    return
+  end
+  unless @ai && !@ai.empty?
+    @pB.say("Set your API key in ~/.rtfm/conf: @ai = 'your-secret-openai-key'")
+    return
+  end
+  # Context
+  path    = File.join(Dir.pwd, @selected.to_s)
+  is_dir  = File.directory?(path)
+  preview = @pR.text.pure.strip
+  # Enhanced prompt
+  parts = []
+  parts << 'You are an expert terminal file manager assistant.'
+  parts << (is_dir ?  "Summarize the overall purpose and contents of this directory: #{path}." : "Summarize the purpose of this file: #{path}.")
+  parts << 'Since this is source code, do a brief code review: highlight bugs, style issues, and improvements.' if !is_dir && path.match?(/\.(sh|rb|py|js|go|java|41)$/i)
+  parts << 'Embedded Documentation Lookup: for any libraries, commands, or APIs used, include a one-sentence summary from their official docs.'
+  parts << "Git-Aware Diff Explanation: summarize the most recent `git diff` touching #{path}, explaining what changed." if Dir.exist?(File.join(Dir.pwd, '.git'))
+  parts << "Existing preview text: #{preview}" unless preview.empty?
+  prompt = parts.join(' ')
+  # Send to OpenAI
+  client = OpenAI::Client.new(access_token: @ai)
+  @pR.say('Thinking...'.fg(244))
+  response = client.chat(
+    parameters: {
+      model:      @aimodel,
+      messages:   [{ role: 'user', content: prompt }],
+      max_tokens: 600
+    }
+  ) rescue nil
+  answer = response&.dig('choices', 0, 'message', 'content') ||
+           '⚠️ Error or empty response from OpenAI.'
+  @pR.say(answer.fg(230))
+end
+
+def chat_mode # {{{3
+  unless defined?(OpenAI) && @ai && !@ai.empty?
+    @pB.say("To make OpenAI work in RTFM, run `gem install ruby-openai` and add to ~/.rtfm/conf:\n  @ai = 'your-secret-openai-key'")
+    return
+  end
+
+  @pB.clear; @pB.update = true
+  question = @pAI.ask('Chat> ', '').strip
+  return if question.empty?
+
+  chat_history << { role: 'user', content: question }
+  @pR.say('Thinking...'.fg(230))
+  reply = openai_client.chat(
+    parameters: {
+      model:    @aimodel,
+      messages: chat_history,
+      max_tokens: 400
+    }
+  ) rescue nil
+  answer = reply&.dig('choices', 0, 'message', 'content') ||
+           '⚠️ API error or empty response'
+  chat_history << { role: 'assistant', content: answer }
+  @pR.say(answer.fg(230))
+  @pB.clear; @pB.update = true
+end
+
+# RIGHT PANE CONTROLS {{{2
+def refresh_right # {{{3
+  render
+  @pR.full_refresh
+  @pR.update = @pB.update = true
+end
+
+def line_down_right # {{{3
+  @pR.linedown; @pB.update = true
+end
+
+def line_up_right # {{{3
+  @pR.lineup;   @pB.update = true
+end
+
+def page_down_right # {{{3
+  @pR.pagedown; @pB.update = true
+end
+
+def page_up_right # {{{3
+  @pR.pageup; @pB.update = true
+end
+
+# CLIPBOARD COPY {{{2
+def copy_path # {{{3
+  if @selected
+    clip = "xclip -selection #{_chr == 'Y' ? 'clipboard' : 'primary'} -in -loops 1"
+    @pB.say(' Path copied')
+    shell("echo -n '#{@selected}' | #{clip}")
+  else
+    @pB.say(' No selected item path to copy')
+  end
+end
+
+def copy_right # {{{3
+  clip = 'xclip -selection clipboard'
+  @pB.say(' Right pane copied to clipboard')
+  # We drop the trailing & in the string itself…
+  shell("echo -n #{Shellwords.escape(@pR.text.pure)} | #{clip} > /dev/null 2>&1", background: true)
+end
+
+# SYSTEM SHORTCUTS {{{2
+def system_info # {{{3
+  text = ''
+  begin
+    uname    = `uname -o`.chomp + '  '
+    uname   += `uname -r`.chomp + '  '
+    uname   += `uname -v`.chomp + '  '
+    uname   += `uname -p`.chomp + '  '
+    uname   += `awk -F '"' '/PRETTY/ {print $2}' /etc/os-release` + "\n"
+    text    += uname.b.fg(253)
+    host     = `hostnamectl`
+    chost    = host.lines.map do |line|
+      if line.include?(':')
+        before, after = line.split(':', 2)
+        "#{(before + ':').fg(253)}#{after.fg(111)}"
       else
-        clip = "xclip"
-        w_b_info(" Path copied to primary selection (paste with middle mouse button)")
+        line
       end
-      system("echo -n '#{path}' | #{clip}")
-    end
-  when 'C-Y' # Copy right pane to clipboard
-    clip = "xclip -selection clipboard" 
-    @cont.gsub!(/	¤¤\d+¤¤\d*¤¤/, '')
-    @cont.gsub!(/^¤¤\d+¤¤\d*¤¤ */, '')
-    @cont.gsub!(/¤¤\d+¤¤\d*¤¤/, '')
-    @cont.gsub!(/	/, '')
-    @cont.gsub!(/   (\d)/, '\1')
-    @cont.gsub!(/\[(\d+;)+\d+m/, '')
-    @cont = @cont.inspect
-    @cont.gsub!('\"', '"')
-    @cont = @cont [1...-1]
-    w_b_info(" Right pane copied to clipboard")
-    system("echo -n '#{@cont}' | #{clip}")
-  when 'S' # Show comprehensive system info
-    sysinfo
-  when 'C-D' # Create new directory (shortcut for ":mkdir ")
-    cmd = w_b_getstr(": ", "mkdir ")
-    w_b_exec(cmd + " -p")
-  when 'C-N' # navi integration (https://github.com/denisidoro/navi)
-    begin
-      @navi = `navi`
-    rescue
-      w_b_info(" navi not installed - see https://github.com/denisidoro/navi")
-    end
-    @break = true
-  when '@' # Enter "Ruby debug"
-    @w_b.nohistory = false
-    cmd = w_b_getstr("◆ ", "", true)
-    @w_b.clr
-    @w_b.refresh
-    @w_b.update = true
-    @w_r.clr
-    w_r_info("Command: #{cmd}\n")
-    begin
-      eval(cmd).to_s
-    rescue Exception => err
-      w_r_info("Error: #{err.inspect}")
-    end
-    @w_r.update = false
-  end
-  if @w_r.update == true
-    @w_r.locate     = false
-    @w_r.pager      = 0
-    @w_r.pager_more = false
+    end.join
+    text    += chost + "\n"
+  rescue # rubocop:disable Lint/SuppressedException
   end
   begin
-    @w_r.update = true if dir != Dir.pwd
-  rescue
-  end
-end
-def conf_write
-  if File.exist?(Dir.home+'/.rtfm.conf')
-    conf = File.read(Dir.home+'/.rtfm.conf')
-  else
-    conf = ""
-  end
-  conf.sub!(/^@marks.*{.*}\n/, "") 
-  conf += "@marks = #{@marks}\n"
-  conf.sub!(/^@hash.*{.*}\n/, "") 
-  conf += "@hash = #{@hash}\n"
-  conf.sub!(/^@tagged.*\[.*\]\n/, "")
-  conf += "@tagged = #{@tagged}\n"
-  conf.sub!(/^@history.*\[.*\]\n/, "")
-  conf += "@history = #{@history}\n"
-  conf.sub!(/^@rubyhistory.*\[.*\]\n/, "")
-  conf += "@rubyhistory = #{@rubyhistory}\n"
-  if @write_conf_all
-    conf.sub!(/^@lslong.*\n/, "") 
-    conf += "@lslong = #{@lslong}\n"
-    conf.sub!(/^@lsall.*\n/, "") 
-    conf += "@lsall = \"#{@lsall}\"\n"
-    conf.sub!(/^@lsorder.*\n/, "") 
-    conf += "@lsorder = \"#{@lsorder}\"\n"
-    conf.sub!(/^@lsinvert.*\n/, "") 
-    conf += "@lsinvert = \"#{@lsinvert}\"\n"
-    conf.sub!(/^@width.*\n/, "") 
-    conf += "@width = #{@width}\n"
-    conf.sub!(/^@border.*\n/, "") 
-    conf += "@border = #{@border}\n"
-    conf.sub!(/^@preview.*\n/, "") 
-    conf += "@preview = #{@preview}\n"
-    conf.sub!(/^@showimage.*\n/, "") 
-    conf += "@showimage = #{@showimage}\n"
-    @w_r.fg = 249
-    w_r_info("Configuration written to .rtfm.conf:\n\n" + conf)
-  end
-  File.write(Dir.home+'/.rtfm.conf', conf)
-end
-def ansifix(text) # Format [[fg, attr, text]]
-  output = ""
-  text.each do |e|
-    ansi    = "\e[38;5;#{e[0]}"
-    ansi   += ";1" if e[1] == 1
-    ansi   += "m"
-    output += ansi + e[2].gsub(/\n/, "\n#{ansi}")
-  end
-  return output
-end
-def mark_latest
-  @marks["5"] = @marks["4"]
-  @marks["4"] = @marks["3"]
-  @marks["3"] = @marks["2"]
-  @marks["2"] = @marks["1"]
-  @marks["1"] = @marks["'"]
-  @marks["'"] = Dir.pwd
-end
-def get_files(win) # The core of the directory listings
-  ls_cmd  = "ls 2>/dev/null #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}" # Get files in current directory 
-  ls_cmd += @selected_safe if win == "right"
-  @cfiles = `#{ls_cmd} --color`.split("\n")
-  @files  = @cfiles.map {|f| f.sub(/^.*\d+m(.+)\e\[0m/, '\1').gsub(/\e\[K/, "")}
-  ls_cmd += " -H " if win == "right"
-  ls_cmd += %q[ -lh --time-style="long-iso" | awk '{printf "%s%s%s%11s%6s%6s", $1, " " $3, ":" $4,$6,$7,$5"\n"}']
-  @fspes  = `#{ls_cmd}`.split("\n").drop(1)
-  if @lsfiles != "" or @lsmatch != ""
-    lsf      = @lsfiles.split(",").map! {|e| e.strip}
-    dir_cmd  = "ls 2>/dev/null -d "
-    dir_cmd += @selected_safe + "/" if win == "right"
-    dir_cmd += "*/"
-    dirs     = `#{dir_cmd}`.split("/\n")
-    dirs.map!{|d| d.sub!(/.*\//, '')} if win == "right"
-    @files   = @files - dirs
-    @fspes   = @fspes - dirs
-    @files.select! {|f| lsf.any? {|l| File.extname(f) == ".#{l}"}} if @lsfiles != ""
-    @fspes.select! {|f| lsf.any? {|l| File.extname(f) == ".#{l}"}} if @lsfiles != ""
-    @files.select! {|f| f =~ /#{@lsmatch}/} if @lsmatch != ""
-    @fspes.select! {|f| f =~ /#{@lsmatch}/} if @lsmatch != ""
-    @files   = dirs + @files
-    @fspes   = dirs + @fspes
-    @w_r.update = true
-  end
-end
-# TOP WINDOW FUNCTIONS 
-def w_t_info # SHOW INFO IN @w_t
-  text  = " " + ENV['USER'].to_s + "@" + `hostname 2>/dev/null`.to_s.chop + ": " + Dir.pwd + "/"
-  unless @selected == nil
-    text += @selected
-    text += " → #{File.readlink(@selected)}" if File.symlink?(@selected) 
+    system   = 'Shell & Terminal: ' + `echo $SHELL`.sub(%r{.*/}, '').chomp + ', ' + `echo $TERM`.chomp + '   '
+    packages = `pacman -Q 2>/dev/null | wc -l`.chomp
+    packages = `dpkg-query -l 2>/dev/null | grep -c '^.i'`.chomp if packages == '0'
+    packages = 'Unrecognized' if packages == '0'
+    cpu      = 'CPUs = ' + `nproc`.chop + '  '
+    cpuinfo  = `lscpu`
+    cpu     += cpuinfo[/^.*Model name:\s*(.*)/, 1] + '  '
+    cpu     += 'Max: ' + cpuinfo[/^.*CPU max MHz:\s*(.*)/, 1].to_i.to_s + 'MHz  '
+    cpu     += 'Min: ' + cpuinfo[/^.*CPU min MHz:\s*(.*)/, 1].to_i.to_s + "MHz\n\n"
+    text    += cpu.fg(154)
+    system  += 'Packages: ' + packages + "\n"
+    system  += 'Desktop: ' + `awk '/^DesktopNames/' /usr/share/xsessions/* | sed 's/DesktopNames=//g' | \\
+                sed 's/\\;/\\n/g' | sed '/^$/d' | sort -u | sed ':a;N;$!ba;s/\\n/, /g'`.chomp + '/'
+    system  += `grep 'gtk-theme-name' ~/.config/gtk-3.0/* | sed 's/gtk-theme-name=//g' | \\
+                sed 's/-/ /g'`.sub(/.*:/, '') + "\n"
+    text    += system.fg(251)
+  rescue # rubocop:disable Lint/SuppressedException
   end
   begin
-    text += " (#{@fspes[@index]})" 
-  rescue
+    mem      = `free -h` + "\n"
+    text    += mem.fg(229)
+  rescue # rubocop:disable Lint/SuppressedException
   end
   begin
-    if @selected.match(@imagefile)
-      text += `identify #{@selected_safe} | awk '{printf " [%s %s %s %s] ", $3,$2,$5,$6}' 2>/dev/null` if cmd?('identify')
-    elsif @selected.match(@pdffile)
-      info  = `pdfinfo #{@selected_safe} 2>/dev/null`
-      text += " [" + info.match(/Pages:.*?(\d+)/)[1] 
-      text += " "  + info.match(/Page size:.*\((.*)\)/)[1] + " pages] "
-    end
-  rescue
+    ps       = `ps -eo comm,pid,user,pcpu,pmem,stat --sort -pcpu,-pmem | head` + "\n"
+    text    += ps.fg(195)
+  rescue # rubocop:disable Lint/SuppressedException
   end
-  if Dir.exist?(@selected.to_s)
-    begin
-      text += " [" + Dir.glob(@selected+"/*").count.to_s + " " + Dir.children(@selected).count.to_s + "]"
-    rescue
-      text += " [Denied]"
-    end
+  begin
+    disk     = `df -H | head -8`
+    text    += disk.fg(172)
+  rescue # rubocop:disable Lint/SuppressedException
   end
-  text  = text[1..(@w_t.maxx - 3)] + "…" if text.length + 3 > @w_t.maxx 
-  text += " " * (@w_t.maxx - text.length) if text.length < @w_t.maxx
-  @w_t.clr
-  @w_t.text = text
-  @w_t.write
+  begin
+    dmesg  = "\nDMESG (latest first):\n"
+    dcmd   = `dmesg 2>/dev/null | tail -6`.split("\n").sort.reverse.join("\n")
+    dmesg += dcmd == '' ? "dmesg requires root, run 'sudo sysctl kernel.dmesg_restrict=0' if you need permission\n" : dcmd
+    text  += dmesg.fg(219)
+  rescue # rubocop:disable Lint/SuppressedException
+  end
+  @pR.say(text)
+rescue
+  @pR.say('Unable to show system info')
 end
-# LEFT WINDOW FUNCTIONS 
-def list_dir(active) # LIST CONTENT OF A DIRECTORY (BOTH active AND RIGHT WINDOWS)
-  ix = 0; t = 0
-  if active 
-    win = @w_l
-    ix = @index - @w_l.maxy/2 if @index > @w_l.maxy/2 and @files.size > @w_l.maxy - 1
-  else
-    win = @w_r
-    @cont = ""
-  end
-  while ix < @files.size and t < win.maxy do
-    str  = @files[ix]
-    cstr = @cfiles[ix]
-    active ? str_path = str : str_path = "#{@selected}/#{str}" 
-    begin # Add items matching @tag to @tagged
-      if str.match(/#{@tag}/) and @tag != false
-        @tagged.push("\"#{Dir.pwd}/#{str}\"")
-        @tagged.uniq!
-      end
-    rescue
-    end
-    fg = 7; bold = 0; bg = 0 # Set default color
-    fl = color_parse(cstr)
-    fg, bold = fl[0][0].to_i, fl[0][1].to_i unless fl[0] == nil
-    init_pair(fg, fg, bg)
-    file_marker = color_pair(fg)
-    file_marker = file_marker | Curses::A_BOLD if bold == 1
-    if ix == @index and active
-      @w_l << "→ "
-      file_marker = file_marker | Curses::A_UNDERLINE 
-      wixy = win.cury
-    else
-      active ? @w_l << "  " : @w_r << " "
-    end
-    file_marker = file_marker | Curses::A_REVERSE if @tagged.include?("\"#{Dir.pwd}/#{str_path}\"")
-    file_marker = file_marker | Curses::A_BLINK if str.match(/#{@searched}/) and @searched != ""
-    File.directory?(str_path) ? dir = "/" : dir = ""
-    File.symlink?(str_path) ? link = "@" : link = ""
-    str = @fspes[ix] + "  " + str if @lslong
-    if str.length > win.maxx - 4
-      base_name   = File.basename(str, ".*")
-      base_length = base_name.length
-      ext_name    = File.extname(str)
-      ext_length  = ext_name.length
-      nbl = win.maxx - 6 - ext_length # nbl: new_base_length
-      nbl -= 1 if dir  != ""          # Account for one extra character
-      nbl -= 1 if link != ""          # Account for one extra character
-      str = base_name[0..nbl] + "…" + ext_name
-    end
-    if !active and ix == win.maxy - 1 # Add indicator of more at bottom @w_r list 
-      win << " ..."
-      return
-    end
-    str += link + dir
-    @cont += str + "\n" unless active # Adds to content in right win for copying
-    win.attron(file_marker) { win << str } # Implement color/bold to the item
-    win.clrtoeol
-    win << "\n"
-    ix += 1; t += 1
-  end
-  (win.maxy - win.cury).times {win.deleteln()} # Clear to bottom of window
-  if active
-    init_pair(242, 242, 0)
-    if @index > @w_l.maxy/2
-      @w_l.setpos(0, @w_l.maxx - 1)
-      @w_l.attron(color_pair(242) | Curses::A_DIM) { @w_l << "∆" }
-    end
-    if @files.length > @w_l.maxy - 1 and @files.length > @index + @w_l.maxy/2 - 1
-      @w_l.setpos(@w_l.maxy - 2, @w_l.maxx - 1)
-      @w_l.attron(color_pair(242) | Curses::A_DIM) { @w_l << "∇" }
-    end
-  end
+
+def make_directory # {{{3
+  cmd = @pCmd.ask(': ', 'mkdir ')
+  shellexec(cmd + ' -p')
 end
-def open_selected(html = nil) # OPEN SELECTED ITEM (when pressing RIGHT)
-  if File.directory?(@selected) # Rescue for permission error
+
+def navi_invoke # {{{3
+  @navi = `navi`
+rescue
+  @pB.say(' navi not installed - see https://github.com/junegunn/fzf')
+end
+
+# COMMAND MODE {{{2
+def command_mode # {{{3
+  raw = @pCmd.ask('Shell command: ', '').strip
+  @pB.clear; @pB.update = true
+  return if raw.empty?
+
+  # Prefix override: §cmd = force interactive
+  force = raw.start_with?('§')
+  raw = raw[1..].strip if force
+  # Expand @s / @t
+  sel = Shellwords.escape(@selected.to_s)
+  tg  = @tagged.map { |p| Shellwords.escape(p) }.join(' ')
+  cmd = raw.gsub('@s', sel).gsub('@t', tg)
+  # Determine program name
+  prog = Shellwords.split(cmd).first
+  prog = File.basename(prog) if prog
+  # Whitelist check against @interactive
+  inter_list = (@interactive || '').split(',').map(&:strip)
+  whitelist = prog && inter_list.include?(prog)
+  # Magic PTY-peek (only if not forced or whitelisted)
+  magic = false
+  unless force || whitelist
     begin
-      mark_latest
-      Dir.chdir(@selected)
-    rescue
-    end
-  else
-    begin
-      if File.read(@selected).force_encoding("UTF-8").valid_encoding? and not html
-        system("exec $EDITOR #{@selected_safe}")
-      else
-        if @runmailcap
-          system("run-mailcap #{@selected_safe} 2>/dev/null &")
-        else
-          system("xdg-open #{@selected_safe} 2>/dev/null &")
+      PTY.spawn(cmd) do |r, _w, pid|
+        begin
+          Timeout.timeout(0.1) do
+            magic = r.readpartial(1024).include?("\e[?1049h")
+          end
+        rescue Timeout::Error
+          # no quick data = assume non-TUI
+        ensure
+          Process.kill('TERM', pid) rescue nil
+          Process.wait(pid)        rescue nil
         end
       end
-      @break = true
-    rescue
+    rescue Errno::ENOENT, Errno::EIO
+      # command not found or PTY closed immediately = non-TUI
+    end
+  end
+  if force || whitelist || magic # Decide interactive vs non-interactive
+    # Restore shell tty so Ctrl-C/D work
+    system("stty #{ORIG_STTY} < /dev/tty")
+    # Clear to top-left
+    system('clear < /dev/tty > /dev/tty')
+    Cursor.show
+    # Spawn on real tty
+    pid2 = Process.spawn(cmd,
+                         in:  '/dev/tty',
+                         out: '/dev/tty',
+                         err: '/dev/tty')
+    begin
+      Process.wait(pid2)
+    rescue Interrupt
+      Process.kill('TERM', pid2) rescue nil
+      retry
+    end
+    # Restore raw/no-echo for RTFM
+    system('stty raw -echo isig < /dev/tty')
+    $stdin.raw!
+    $stdin.echo = false
+    Cursor.hide
+    Rcurses.clear_screen
+    refresh
+    render
+  else
+    shellexec(cmd)
+    @pR.refresh
+    @pR.update = false
+  end
+end
+
+def show_history # {{{3
+  @pR.say("Command history:\n\n" + @pCmd.history.reverse.join("\n"))
+  @pB.update = true
+end
+
+def add_interactive # {{{
+  @interactive = @pB.ask('Add program to @interactive: '.fg(213), @interactive.fg(213))
+  @pB.clear; @pB.update = true
+end
+
+# RUBY MODE {{{2
+def ruby_debug # {{{3
+  require 'stringio'
+  cmd = @pRuby.ask('Ruby command: ', '')
+  @pR.text = "Command: #{cmd}\n\n".fg(205)
+  original_stdout = $stdout
+  original_stderr = $stderr
+  stdout_captured = StringIO.new
+  stderr_captured = StringIO.new
+  $stdout = stdout_captured
+  $stderr = stderr_captured
+  begin
+    eval(cmd) # rubocop:disable Security/Eval
+  rescue Exception => e # rubocop:disable Lint/RescueException
+    puts "Error: #{e.message}\n#{e.backtrace.join("\n")}"
+  ensure
+    $stdout = original_stdout
+    $stderr = original_stderr
+  end
+  @pR.text += stdout_captured.string + "\n\n" + stderr_captured.string
+  @pR.refresh
+  @pR.update = false
+  @pB.full_refresh
+end
+
+# GENERIC FUNCTIONS {{{1
+def dirlist(left: true) # LIST DIRECTORIES {{{2
+  @index ||= 0
+  @index = @index.to_i
+  if left
+    dir   = Dir.pwd
+    width = @pL.w
+  else
+    dir = if @selected && File.directory?(@selected)
+            File.symlink?(@selected) ? File.realpath(@selected) : @selected.to_s
+          else
+            File.dirname(@selected)
+          end
+    width = @pR.w
+  end
+  # Fetch plain names + colored lines
+  purels  = command("ls #{Shellwords.escape(dir)} #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}").pure.split("\n")
+  colorls = command("ls --color #{Shellwords.escape(dir)} #{@lsbase} #{@lsall} #{@lslong} #{@lsorder} #{@lsinvert} #{@lsuser}").split("\n")
+  colorls.shift if colorls[0]&.strip == "#{dir}:"
+  colorls.shift if colorls[0]&.match?(/^total/)
+  if left && @orderchange # Keep the same @selected even when we re-sort
+    basename = File.basename(@selected.to_s)
+    new_idx  = purels.index(basename)
+    @index   = new_idx if new_idx
+    @orderchange = false
+  end
+  entries = purels.zip(colorls) # Zip into pairs and filter
+  unless @lsfiles.empty?  # filter by extension(s)
+    exts = @lsfiles.split(',').map { |e| /\.#{Regexp.escape(e)}$/i }
+    entries.select! { |name, _| exts.any? { |re| name =~ re } }
+  end
+  unless @lsmatch.empty?  # filter by regex
+    re = Regexp.new(@lsmatch)
+    entries.select! { |name, _| name =~ re }
+  end
+  # Unzip, with safe defaults if nothing matched
+  t = entries.transpose
+  purels = t[0] || []
+  ls     = t[1] || []
+  @files = purels if left
+  # Update @selected & @fileattr for left pane
+  if left && purels[@index]
+    @selected = Dir.pwd + '/' + purels[@index]
+    sfile = @selected.dup
+    sfile += '/' if File.directory?(@selected)
+    slsl_cmd = "ls -ldHlh --time-style=long-iso #{Shellwords.escape(sfile)}"
+    slsl = command(slsl_cmd)
+    a = slsl.split
+    @fileattr = a.size >= 7 ? "#{a[2]}:#{a[3]} #{a[0]}  #{a[4]}  #{a[5]} #{a[6]}" : ''
+  end
+  # Map & decorate each colored line
+  ls.map!.with_index do |el, i|
+    n = el.clean_ansi
+    n = n.shorten(width - 5).inject('…', -1) if n.pure.length > width - 6
+    raw_name = (purels[i] || '').strip
+    base     = left ? Dir.pwd : dir
+    fullpath = "#{base}/#{raw_name}"
+    n = n.inject('@', -1) if File.symlink?(fullpath)
+    n = n.inject('/', -1) if File.directory?(fullpath)
+    n = n.bg(238) if !raw_name.empty? && raw_name.match(/#{@searched}/) && @searched != ''
+    n = n.r if @tagged.include?(fullpath)
+    if left
+      n = (i == @index ? '→ ' + n.u : '  ' + n)
+    end
+    n
+  end
+  ls.join("\n")
+end
+
+def render # RENDER ALL PANES {{{2
+  # LEFT pane {{{3
+  if @pL.update
+    lefttext = @pL.text
+    @pL.text = dirlist
+    scrolloff = 3
+    total     = @files.size
+    page      = @pL.h
+    if total <= page
+      # If everything fits, always start from the very top
+      @pL.ix = 0
+    elsif @index - @pL.ix < scrolloff
+      # If we're too close to the top of the pane, scroll up
+      @pL.ix = [@index - scrolloff, 0].max
+    elsif (@pL.ix + page - 1 - @index) < scrolloff
+      # If we're too close to the bottom of the pane, scroll down
+      max_off = total - page
+      @pL.ix = [@index + scrolloff - page + 1, max_off].min
+    end
+    @min_index = 0
+    @max_index = total - 1
+    @index     = 0          if @index.negative?
+    @index     = @max_index if @index > @max_index
+    @pL.refresh unless @pL.text == lefttext
+  end
+
+  # RIGHT pane {{{3
+  if @pR.update && @preview
+    showimage('clear') if @image; @image = false
+    righttext = @pR.text
+    if @selected && File.directory?(@selected)
+      @pR.text = dirlist(left: false)
+    else
+      showcontent
+    end
+    @pR.full_refresh unless @pR.text == righttext || @image
+  end
+
+  # TOP PANE {{{3
+  if @pT.update
+    toptext = @pT.text
+    text = ' ' + ENV.fetch('USER') + '@' + `hostname 2>/dev/null`.chomp + ': '
+    unless @selected.nil?
+      text += @selected
+      text += " → #{File.readlink(@selected)}" if File.symlink?(@selected)
+    end
+    # File attributes
+    text += " (#{@fileattr})" if defined?(@fileattr)
+    # Image or PDF metadata
+    begin
+      if @selected&.match(@imagefile)
+        if cmd?('identify')
+          meta = `identify #{Shellwords.escape(@selected)} \
+  | awk '{printf " [%s %s %s %s] ", $3,$2,$5,$6}' 2>/dev/null`
+          text += meta
+        end
+      elsif @selected&.match(@pdffile)
+        info  = `pdfinfo #{Shellwords.escape(@selected)} 2>/dev/null`
+        pages = info[/^Pages:\s+(\d+)/, 1]
+        size  = info[/^Page size:.*\((.*)\)/, 1]
+        text += " [#{pages} pages]" if pages
+        text += " [#{size}]"         if size
+      end
+    rescue Errno::ENOENT, Errno::EACCES
+      # ignore missing or permission errors
+    end
+    # Directory children count
+    if @selected && Dir.exist?(@selected)
+      begin
+        count = Dir.children(@selected).count
+        text += " [#{count} items]"
+      rescue Errno::EACCES
+        text += ' [Denied]'
+      end
+    end
+    @pT.text = text.b
+    @pT.bg   = @topmatch.find { |name, _| name.empty? || Dir.pwd.include?(name) }&.last
+    @pT.refresh unless @pT.text == toptext
+  end
+
+  # BOTTOM pane {{{3
+  if @pB.update
+    bottomtext = @pB.text
+    info = ': for command (use @s for selected item, @t for tagged items) - press ? for help'
+    info = " Showing only files matching '#{@lsmatch}'".fg(130).u if @lsmatch != ''
+    info = " Showing only file type '#{@lsfiles}'".fg(129).u if @lsfiles != ''
+    info = " Showing only file types '#{@lsfiles}'".fg(129).u if @lsfiles =~ /,/
+    info += " and only files matching '#{@lsmatch}'".fg(129).u if @lsfiles != '' && @lsmatch != ''
+    @pB.text = info
+    @pB.refresh unless @pB.text == bottomtext
+  end
+end
+
+def refresh # {{{2
+  @p0.w = @w
+  @p0.h = @h
+  @p0.clear
+  @pT.w = @w
+  @pT.clear; @pT.update = true
+  @pB.w = @w
+  @pB.y = @h
+  @pB.clear; @pB.update = true
+  @pL.w = (@w - 4) * @width / 10
+  @pL.h = @h - 4
+  @pR.x = @pL.w + 4
+  @pR.w = @w - @pL.w - 4
+  @pR.h = @h - 4
+  @pL.clear; @pL.update = true
+  @pR.clear; @pR.update = true
+  @pCmd.y = @h
+  @pCmd.w = @w
+  @pRuby.y = @h
+  @pRuby.w = @w
+end
+
+def setborder # {{{2
+  case @border
+  when 0
+    @pL.border = false
+    @pR.border = false
+  when 1
+    @pL.border = false
+    @pR.border = true
+  when 2
+    @pL.border = true
+    @pR.border = true
+  when 3
+    @pL.border = true
+    @pR.border = false
+  end
+  refresh
+end
+
+def errormsg(msg, err) # {{{2 
+  text  = "#{msg}: #{err.class} – #{err.message}\n\n".fg(196)
+  err.backtrace.each { |ln| text += "  #{ln}\n" } # Full backtrace
+  text += "\nPlease report error as an RTFM issue: https://github.com/isene/RTFM/issues"
+  @pR.say(text)
+end
+
+def shell(cmd, background: false, err: nil) # {{{2
+  # if caller passed err: filename, use that, otherwise fall back to the default log in /tmp
+  tmp = err || File.join(Dir.tmpdir, 'rtfm_err.log')
+  # build the full command, redirecting stderr to tmp
+  full = if background
+           "#{cmd} 2>#{tmp} &"
+         else
+           "#{cmd} 2>#{tmp}"
+         end
+  system(full)
+  if File.exist?(tmp) # if anything was written, show it in @pR
+    sleep 0.1
+    err_text = File.read(tmp)
+    unless err_text.strip.empty?
+      @pR.say(err_text.fg(196))
+      @pR.update = false
+    end
+    File.delete(tmp)
+  end
+  nil
+end
+
+def shellexec(cmd, timeout: 10) # {{{2
+  out, err = command(cmd, timeout: timeout, return_both: true)
+  @pR.say(err.fg(196)) unless err.empty?
+  @pR.say(out) unless out.empty?
+  @pB.full_refresh
+end
+
+def command(cmd, timeout: 5, return_both: false) # {{{2
+  # Run a shell command with timeout, drain pipes concurrently,
+  # and optionally return both stdout+stderr instead of auto-saying stderr
+  #
+  # @param cmd [String] the command to run via `bash -c`
+  # @param timeout [Numeric, nil] seconds to wait (nil = wait forever)
+  # @param return_both [Boolean] if true, return [stdout, stderr] instead of auto-saying
+  # @return [String] stdout (when return_both: false)
+  # @return [Array<String,String>] [stdout, stderr] (when return_both: true)
+  cmd_array = ['bash', '-c', cmd]
+  out_buf = String.new
+  err_buf = String.new
+  begin
+    Open3.popen3(*cmd_array) do |_stdin, stdout, stderr, wait_thr|
+      pid = wait_thr.pid
+      # Drain both pipes in background threads
+      out_reader = Thread.new { out_buf << stdout.read until stdout.eof? }
+      err_reader = Thread.new { err_buf << stderr.read until stderr.eof? }
+      if timeout
+        unless wait_thr.join(timeout)
+          # Timed out → kill everything
+          Process.kill('TERM', pid) rescue nil
+          sleep 0.1
+          Process.kill('KILL', pid) rescue nil
+          Process.wait(pid) rescue nil
+          out_reader.kill
+          err_reader.kill
+          showimage('clear') if @image
+          @pR.say('Error: Command timed out.'.fg(196))
+          return return_both ? ['', "Error: Command timed out.\n"] : ''
+        end
+      else
+        wait_thr.join
+      end
+      # Ensure we've captured all output
+      out_reader.join
+      err_reader.join
+    end
+    if return_both
+      [out_buf, err_buf]
+    else
+      @pR.say(err_buf.fg(196)) unless err_buf.empty?
+      out_buf
+    end
+  rescue IOError => e
+    msg = "Error: Stream closed – #{e.message}\n"
+    if return_both
+      ['', msg]
+    else
+      showimage('clear') if @image
+      @pR.say(msg.fg(196))
+      ''
+    end
+  rescue => e
+    msg = "Error: #{e.message}\n#{e.backtrace.join("\n")}\n"
+    if return_both
+      ['', msg]
+    else
+      @pR.say(msg.fg(196))
+      ''
     end
   end
 end
-def copy_move_link(type) # COPY OR MOVE TAGGED ITEMS (COPY IF "keep == true")
+
+def copy_move_link(type) # COPY OR MOVE TAGGED ITEMS {{{2
   @tagged.uniq!
-  @tagged.each do | item |
-    item = item[1..-2]
-    dest = Dir.pwd
-    dest += "/" + File.basename(item)
-    dest += "1" if File.exist?(dest)
+  @tagged.each do |item|
+    dest = File.join(Dir.pwd, File.basename(item))
+    dest += '1' if File.exist?(dest)
     while File.exist?(dest)
+      # Replace the last character (presumed to be a digit) by incrementing it
       dest = dest.chop + (dest[-1].to_i + 1).to_s
     end
     begin
       case type
-      when "copy"
+      when 'copy'
         FileUtils.cp_r(item, dest)
-        w_b_info(" Item(s) copied here.")
-      when "move"
+        @pB.say(' Item(s) copied here.')
+      when 'move'
         FileUtils.mv(item, dest)
-        w_b_info(" Item(s) moved here.")
-      when "link"
+        @pB.say(' Item(s) moved here.')
+      when 'link'
         FileUtils.ln_s(item, dest)
-        w_b_info(" Item(s) symlinked here.")
+        @pB.say(' Item(s) symlinked here.')
       end
-    rescue Exception => err
-      w_b_info(err.to_s)
+    rescue => e
+      @pB.say(e.to_s)
     end
   end
   @tagged = []
+  render
 end
-# RIGHT WINDOW FUNCTIONS 
-def w_r_show # SHOW CONTENTS IN THE RIGHT WINDOW
-  if @w_r.update
-    @w_r.clr # First clear the window, then clear any previously showing image
-    image_show("clear") if @image; @image = false
+
+def mark_latest # UPDATE MARKS LIST {{{2
+  @marks['5'] = @marks['4']
+  @marks['4'] = @marks['3']
+  @marks['3'] = @marks['2']
+  @marks['2'] = @marks['1']
+  @marks['1'] = @marks["'"]
+  @marks["'"] = Dir.pwd
+end
+
+def conf_write(all: false) # WRITE TO ~/.rtfm/conf {{{2
+  @conf = @conf.dup # work on a mutable copy
+  assignments = {
+    'marks'       => "@marks       = #{@marks}",
+    'hash'        => "@hash        = #{@hash}",
+    'history'     => "@history     = #{@pCmd.history.reverse.uniq.reverse.last(40)}",
+    'rubyhistory' => "@rubyhistory = #{@pRuby.history.reverse.uniq.reverse.last(40)}",
+    'aihistory'   => "@aihistory   = #{@pAI.history.reverse.uniq.reverse.last(40)}"
+  }
+  if all
+    assignments.merge!(
+      'lslong'      => "@lslong      = '#{@lslong}'",
+      'lsall'       => "@lsall       = '#{@lsall}'",
+      'lsorder'     => "@lsorder     = '#{@lsorder}'",
+      'lsinvert'    => "@lsinvert    = '#{@lsinvert}'",
+      'width'       => "@width       = #{@width}",
+      'border'      => "@border      = #{@border}",
+      'preview'     => "@preview     = #{@preview}",
+      'trash'       => "@trash       = #{@trash}",
+      'interactive' => "@interactive = '#{@interactive}'"
+    )
   end
-  begin # Determine the specific programs to open/show content 
-    if @w_r.pager > 0
-      pager_show 
-    elsif File.directory?(@selected)
-      get_files("right")
-      list_dir(false)
-    # TEXT 
-    elsif File.read(@selected).force_encoding("UTF-8").valid_encoding? and @w_r.pager == 0
-      if @batuse
-        begin # View the file as text if it is utf-8
-          @w_r.pager_cmd = "#{@bat} -n --color=always #{@selected_safe} 2>/dev/null"
-          @w_r.text      = `#{@bat} -n --color=always --line-range :#{@w_r.maxy} #{@selected_safe} 2>/dev/null`
-          pager_start
-          syntax_highlight(@w_r.text)
-        rescue
-          @w_r.pager_cmd  = "cat #{@selected_safe} 2>/dev/null"
-          w_r_doc
-        end
-      else
-        @w_r.pager_cmd  = "cat #{@selected_safe} 2>/dev/null"
-        w_r_doc
-      end
-    # PDF 
-    elsif @selected.match(@pdffile) and @w_r.pager == 0
-      @w_r.pager_cmd  = "pdftotext #{@selected_safe} - 2>/dev/null | less"
-      @w_r.text       = `pdftotext -f 1 -l 4 #{@selected_safe} - 2>/dev/null`
-      pager_start 
-      @w_r << @w_r.text
-    # OPEN/LIBREOFFICE 
-    elsif @selected.match(@oolofile) and @w_r.pager == 0
-      @w_r.pager_cmd  = "odt2txt #{@selected_safe} 2>/dev/null"
-      w_r_doc
-    # MS DOCX
-    elsif @selected.match(@docxfile) and @w_r.pager == 0
-      @w_r.pager_cmd  = "docx2txt #{@selected_safe} - 2>/dev/null"
-      w_r_doc
-    # MS XLSX
-    elsif @selected.match(@xlsxfile) and @w_r.pager == 0
-      @w_r.pager_cmd  = "ssconvert -O 'separator=   ' -T Gnumeric_stf:stf_assistant #{@selected_safe} fd://1 2>/dev/null"
-      w_r_doc
-    # MS PPTX
-    elsif @selected.match(@pptxfile) and @w_r.pager == 0
-      @w_r.pager_cmd  = %Q[unzip -qc #{@selected_safe} | ruby -e '$stdin.each_line { |i| i.force_encoding("ISO-8859-1").scan(/<a:t>(.+?)<\\/a:t>/).each { |j| puts(j) } }' 2>/dev/null]
-      w_r_doc
-    # MS DOC 
-    elsif @selected.match(@docfile) and @w_r.pager == 0
-      @w_r.pager_cmd  = "catdoc #{@selected_safe} 2>/dev/null"
-      w_r_doc
-    # MS XLS 
-    elsif @selected.match(@xlsfile) and @w_r.pager == 0
-      @w_r.pager_cmd  = "xls2csv #{@selected_safe} 2>/dev/null"
-      w_r_doc
-    # MS PPT 
-    elsif @selected.match(@pptfile) and @w_r.pager == 0
-      @w_r.pager_cmd  = "catppt #{@selected_safe} 2>/dev/null"
-      w_r_doc
-    # IMAGES 
-    elsif @selected.match(@imagefile)
-      image_show(@selected_safe)
-      @image = true
-    # VIDEOS (THUMBNAILS) 
-    elsif @selected.match(/\.mpg$|\.mpeg$|\.avi$|\.mov$|\.mkv$|\.mp4$/)
-      begin
-        tmpfile = "/tmp/" + File.basename(@selected_safe,".*")
-        `ffmpegthumbnailer -s 1200 -i #{@selected_safe} -o /tmp/rtfm_video_tn.jpg 2>/dev/null`
-        image_show("/tmp/rtfm_video_tn.jpg")
-        @image = true
-      rescue
-      end
+  assignments.each do |var, line| # For each var, replace its line or append if missing
+    regex = /^@#{Regexp.escape(var)}\b.*$/
+    if @conf.match?(regex)
+      @conf.sub!(regex, line)
+    else
+      @conf << "\n" unless @conf.end_with?("\n")
+      @conf << line << "\n"
     end
-  rescue
   end
-  pager_add_markers # Add page markers, up and/or down
-  @w_r.update = false
-  @w_r.refresh
+  show_config
+  @pB.say('Configuration written to ~/.rtfm/conf')
+  File.write(CONFIG_FILE, @conf)
 end
-def w_r_doc # GET FULL CONTENT TO PAGE
-  @w_r.text = `#{@w_r.pager_cmd} 2>/dev/null`
-  pager_start 
-  @w_r << @w_r.text
-end
-def w_r_info(info) # SHOW INFO IN THE RIGHT WINDOW
+
+def exit_rtfm # CLEAN EXIT {{{2
+  # If invoked with a stub filename, write out our cwd
+  if ARGV[0]
+    begin
+      File.write(ARGV[0], Dir.pwd)
+    rescue StandardError # rubocop:disable Lint/SuppressedException
+    end
+  end
+  # Restore terminal state
+  $stdin.cooked!
+  $stdin.echo = true
+  Rcurses.clear_screen
+  Cursor.show
+  # Also record for the 'r' launcher
+  last = File.join(Dir.home, '.rtfm_last_dir')
   begin
-    image_show("clear") if @image; @image = false
-    @w_r.clr
-    @w_r.refresh
-    w_r_width = Curses.cols - (Curses.cols * @width / 10) - 2
-    info.gsub!(/(.{1,#{w_r_width}})( +|$\n?)|(.{1,#{w_r_width}})/, "\\1\\3\n")
-    @w_r.text      = info
-    @w_r.pager_cmd = ""
-    pager_start
-    pager_show
-    @w_r.update = false
-  rescue
+    File.write(last, Dir.pwd)
+  rescue StandardError
+    # ignore write errors
   end
+  exit(0)
 end
-def marks_info # SHOW MARKS IN RIGHT WINDOW
-  @w_r.fg = 183
-  @marks = @marks.sort.to_h
-  info = "MARKS:\n"
-  unless @marks.empty?
-    @marks.each do |mark, dir|
-      info += "#{mark} = #{dir}\n"
+
+def log(msg) # LOG TO LOGFILE {{{2
+  File.write(LOG_PATH, "#{Time.now.iso8601} #{msg}\n", mode: 'a')
+end
+
+# RIGHT PANE FUNCTIONS {{{1
+def showcommand(cmd) # Helper function for showcontent {{{2
+  c = command(cmd)
+  return if c == ''
+
+  @pR.say(c)
+end
+
+def showcontent # SHOW CONTENTS IN THE RIGHT WINDOW {{{2
+  if @pR.update
+    showimage('clear') if @image
+    @image = false
+    @pR.clear
+  end
+  begin
+    if @selected && File.directory?(@selected)
+      @pR.say(dirlist(left: false))
+    else # Look up first matching handler
+      entry = PREVIEW_HANDLERS.find { |re, _| re.match?(@selected) }
+      pattern, tmpl = entry || [nil, nil]
+      if tmpl   # Command-based preview
+        escaped = Shellwords.escape(@selected)
+        if !@batuse && tmpl.match?(/\b#{@bat}\b/)
+          showcommand("cat #{escaped}")
+        else
+          cmd = tmpl.gsub('@s', escaped)
+          showcommand(cmd)
+        end
+      elsif pattern # Nil template → image or video
+        case @selected
+        when /\.(?:png|jpe?g|bmp|gif|webp|tiff?)$/i
+          showimage(Shellwords.escape(@selected))
+          @image = true
+        when /\.(?:mpg|mpeg|avi|mov|mkv|mp4)$/i
+          tn = '/tmp/rtfm_video_tn.jpg'
+          showcommand("ffmpegthumbnailer -s 1200 -i #{Shellwords.escape(@selected)} -o #{Shellwords.escape(tn)} 2>/dev/null")
+          showimage(tn)
+          @image = true
+        else
+          @pR.say("No preview available for #{@selected}")
+        end
+      else # Fallback: treat as text if UTF‑8
+        text = File.read(@selected).force_encoding('UTF-8') rescue ''
+        if text.valid_encoding?
+          if @batuse
+            begin
+              showcommand("#{@bat} -n --color=always #{Shellwords.escape(@selected)}")
+            rescue
+              showcommand("cat #{Shellwords.escape(@selected)}")
+            end
+          else
+            showcommand("cat #{Shellwords.escape(@selected)}")
+          end
+        else
+          @pR.say("No preview available for #{@selected}")
+        end
+      end
     end
-  else
-    info += "(none)"
+  rescue StandardError => e
+    errormsg("⚠ Error while previewing #{@selected}", e)
   end
-  w_r_info(info)
+  @pR.update = false
 end
-def tagged_info # SHOW THE LIST OF TAGGED ITEMS IN @w_r
-  info = "TAGGED: (#{@tagged.size} items)\n"
-  @tagged.empty? ? info += "(None)" : info += @tagged.join("\n")
-  w_r_info(info)
-end
-def image_show(image)# SHOW THE SELECTED IMAGE IN THE RIGHT WINDOW
-  # Pass "clear" to clear the window for previous image
+
+def showimage(image) # SHOW THE SELECTED IMAGE IN THE RIGHT WINDOW {{{2
+  # Pass 'clear' to clear the window for previous image
   return unless @showimage
+
   begin
     terminfo    = `xwininfo -id $(xdotool getactivewindow 2>/dev/null) 2>/dev/null`
     term_w      = terminfo.match(/Width: (\d+)/)[1].to_i
     term_h      = terminfo.match(/Height: (\d+)/)[1].to_i
-    char_w      = term_w / Curses.cols
-    char_h      = term_h / Curses.lines
-    img_x       = char_w * (Curses.cols * @width / 10 + 1)
+    char_w      = term_w / @w
+    char_h      = term_h / @h
+    img_x       = char_w * @pR.x
     img_y       = char_h * 2
-    img_max_w   = char_w * (Curses.cols - Curses.cols * @width / 10 - 2)
-    img_max_h   = char_h * (Curses.lines - 4)
-    if image == "clear"
+    img_max_w   = char_w * (@pR.w - 1)
+    img_max_h   = char_h * (@pR.h - 1)
+    if image == 'clear'
       `clear`
       img_x     -= char_w
       img_max_w += char_w + 2
       img_max_h += 2
       `echo "6;#{img_x};#{img_y};#{img_max_w};#{img_max_h};\n4;\n3;" | #{@imgdisplay} 2>/dev/null`
     else
-      img_w,img_h = `identify -format "%[fx:w]x%[fx:h]" #{image} 2>/dev/null`.split('x')
-      img_w       = img_w.to_i
-      img_h       = img_h.to_i
+      img_w, img_h = `identify -format "%[fx:w]x%[fx:h]" #{image} 2>/dev/null`.split('x')
+      img_w        = img_w.to_i
+      img_h        = img_h.to_i
       if img_w > img_max_w
         img_h = img_h * img_max_w / img_w 
         img_w = img_max_w
@@ -1343,433 +2024,158 @@ def image_show(image)# SHOW THE SELECTED IMAGE IN THE RIGHT WINDOW
       `echo "0;1;#{img_x};#{img_y};#{img_w};#{img_h};;;;;\"#{image}\"\n4;\n3;" | #{@imgdisplay} 2>/dev/null`
     end
   rescue
-    @w_r.clr
-    @w_r << "Error showing image"
+    @pR.text = 'Error showing image'
   end
 end
-def pager_start # START PAGING
-  @w_r.pager = 1
-  if @w_r.text.lines.count > @w_r.maxy - 2
-    @w_r.pager_more = true
-  end
-  @cont = @w_r.text # For copying right win
-end
-def pager_show # SHOW THE CURRENT PAGE CONTENT
-  @w_r.setpos(0,0)
-  beg_l = (@w_r.pager - 1) * (@w_r.maxy - 5)
-  end_l = beg_l + @w_r.maxy - 2
-  input = @w_r.text.lines[beg_l..end_l].join() + "\n"
-  input.lines.count > @w_r.maxy - 2 ? @w_r.pager_more = true : @w_r.pager_more = false
-  if @w_r.text.match(/^\e\[/)
-    syntax_highlight(input)
+
+def marks_info # SHOW MARKS IN RIGHT WINDOW {{{2
+  @marks = @marks.sort.to_h
+  info = ' ' + 'MARKS'.u + ":\n\n"
+  if @marks.empty?
+    info += ' (none)'
   else
-    if @w_r.fg == nil
-      init_pair(255, 255, 0)
-      @w_r.fg = 255
-    else 
-      init_pair(@w_r.fg, @w_r.fg, 0)
+    @marks.each do |mark, dir|
+      info += " #{mark} = #{dir}\n"
+      info += "\n" if mark == "'"
+      info += "\n" if mark == '5'
     end
-    @w_r.attr = 0 if @w_r.attr == nil
-    @w_r.attron(color_pair(@w_r.fg) | @w_r.attr) { @w_r << input }
   end
-  @cont = input # For copying right win
-  (@w_r.maxy - @w_r.cury).times {@w_r.deleteln()} # Clear to bottom of window
-  pager_add_markers
-  @w_r.refresh
+  @pR.say(info.fg(156))
 end
-def pager_add_markers # ADD MARKERS TOP/RIGHT & BOTTOM/RIGHT TO SHOW PAGING AS RELEVANT
-  if @w_r.pager > 1
-    @w_r.setpos(0, @w_r.maxx - 2)
-    @w_r << " ∆"
-  end
-  if @w_r.pager_more
-    @w_r.setpos(@w_r.maxy - 1, @w_r.maxx - 2)
-    @w_r << " ∇"
-  end
-end
-def var_resets # RESET PAGER VARIABLES
-    @pager      = 0
-    @pager_more = false
-    @pager_cmd  = ""
-    @info       = false
-end
-def openai # INTERFACE TO OPENAI
-  begin
-    require "ruby/openai"
-  rescue
-    w_b_info("To make openai work in RTFM, you need to do `gem install ruby-openai` and add this to your .rtfm.conf: $ai = 'your-secret-openai-key'")
-  end
-  
-  client = OpenAI::Client.new(access_token: @ai)
 
-  c = @w_r.text
-  c = "" unless c
-  @w_r.fg = 214
-  w_r_info("OpenAI description...")
+def tagged_info # SHOW THE LIST OF TAGGED ITEMS IN @pR {{{2
+  info = ' ' + "TAGGED (#{@tagged.size} items, #{(@tagsize.to_f / 1_000_000).round(2)}MB)".u + ":\n\n"
+  info += @tagged.empty? ? ' (None)' : ' ' + @tagged.join("\n ")
+  info += "\n\n " + 'Selected'.u + ":\n " + @selected.b
+  @pR.say(info.fg(204))
+end
 
-  f  = Dir.pwd + "/" + @selected
-  p  = "What is this "
-  File.directory?(@selected) ? p += "directory: " : p+= "file: "
-  p += "#{f}? "
-  p += "Give a brief summary of its content: " + c unless File.directory?(@selected) and c == ""
-
-  begin
-    response = client.chat(parameters: { model: @aimodel, messages: [{ role: "user", content: p }], max_tokens: 400 })
-    text = "OpenAI description:\n" + response["choices"][0]["message"]["content"]
-  rescue
-    text  = "Error retrieving OpenAI request.\n\n"
-    text += "Check your connection and @ai secret key (in .rtfm.conf).\n\n"
-    text += response.to_s
-  end
-
-  @w_r.fg = 229
-  w_r_info(text)
-end
-def sysinfo
-  begin
-    @w_r.clr
-    @w_r.pager_cmd = ""
-    uname    = `uname -o`.chomp + "  "
-    uname   += `uname -r`.chomp + "  "
-    uname   += `uname -v`.chomp + "  "
-    uname   += `uname -p`.chomp + "  "
-    uname   += `awk -F '"' '/PRETTY/ {print $2}' /etc/os-release` + "\n"
-    text     = [[253, 1, uname]]
-    system   = "Shell & Terminal: " + `echo $SHELL`.sub(/.*\//, '').chomp + ", " + `echo $TERM`.chomp + "   "
-    packages = `pacman -Q 2>/dev/null | wc -l`.chomp
-    packages = `dpkg-query -l 2>/dev/null | grep -c '^.i'`.chomp if packages == "0"
-    packages = "Unrecognized" if packages == "0"
-    system  += "Packages: " + packages + "\n"
-    system  += "Desktop: " + `awk '/^DesktopNames/' /usr/share/xsessions/* | sed 's/DesktopNames=//g' | \\
-                sed 's/\\;/\\n/g' | sed '/^$/d' | sort -u | sed ':a;N;$!ba;s/\\n/, /g'`.chomp + "/"
-    system  += `grep 'gtk-theme-name' ~/.config/gtk-3.0/* | sed 's/gtk-theme-name=//g' | \\
-                sed 's/-/ /g'`.sub(/.*:/, '') + "\n"
-    text    += [[251, 0, system]]
-    cpu      = "CPUs = " + `nproc`.chop + "  "
-    cpuinfo  = `lscpu`
-    cpu     += cpuinfo[/^.*Model name:\s*(.*)/, 1] + "  "
-    cpu     += "Max: " + cpuinfo[/^.*CPU max MHz:\s*(.*)/, 1].to_i.to_s + "MHz  "
-    cpu     += "Min: " + cpuinfo[/^.*CPU min MHz:\s*(.*)/, 1].to_i.to_s + "MHz\n\n"
-    text    += [[154, 0, cpu]]
-    mem      = `free -h`  + "\n"
-    text    += [[229, 0, mem]]
-    ps       = `ps -eo comm,pid,user,pcpu,pmem,stat --sort -pcpu,-pmem | head` + "\n"
-    text    += [[195, 0, ps]]
-    disk     = `df -H | head -8`
-    text    += [[172, 0, disk]]
-    dmesg    = "\nDMESG (latest first):\n"
-    dcmd     = `dmesg 2>/dev/null | tail -6`.split("\n").sort.reverse.join("\n")
-    dcmd != "" ? dmesg += dcmd : dmesg   += "dmesg requires root, run 'sudo sysctl kernel.dmesg_restrict=0' if you need permission\n"
-    text    += [[219, 0, dmesg]]
-    w_r_info(ansifix(text))
-  rescue
-    w_r_info("Unable to show system info")
-  end
-end
-# BOTTOM WINDOW FUNCTIONS 
-def w_b_info(info) # SHOW INFO IN @W_B
-  @w_b.clr
-  @w_b.fg, @w_b.bg = 250, @bottomcolor
-  if info == nil
-    info      = ": for command (use @s for selected item, @t for tagged items) - press ? for help" 
-    info      = " Showing only files matching '#{@lsmatch}'" if @lsmatch != ""
-    info      = " Showing only file type '#{@lsfiles}'" if @lsfiles != ""
-    info      = " Showing only file types '#{@lsfiles}'" if @lsfiles =~ /,/
-    info     += " and only files matching '#{@lsmatch}'" if @lsfiles != "" and @lsmatch != ""
-    info      = " Tagged #{@tagged.size} files (#{(@tagsize.to_f/1000000).round(2)}MB)" unless @tagged.empty?
-    @w_b.fg, @w_b.bg = 250, 88  if @lsfiles != ""
-    @w_b.fg, @w_b.bg = 250, 21  if @lsmatch != ""
-    @w_b.fg, @w_b.bg = 250, 55  if @lsfiles != "" and @lsmatch != ""
-  end
-  info      = info[1..(@w_b.maxx - 3)] + "…" if info.length + 3 > @w_b.maxx 
-  info     += " " * (@w_b.maxx - info.length) if info.length < @w_b.maxx
-  @w_b.text = info
-  @w_b.write
-  @w_b.update = false
-end
-def w_b_getstr(pretext, text, ruby=false) # A SIMPLE READLINE-LIKE ROUTINE
-  Curses.curs_set(1)
-  Curses.echo
-  stk = 0
-  chr = ""
-  if ruby
-    @rubyhistory.insert(stk, text)
-    @history_copy = @rubyhistory.map(&:clone)
-  else
-    @history.insert(stk, text)
-    @history_copy = @history.map(&:clone)
-  end
-  pos = @history_copy[stk].length
-  while chr != "ENTER"
-    @w_b.setpos(0,0)
-    if ruby
-      init_pair(250, 250, @rubycolor)
-    else
-      init_pair(250, 250, @cmdcolor)
-    end
-    text = pretext + @history_copy[stk]
-    text += " " * (@w_b.maxx - text.length) if text.length < @w_b.maxx
-    @w_b.attron(color_pair(250)) { @w_b << text }
-    @w_b.setpos(0,pretext.length + pos)
-    @w_b.refresh
-    chr = getchr
-    if chr == 'C-G' or chr == 'C-C'
-      Curses.curs_set(0)
-      Curses.noecho
-      @w_b.update = true
-      return "" 
-    end
-    case chr
-    when 'UP'
-      unless @w_b.nohistory
-        unless stk == @history_copy.length - 1
-          stk += 1 
-          pos = @history_copy[stk].length
-        end
-      end
-    when 'DOWN'
-      unless @w_b.nohistory
-        unless stk == 0
-          stk -= 1 
-          pos = @history_copy[stk].length
-        end
-      end
-    when 'RIGHT'
-      pos += 1 unless pos > @history_copy[stk].length
-    when 'LEFT'
-      pos -= 1 unless pos == 0
-    when 'HOME'
-      pos = 0
-    when 'END'
-      pos = @history_copy[stk].length
-    when 'DEL'
-      @history_copy[stk][pos] = ""
-    when 'BACK'
-      unless pos == 0
-        pos -= 1
-        @history_copy[stk][pos] = ""
-      end
-    when 'WBACK'
-      unless pos == 0
-        until @history_copy[stk][pos - 1] == " " or pos == 0
-          pos -= 1
-          @history_copy[stk][pos] = ""
-        end
-        if @history_copy[stk][pos - 1] == " "
-          pos -= 1
-          @history_copy[stk][pos] = ""
-        end
-      end
-    when 'LDEL'
-      @history_copy[stk] = ""
-      pos = 0
-    when 'TAB' # Tab completion of dirs and files
-      p1 = pos - 1
-      c  = @history_copy[stk][0..(p1)].sub(/^.* /, '')
-      p0 = p1 - c.length
-      compl = File.expand_path(c)
-      compl += "/" if Dir.exist?(compl)
-      clist = Dir.glob(compl + "*")
-      unless compl == clist[0].to_s and clist.length == 1
-        if clist.length == 1
-          compl = clist[0].to_s
-        else
-          ix = clist.find_index(compl)
-          ix = 0 if ix == nil
-          sel_item = ""
-          begin
-            Curses.curs_set(0)
-            Curses.noecho
-            @w_r.clr
-            @w_r << "Completion list:\n\n"
-            clist.each.with_index do |item, index|
-              if index == ix
-                @w_r.attron(Curses::A_BLINK) { @w_r << item }
-                sel_item = item
-              else
-                @w_r << item
-              end
-              @w_r << "\n"
-            end
-            @w_r.refresh
-            ix == clist.length ? ix = 0 : ix += 1
-          end while getchr == 'TAB'
-          compl = sel_item
-          @w_r.clr
-          Curses.curs_set(1)
-          Curses.echo
-        end
-      end
-      @history_copy[stk].sub!(c,compl)
-      pos = pos - c.length + compl.length
-    when /^.$/
-      @history_copy[stk].insert(pos,chr)
-      pos += 1
-    end
-    while $stdin.ready?
-      chr = $stdin.getc
-      @history_copy[stk].insert(pos,chr)
-      pos += 1
-    end
-  end
-  curstr = @history_copy[stk]
-  @history_copy.shift if @w_b.nohistory
-  ruby ? @rubyhistory.insert(0, @history_copy[stk]) : @history.insert(0, @history_copy[stk])
-  unless @w_b.nohistory
-    @history.uniq!
-    @history.compact!
-    @history.delete("")
-    @rubyhistory.uniq!
-    @rubyhistory.compact!
-    @rubyhistory.delete("")
-  end
-  Curses.curs_set(0)
-  Curses.noecho
-  return curstr
-end
-def w_b_exec(cmd) # EXECUTE COMMAND FROM @W_B
-  # Subsitute any '@s' with the selected item, @t with tagged items
-  # 'rm @s' deletes the selected item, 'rm @t' deletes tagged items
-  return if cmd == ""
-  @s = "\"#{Dir.pwd}/#{@selected}\""
-  cmd.gsub!(/@s/, @s)
-  @t = @tagged.join(" ")
-  cmd.gsub!(/@t/, @t)
-  if cmd.match(/^cd /)
-    cmd.sub!(/^cd (\S*).*/, '\1')
-    Dir.chdir(cmd) if Dir.exist?(cmd)
+def open_selected(html = nil) # OPEN SELECTED ITEM (when pressing RIGHT or via open_force) {{{2
+  require 'tmpdir' unless Dir.respond_to?(:tmpdir)
+  if File.directory?(@selected) # Dir? just cd into it
+    mark_latest
+    Dir.chdir(@selected) rescue nil
     return
   end
-  begin
-    status = Timeout::timeout(15) {
-      @w_r.clr
-      begin
-        @w_r.pager_cmd = "#{cmd} 2>&1 | #{@bat} -n --color=always"
-        @w_r.text = %x(#{@w_r.pager_cmd})
-      rescue
-        @w_r.pager_cmd = "#{cmd} 2>&1"
-        @w_r.text = %x(#{@w_r.pager_cmd})
-      end
-      unless @w_r.text == "" or @w_r.text == nil
-        pager_start
-        pager_show
-        @w_r.update = false
-      else
-        @w_r.update = true
-      end
-    }
+  tmpfile = File.join(Dir.tmpdir, 'rtfm_err.log')
+  paths   = (@tagged + [@selected]).uniq
+  if html # html mode - open in HTML-browser
+    esc = paths.map { |p| Shellwords.escape(p) }.join(' ')
+    shell("xdg-open #{esc} &", err: tmpfile)
+    Rcurses.clear_screen; refresh; render
+    if File.exist?(tmpfile)
+      sleep 0.5
+      err = File.read(tmpfile)
+      showimage('clear') if @image
+      @pR.say(err.fg(196))
+      File.delete(tmpfile)
+    end
+    return
+  end
+  if File.read(@selected).force_encoding('UTF-8').valid_encoding? # Pure text
+    system("exec $EDITOR #{Shellwords.escape(@selected)}")
+    Rcurses.clear_screen
+    refresh
+    render
+    return
+  end
+  if @runmailcap # Open with run-mailcap or xdg-open
+    arg = paths.map { |p| Shellwords.escape(p) }.join(' ')
+    shell("run-mailcap #{arg} &", err: tmpfile)
+  else
+    shell("xdg-open #{Shellwords.escape(@selected)} &", err: tmpfile)
+  end
+  # Clean up
+  Rcurses.clear_screen; refresh; render
+  if File.exist?(tmpfile)
+    sleep 0.5
+    err = File.read(tmpfile)
+    showimage('clear') if @image
+    @pR.say(err.fg(196))
+    File.delete(tmpfile)
+  end
+end
+
+# MAIN PROGRAM {{{1
+## Get terminal size {{{2
+@h, @w = IO.console.winsize
+
+## Create panes {{{2
+# rubocop:disable Naming/VariableName
+# p = Pane.new(        x,  y,              width, height,  fg,           bg)
+@p0 = Pane.new(        1,  1,                 @w,     @h,   0,            0)
+@pT = Pane.new(        1,  1,                 @w,      1,   0,    @topcolor)
+@pB = Pane.new(        1, @h,                 @w,      1, 252, @bottomcolor)
+@pL = Pane.new(        2,  3, (@w - 4)*@width/10, @h - 4,  15,            0)
+@pR = Pane.new(@pL.w + 4,  3,     @w - @pL.w - 4, @h - 4, 255,            0)
+## Create special panes
+@pCmd    = Pane.new( 1, @h, @w, 1, 255,    @cmdcolor)
+@pSearch = Pane.new( 1, @h, @w, 1, 255, @searchcolor)
+@pRuby   = Pane.new( 1, @h, @w, 1, 255,   @rubycolor)
+@pAI     = Pane.new( 1, @h, @w, 1, 255,     @aicolor)
+# rubocop:enable Naming/VariableName
+#checkpoint("Panes created")
+
+## Set pane properties {{{2
+@pT.update      = true
+@pL.update      = true
+@pR.update      = true
+@pB.update      = true
+@pSearch.record = true
+@pCmd.record    = true
+@pCmd.history   = @history
+@pRuby.record   = true
+@pRuby.history  = @rubyhistory
+@pAI.record     = true
+@pAI.history    = @aihistory
+
+# Report plugin errors {{{2
+@pR.say("Plugin load errors:\n" + @plugin_errors.join("\n").fg(196)) if @plugin_errors.any? 
+
+## Set the borders {{{2
+setborder
+
+## Catch change in terminal resize, redraw {{{2
+Signal.trap('WINCH') do 
+  @h, @w = IO.console.winsize
+  @pT.update = @pL.update = @pR.update = @pB.update = true
+  refresh
+  render
+end
+
+## Set terminal to raw w/o echo {{{2
+$stdin.raw!
+$stdin.echo = false
+
+## One-time flush {{{2
+$stdin.getc while $stdin.wait_readable(0)
+
+## THE LOOP {{{2
+#checkpoint("Program started")
+loop do
+  @dir_old = Dir.pwd
+  render
+  getkey
+  begin # If cwd was deleted externally, jump home
+    Dir.pwd
   rescue
-    w_b_info(" Failed to execute command (#{cmd})")
+    Dir.chdir
   end
+  @index = @directory[Dir.pwd] || 0 if Dir.pwd != @dir_old # If we cd'd, restore index
+  unless @navi.empty?
+    command(@navi)
+    @navi = ''
+  end
+  system("printf \"\033]0;RTFM: #{Dir.pwd}\007\"") # Update window title
+rescue StandardError => e
+  errormsg('⚠ Internal Error', e)
 end
 
-# MAIN PROGRAM 
-loop do # OUTER LOOP - CATCHING REFRESHES VIA 'r'
-  @break        = false # Initialize @break variable (set if user hits 'r')
-  @image        = false # Set the image flag to false (set if image is displayed in @w_r)
-  @tag          = false # Set pattern tagging to nothing
-  @orderchange  = false
-  begin # Create the four windows/panels 
-    if @border
-      Curses.stdscr.bg = 236 # Use for borders
-      Curses.stdscr.fill
-    else
-      Curses.stdscr.clear
-      Curses.stdscr.refresh
-    end
-    maxx = Curses.cols
-    maxy = Curses.lines
-    # Curses::Window.new(h,w,y,x)
-    @w_t = Curses::Window.new(1, maxx, 0, 0)
-    @w_b = Curses::Window.new(1, maxx, maxy - 1, 0)
-    @w_l = Curses::Window.new(maxy - 3, (maxx * @width / 10) - 1, 2, 0)
-    @w_r = Curses::Window.new(maxy - 4, maxx - (maxx * @width / 10), 2, maxx * @width / 10)
-    @w_p = Curses::Window.new(1, maxx - (maxx * @width / 10), maxy - 2, maxx * @width / 10)
-    @w_p.fg, @w_p.bg = 255, 0
-    @w_p.refresh
-    @w_t.fg, @w_t.bg = 232, @topcolor
-    @w_t.attr        = Curses::A_BOLD
-    @w_b.fg, @w_b.bg = 250, @bottomcolor
-    @w_b.update = true
-    @w_r.update = true
-    @w_r.pager  = 0
-    @w_r.pager_more = false
-    dir_old     = Dir.pwd
-    lsall_old   = @lsall
-    unless @tagged.empty?
-      tagged_info
-      @w_r.update = false
-    end
-    loop do # INNER, CORE LOOP 
-      begin # Jump to home dir if current dir is externally removed
-        Dir.pwd
-      rescue
-        Dir.chdir
-      end
-      get_files("left")
-      if Dir.pwd != dir_old
-        if @directory.key?(Dir.pwd)
-          @selected = @directory[Dir.pwd]
-          @index    = @files.index(@selected)
-        else
-          @index    = 0
-        end
-      end
-      dir_old    = Dir.pwd
-      @w_t.bg    = @topmatch.find { |name, _| name == "" || dir_old.include?(name) }&.last
-      @index     = 0 if @index == nil
-      index_old  = @index
-      if @orderchange # Change in ordering must be handled
-        @index        = @files.index(@selected)
-        @orderchange  = false
-      end
-      @index          = @files.index(@selected) if @lsall != lsall_old # Change in showing all items must be handled
-      @index          = index_old if @files.index(@selected) == nil    # If item no longer is shown
-      @min_index      = 0
-      @max_index      = @files.size - 1
-      @index          = @max_index if @index > @max_index  # If deleted many items
-      @index          = 0 if @index < 0
-      @selected       = @files[@index]                     # Get text of selected item
-      sel_old         = @selected_safe
-      @selected_safe  = "\"#{@selected}\""                 # Make it safe for commands
-      system("printf \"\033]0;RTFM: #{Dir.pwd}\007\"")     # Set Window title to path 
-      w_t_info                                             # Top window (info line) 
-      @w_l.setpos(0,0)
-      list_dir(true)
-      @w_l.refresh
-      # Bottom window (command line) Before @w_r to avoid image dropping out on startup
-      w_b_info(nil) if @w_b.update
-      # Left and right windows (browser & content viewer)
-      if @w_r.update and @preview
-        w_r_show
-        @w_r.fg = 255
-      end
-      unless @navi == ""
-        w_r_info(@navi)
-        @w_r.update = false
-        @navi = ""
-      end
-      Curses.curs_set(1); Curses.curs_set(0) # Clear residual cursor from editing files 
-      @tag = false       # Clear tag pattern
-      lsall_old = @lsall
-      main_getkey        # Get key from user 
-      break if Curses.cols != maxx or Curses.lines != maxy # break on terminal resize 
-      break if @break    # Break to outer loop, redrawing windows, if user hit 'r'
-    end
-  rescue StandardError => err # Throw error nicely
-    w_r_info(err)
-    @w_r.update = false
-  ensure # On exit: close curses, clear terminal 
-    @write_conf_all = false
-    conf_write if @write_conf # Write marks to config file
-    image_show("clear")
-    close_screen
-    # If launched via the script "r", return current dir and "r" will cd to that
-    begin
-      File.write(ARGV[0], Dir.pwd) if ARGV[0] and ARGV[0].match(/\/tmp/)
-    rescue
-    end
-  end
+at_exit do # Always restore terminal state on quit (or fatal)
+  $stdin.cooked!
+  $stdin.echo = true
+  Rcurses.clear_screen
+  Cursor.show
 end
 
-# vim: set sw=2 sts=2 et fdm=syntax fdn=2 fcs=fold\:\ :
+# vim: set sw=2 sts=2 et fdm=marker fdn=2 fcs=fold\:\ :
