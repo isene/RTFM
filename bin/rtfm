@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '5.0' # A full rewrite using https://github.com/isene/rcurses
+@version    = '5.1' # Fixed a rare bug on opening $EDITOR
 
 # BOOTSNAP {{{1
 cache_dir = ENV.fetch('BOOTSNAP_CACHE_DIR', File.join(Dir.home, '.rtfm', 'bootsnap-cache'))
@@ -2073,8 +2073,20 @@ def open_selected(html = nil) # OPEN SELECTED ITEM (when pressing RIGHT or via o
     return
   end
   if File.read(@selected).force_encoding('UTF-8').valid_encoding? # Pure text
-    system("exec $EDITOR #{Shellwords.escape(@selected)}")
-    Rcurses.clear_screen
+    system("stty #{ORIG_STTY} < /dev/tty")  # Restore terminal so $EDITOR can take over
+    system('clear < /dev/tty > /dev/tty')   # Clear RTFM off the screen
+    Cursor.show
+    editor = ENV.fetch('EDITOR', 'vi')      # Launch $EDITOR on the real TTY
+    pid = Process.spawn(editor, Shellwords.escape(@selected),
+                        in:  '/dev/tty',
+                        out: '/dev/tty',
+                        err: '/dev/tty')
+    Process.wait(pid)
+    system('stty raw -echo isig < /dev/tty') # Re-enter raw/no-echo mode and hide cursor
+    $stdin.raw!
+    $stdin.echo = false
+    Cursor.hide
+    Rcurses.clear_screen # Redraw RTFM
     refresh
     render
     return
