@@ -473,7 +473,7 @@ RTFM by following the instructions in `keys.rb`:
 #   KEYMAP['X'] = :my_handler
 #
 #   def my_handler(chr)
-#     # anything you likebuse @pB, @pR, Dir.pwd, etc.
+#     # anything you like - use @pB, @pR, Dir.pwd, etc.
 #     @pB.say("You pressed X!")
 #   end
 #
@@ -487,6 +487,17 @@ RTFM by following the instructions in `keys.rb`:
 #   def zap_all(_chr)
 #     @pB.say("ZAPPED!")
 #   end
+```
+Here is another example of what you could add as a plugin:
+```
+KEYMAP['C-G'] = :git_update
+
+def git_update
+  @pR.say("Updating...")
+  message = @pCmd.ask('Commit message: ', '')
+  shellexec("git add . && git commit -m '#{message}' && git push")
+  @pB.full_refresh
+end
 ```
 ***With this, you can mold RTFM to fit your needs better.***
 
