@@ -490,6 +490,51 @@ RTFM by following the instructions in `keys.rb`:
 ```
 ***With this, you can mold RTFM to fit your needs better.***
 
+When writing plugins, there are a few variables you should know:
+
+Variable  | Description
+----------|------------------------------------------------------------------
+@pT       | Top pane (info bar)
+@pL       | Left pane
+@pR       | Right pane
+@pB       | Bottom pane (status bar)
+@pCmd     | Command pane (asking for commands to execute)
+@pSearch  | Search pane (prompting for what to search for)
+@pAI      | Pane for interacting with (Open)AI
+@pRuby    | Ruby debug/command pane
+@selected | The selected item in the Left pane
+
+Here are three importan hook-ins to use with your plugins:
+
+### Summary of overlap & choice
+- **Use `command`** when you need to _capture_ output as a value (and optionally handle stderr yourself).
+- **Use `shell`** for fire-and-forget side-effects where you don't care about stdout but still want error reporting.
+- **Use `shellexec`** when you want both stdout and stderr printed into RTFM's Right pane automatically.
+
+#### `command(cmd, timeout: 5, return_both: false) → String or [stdout, stderr]`
+- **What it does:** Runs `bash -c cmd`, captures both stdout and stderr, enforces a timeout.
+- **When to use:** Programmatically grab output (and optionally errors) of a shell command (e.g. building directory listings or previews).
+- **Key points:**
+  - By default prints stderr into the Right pane and returns stdout.
+  - `return_both: true` returns `[stdout, stderr]` instead of auto-printing errors.
+  - Times out after `timeout` seconds, killing the process if necessary.
+
+#### `shell(cmd, background: false, err: nil) → nil`
+- **What it does:** Fires off `cmd` via `system`, redirecting stderr into a log file (default: `$TMP/rtfm_err.log`), optionally in the background.
+- **When to use:** Run side-effecting commands (e.g. `xdg-open`, `mv`) where you don't need stdout but still want error reporting.
+- **Key points:**
+  - If `background: true`, runs `cmd &`.
+  - Any stderr output is read from the log and shown via `@pR.say`.
+  - Doesn't return command output, errors only.
+
+#### `shellexec(cmd, timeout: 10) → nil`
+- **What it does:** A thin wrapper over `command(cmd, timeout:, return_both: true)` that _always_ prints both stdout and stderr into the Right pane.
+- **When to use:** Run a command and echo both its stdout and any errors back to the user—e.g. interactive grep, locate, or other one-off shell tools.
+- **Key points:**
+  - Internally calls `command(..., return_both: true)`.
+  - Prints stderr first, then stdout.
+  - Doesn't return anything to the caller.
+
 ## Screencast
 Here's a screencast for an early version of RTFM, but it shows the basic stuff:
 [![RTFM screencast](/img/screenshot.png)](https://youtu.be/ANUOlDryUng)
