@@ -1574,7 +1574,7 @@ def dirlist(left: true) # LIST DIRECTORIES {{{2
   end
   # Map & decorate each colored line
   ls.map!.with_index do |el, i|
-    n = el.clean_ansi
+    n = el.to_s.clean_ansi
     n = n.shorten(width - 5).inject('…', -1) if n.pure.length > width - 6
     raw_name = (purels[i] || '').strip
     base     = left ? Dir.pwd : dir
