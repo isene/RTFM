@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '5.1' # Fixed a rare bug on opening $EDITOR
+@version    = '5.2' # Added git to interactive programs
 
 # BOOTSNAP {{{1
 cache_dir = ENV.fetch('BOOTSNAP_CACHE_DIR', File.join(Dir.home, '.rtfm', 'bootsnap-cache'))
@@ -288,7 +288,7 @@ def setup_config # {{{2
     @topmatch = [["", 249]]
 
     # INTERACTIVE
-    @interactive = "fzf,navi,top,htop,less,vi,vim,ncdu,sh,zsh,bash,fish"
+    @interactive = "fzf,navi,top,htop,less,vi,vim,ncdu,sh,zsh,bash,fish,git"
 
     # AI
     @ai      = "Replace_This_With_Your_OpenAI_Key"
@@ -427,7 +427,7 @@ $stdin.set_encoding(Encoding::UTF_8)
 @border      = 1       # Set initial border config; 0 = none, 1 = Right pane, 2 = both panes, 3 = Left pane
 @preview     = true    # Preview in the Right pane
 @trash       = false   # Delete files permanently rather than moving them to ~/.rtfm/trash
-@interactive = 'fzf,navi,top,htop,less,vi,vim,ncdu,sh,zsh,bash,fish'
+@interactive = 'fzf,navi,top,htop,less,vi,vim,ncdu,sh,zsh,bash,fish,git'
 ### Not saved (but can be set in ~/.rtfm/conf)
 @topcolor    = 249     # Default Top pane bg color
 @topmatch    = [['', 249]] # Default Top pane bg color for matching directories
