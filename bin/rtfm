@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '5.3' # Simpler opening of Editor for text files
+@version    = '5.4' # Removed tty startup/exit codes as rcurses now handles that
 
 # BOOTSNAP {{{1
 cache_dir = ENV.fetch('BOOTSNAP_CACHE_DIR', File.join(Dir.home, '.rtfm', 'bootsnap-cache'))
@@ -1906,11 +1906,6 @@ def exit_rtfm # CLEAN EXIT {{{2
     rescue StandardError # rubocop:disable Lint/SuppressedException
     end
   end
-  # Restore terminal state
-  $stdin.cooked!
-  $stdin.echo = true
-  Rcurses.clear_screen
-  Cursor.show
   # Also record for the 'r' launcher
   last = File.join(Dir.home, '.rtfm_last_dir')
   begin
@@ -2150,9 +2145,6 @@ Signal.trap('WINCH') do
   render
 end
 
-## Set terminal to raw w/o echo {{{2
-$stdin.raw!
-$stdin.echo = false
 
 ## One-time flush {{{2
 $stdin.getc while $stdin.wait_readable(0)
@@ -2176,13 +2168,6 @@ loop do
   system("printf \"\033]0;RTFM: #{Dir.pwd}\007\"") # Update window title
 rescue StandardError => e
   errormsg('⚠ Internal Error', e)
-end
-
-at_exit do # Always restore terminal state on quit (or fatal)
-  $stdin.cooked!
-  $stdin.echo = true
-  Rcurses.clear_screen
-  Cursor.show
 end
 
 # vim: set sw=2 sts=2 et fdm=marker fdn=2 fcs=fold\:\ :
