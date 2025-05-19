@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '5.4' # Removed tty startup/exit codes as rcurses now handles that
+@version    = '5.5' # Catching and swallowing of some errors
 
 # BOOTSNAP {{{1
 cache_dir = ENV.fetch('BOOTSNAP_CACHE_DIR', File.join(Dir.home, '.rtfm', 'bootsnap-cache'))
@@ -679,6 +679,9 @@ def getkey # {{{3
     m = method(handler)
     m.arity == 1 ? m.call(chr) : m.call
   end
+rescue Errno::EIO
+  # ignore transient TTY/read errors when upon focus switch
+  return
 rescue StandardError => e
   errormsg('⚷ Error in getkey', e)
 end
@@ -2005,7 +2008,7 @@ def showimage(image) # SHOW THE SELECTED IMAGE IN THE RIGHT WINDOW {{{2
       img_max_h += 2
       `echo "6;#{img_x};#{img_y};#{img_max_w};#{img_max_h};\n4;\n3;" | #{@imgdisplay} 2>/dev/null`
     else
-      img_w, img_h = `identify -format "%[fx:w]x%[fx:h]" #{image} 2>/dev/null`.split('x')
+      img_w, img_h = `identify -format "%[fx:w]x%[fx:h]" #{Shellwords.escape(image)} 2>/dev/null`.split('x')
       img_w        = img_w.to_i
       img_h        = img_h.to_i
       if img_w > img_max_w
@@ -2153,14 +2156,26 @@ $stdin.getc while $stdin.wait_readable(0)
 #checkpoint("Program started")
 loop do
   @dir_old = Dir.pwd
-  render
-  getkey
-  begin # If cwd was deleted externally, jump home
+  # redraw, but ignore TTY‐focus errors
+  begin
+    render
+  rescue Errno::EIO
+    # nothing
+  end
+  # read key, but ignore TTY-focus errors
+  begin
+    getkey
+  rescue Errno::EIO
+    # nothing
+  end
+  # If cwd was deleted externally, jump home
+  begin
     Dir.pwd
   rescue
     Dir.chdir
   end
-  @index = @directory[Dir.pwd] || 0 if Dir.pwd != @dir_old # If we cd'd, restore index
+  # restore index if we cd'd
+  @index = @directory[Dir.pwd] || 0 if Dir.pwd != @dir_old
   unless @navi.empty?
     command(@navi)
     @navi = ''
