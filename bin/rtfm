@@ -18,7 +18,14 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '5.5' # Catching and swallowing of some errors
+@version    = '5.6' # Fixed bug with special characters in terminal after EDITOR exit
+
+# SAVE & STORE TERMINAL {{{1
+ORIG_STTY = `stty -g`.chomp
+
+at_exit do
+  system("stty #{ORIG_STTY} < /dev/tty") rescue nil
+end
 
 # BOOTSNAP {{{1
 cache_dir = ENV.fetch('BOOTSNAP_CACHE_DIR', File.join(Dir.home, '.rtfm', 'bootsnap-cache'))
@@ -104,9 +111,6 @@ PREVIEW_FILE  = File.join(RTFM_HOME, 'preview.rb')
 KEYS_FILE     = File.join(RTFM_HOME, 'keys.rb') unless defined?(KEYS_FILE)
 CONFIG_FILE   = File.join(RTFM_HOME, 'conf')
 @plugin_errors = []
-
-# SAVE TERMINAL {{{1
-ORIG_STTY = `stty -g`.chomp
 
 # HELP {{{1
 @help = <<~HELPTEXT
@@ -2071,9 +2075,10 @@ def open_selected(html = nil) # OPEN SELECTED ITEM (when pressing RIGHT or via o
     return
   end
   if File.read(@selected).force_encoding('UTF-8').valid_encoding? # Pure text
+    system("stty #{ORIG_STTY} < /dev/tty")
+    # Clear to top-left
+    system('clear < /dev/tty > /dev/tty')
     Cursor.show
-    $stdin.raw!
-    $stdin.echo = false
     editor = ENV.fetch('EDITOR', 'vi')      # Launch $EDITOR on the real TTY
     system("#{editor} #{Shellwords.escape(@selected)}")
     $stdin.raw!
