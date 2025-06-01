@@ -368,7 +368,9 @@ add a program to the whitelist inside RTFM, press the `+` key. All ususal
 shell comands that do not take over the full terminal such as `ls`, `touch`,
 `neofetch`, etc. will run just fine in command mode without being whitelisted.
 You can also explicitly run a program as interactive by prefixing the command
-with a single `§` - e.g. `:` `§saidar`.***
+with a single `§` - e.g. `:` `§saidar`. Programs added to @interactive will
+open as interactive also when opened via xdg-open or runmailcap (when you
+press `RIGHT` on a selected item).***
 
 All the variables above that you manually add to the top of the config files are
 undisturbed by launching and exiting RTFM.
