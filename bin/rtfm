@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '5.6.1' # Fixed a small copy path bug
+@version    = '5.7' # Added use of @interactive on automatic opening of selected files
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -431,7 +431,7 @@ $stdin.set_encoding(Encoding::UTF_8)
 @border      = 1       # Set initial border config; 0 = none, 1 = Right pane, 2 = both panes, 3 = Left pane
 @preview     = true    # Preview in the Right pane
 @trash       = false   # Delete files permanently rather than moving them to ~/.rtfm/trash
-@interactive = 'fzf,navi,top,htop,less,vi,vim,nvim,ncdu,sh,zsh,bash,fish,git'
+@interactive = 'fzf,navi,top,htop,less,vi,vim,nvim,ncdu,sh,zsh,bash,fish,git,mplayer'
 ### Not saved (but can be set in ~/.rtfm/conf)
 @topcolor    = 249     # Default Top pane bg color
 @topmatch    = [['', 249]] # Default Top pane bg color for matching directories
@@ -1869,6 +1869,159 @@ def mark_latest # UPDATE MARKS LIST {{{2
   @marks["'"] = Dir.pwd
 end
 
+def get_interactive_program(file_path) # HELPER FOR OPEN_SELECTED TO USE @interactive {{{2
+  begin
+    inter_list = (@interactive || '').split(',').map(&:strip)
+
+    if @runmailcap
+      # Check what run-mailcap would actually execute
+      # Use --norun to see the command without executing it
+      mailcap_output = `run-mailcap --norun #{Shellwords.escape(file_path)} 2>/dev/null`.chomp
+
+      # Debug: log what we found
+      @pB.say("Debug: mailcap would run: '#{mailcap_output}'") unless mailcap_output.empty?
+
+      if !mailcap_output.empty?
+        # Extract the program name from the command
+        # Handle cases like "/usr/bin/mplayer file.mp4" or "mplayer %s"
+        cmd_parts = mailcap_output.split
+        prog = cmd_parts.first
+        prog = File.basename(prog) if prog
+
+        # Debug: log program detection
+        @pB.say("Debug: detected program = '#{prog}', in interactive list? #{inter_list.include?(prog)}")
+
+        return prog if prog && inter_list.include?(prog)
+      end
+    else
+      # Check what xdg-open would use
+      mimetype = `file --mime-type -b #{Shellwords.escape(file_path)}`.chomp
+      desktop_file = `xdg-mime query default #{Shellwords.escape(mimetype)}`.chomp
+
+      if desktop_file && !desktop_file.empty?
+        # Read the desktop file to get the actual command
+        desktop_path = nil
+        ['/usr/share/applications/', '/usr/local/share/applications/',
+         File.join(Dir.home, '.local/share/applications/')].each do |dir|
+          path = File.join(dir, desktop_file)
+          if File.exist?(path)
+            desktop_path = path
+            break
+          end
+        end
+
+        if desktop_path
+          content = File.read(desktop_path)
+          exec_line = content[/^Exec=(.*)$/m, 1]
+          if exec_line
+            # Extract the program name (first word, remove path)
+            prog = exec_line.split.first
+            prog = File.basename(prog) if prog
+            return prog if prog && inter_list.include?(prog)
+          end
+        end
+      end
+    end
+  rescue
+    # If detection fails, fall back to normal behavior
+  end
+  nil
+end
+
+def open_selected(html = nil) # OPEN SELECTED FILE {{{2
+  require 'tmpdir' unless Dir.respond_to?(:tmpdir)
+
+  if File.directory?(@selected) # Dir? just cd into it
+    mark_latest
+    Dir.chdir(@selected) rescue nil
+    return
+  end
+
+  # Check if this file should use an interactive program (same as § prefix logic)
+  if !html && (prog = get_interactive_program(@selected))
+    cmd = "#{prog} #{Shellwords.escape(@selected)}"
+
+    # Use exactly the same logic as command_mode with § prefix (force interactive)
+    # Restore shell tty so Ctrl-C/D work
+    system("stty #{ORIG_STTY} < /dev/tty")
+    # Clear to top-left
+    system('clear < /dev/tty > /dev/tty')
+    Cursor.show
+
+    # Spawn on real tty
+    pid = Process.spawn(cmd,
+                       in:  '/dev/tty',
+                       out: '/dev/tty',
+                       err: '/dev/tty')
+    begin
+      Process.wait(pid)
+    rescue Interrupt
+      Process.kill('TERM', pid) rescue nil
+      retry
+    end
+
+    # Restore raw/no-echo for RTFM
+    system('stty raw -echo isig < /dev/tty')
+    $stdin.raw!
+    $stdin.echo = false
+    Cursor.hide
+    Rcurses.clear_screen
+    refresh
+    render
+    return
+  end
+
+  tmpfile = File.join(Dir.tmpdir, 'rtfm_err.log')
+  paths   = (@tagged + [@selected]).uniq
+
+  if html # html mode - open in HTML-browser
+    esc = paths.map { |p| Shellwords.escape(p) }.join(' ')
+    shell("xdg-open #{esc} &", err: tmpfile)
+    Rcurses.clear_screen; refresh; render
+    if File.exist?(tmpfile)
+      sleep 0.5
+      err = File.read(tmpfile)
+      showimage('clear') if @image
+      @pR.say(err.fg(196))
+      File.delete(tmpfile)
+    end
+    return
+  end
+
+  if File.read(@selected).force_encoding('UTF-8').valid_encoding? # Pure text
+    system("stty #{ORIG_STTY} < /dev/tty")
+    # Clear to top-left
+    system('clear < /dev/tty > /dev/tty')
+    Cursor.show
+    editor = ENV.fetch('EDITOR', 'vi')      # Launch $EDITOR on the real TTY
+    system("#{editor} #{Shellwords.escape(@selected)}")
+    $stdin.raw!
+    $stdin.echo = false
+    Cursor.hide
+    Rcurses.clear_screen # Redraw RTFM
+    refresh
+    render
+    return
+  end
+
+  if @runmailcap # Open with run-mailcap or xdg-open
+    arg = paths.map { |p| Shellwords.escape(p) }.join(' ')
+    shell("run-mailcap #{arg} &", err: tmpfile)
+  else
+    shell("xdg-open #{Shellwords.escape(@selected)} &", err: tmpfile)
+  end
+
+  # Clean up
+  Rcurses.clear_screen; refresh; render
+  if File.exist?(tmpfile)
+    sleep 0.5
+    err = File.read(tmpfile)
+    showimage('clear') if @image
+    @pR.say(err.fg(196))
+    File.delete(tmpfile)
+  end
+end
+
 def conf_write(all: false) # WRITE TO ~/.rtfm/conf {{{2
   @conf = @conf.dup # work on a mutable copy
   assignments = {
@@ -2050,60 +2203,6 @@ def tagged_info # SHOW THE LIST OF TAGGED ITEMS IN @pR {{{2
   info += @tagged.empty? ? ' (None)' : ' ' + @tagged.join("\n ")
   info += "\n\n " + 'Selected'.u + ":\n " + @selected.b
   @pR.say(info.fg(204))
-end
-
-def open_selected(html = nil) # OPEN SELECTED ITEM (when pressing RIGHT or via open_force) {{{2
-  require 'tmpdir' unless Dir.respond_to?(:tmpdir)
-  if File.directory?(@selected) # Dir? just cd into it
-    mark_latest
-    Dir.chdir(@selected) rescue nil
-    return
-  end
-  tmpfile = File.join(Dir.tmpdir, 'rtfm_err.log')
-  paths   = (@tagged + [@selected]).uniq
-  if html # html mode - open in HTML-browser
-    esc = paths.map { |p| Shellwords.escape(p) }.join(' ')
-    shell("xdg-open #{esc} &", err: tmpfile)
-    Rcurses.clear_screen; refresh; render
-    if File.exist?(tmpfile)
-      sleep 0.5
-      err = File.read(tmpfile)
-      showimage('clear') if @image
-      @pR.say(err.fg(196))
-      File.delete(tmpfile)
-    end
-    return
-  end
-  if File.read(@selected).force_encoding('UTF-8').valid_encoding? # Pure text
-    system("stty #{ORIG_STTY} < /dev/tty")
-    # Clear to top-left
-    system('clear < /dev/tty > /dev/tty')
-    Cursor.show
-    editor = ENV.fetch('EDITOR', 'vi')      # Launch $EDITOR on the real TTY
-    system("#{editor} #{Shellwords.escape(@selected)}")
-    $stdin.raw!
-    $stdin.echo = false
-    Cursor.hide
-    Rcurses.clear_screen # Redraw RTFM
-    refresh
-    render
-    return
-  end
-  if @runmailcap # Open with run-mailcap or xdg-open
-    arg = paths.map { |p| Shellwords.escape(p) }.join(' ')
-    shell("run-mailcap #{arg} &", err: tmpfile)
-  else
-    shell("xdg-open #{Shellwords.escape(@selected)} &", err: tmpfile)
-  end
-  # Clean up
-  Rcurses.clear_screen; refresh; render
-  if File.exist?(tmpfile)
-    sleep 0.5
-    err = File.read(tmpfile)
-    showimage('clear') if @image
-    @pR.say(err.fg(196))
-    File.delete(tmpfile)
-  end
 end
 
 # MAIN PROGRAM {{{1
