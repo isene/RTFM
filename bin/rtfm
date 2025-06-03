@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '5.7.1' # Removed debug output
+@version    = '5.8' # Fixed bug on images with space in file name
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -1650,8 +1650,7 @@ def render # RENDER ALL PANES {{{2
     begin
       if @selected&.match(@imagefile)
         if cmd?('identify')
-          meta = `identify #{Shellwords.escape(@selected)} \
-  | awk '{printf " [%s %s %s %s] ", $3,$2,$5,$6}' 2>/dev/null`
+          meta = `identify -format " [%wx%h %m %[colorspace] %[bit-depth]-bit]" #{Shellwords.escape(@selected)} 2>/dev/null`
           text += meta
         end
       elsif @selected&.match(@pdffile)
@@ -2145,18 +2144,23 @@ def showimage(image) # SHOW THE SELECTED IMAGE IN THE RIGHT WINDOW {{{2
       img_max_h += 2
       `echo "6;#{img_x};#{img_y};#{img_max_w};#{img_max_h};\n4;\n3;" | #{@imgdisplay} 2>/dev/null`
     else
-      img_w, img_h = `identify -format "%[fx:w]x%[fx:h]" #{Shellwords.escape(image)} 2>/dev/null`.split('x')
-      img_w        = img_w.to_i
-      img_h        = img_h.to_i
-      if img_w > img_max_w
-        img_h = img_h * img_max_w / img_w 
-        img_w = img_max_w
+      # Use the already-escaped image for shell commands
+      dimensions = `identify -format "%wx%h" #{image} 2>/dev/null`
+      img_w, img_h = dimensions.split('x').map(&:to_i)
+
+      # Fix: Use simultaneous scaling to prevent overflow
+      if img_w > img_max_w || img_h > img_max_h
+        scale_w = img_max_w.to_f / img_w
+        scale_h = img_max_h.to_f / img_h
+        scale = [scale_w, scale_h].min
+
+        img_w = (img_w * scale).to_i
+        img_h = (img_h * scale).to_i
       end
-      if img_h > img_max_h
-        img_w = img_w * img_max_h / img_h
-        img_h = img_max_h
-      end
-      `echo "0;1;#{img_x};#{img_y};#{img_w};#{img_h};;;;;\"#{image}\"\n4;\n3;" | #{@imgdisplay} 2>/dev/null`
+
+      # Fix: Unescape the filename for w3mimgdisplay protocol, then quote it
+      unescaped = image.gsub(/\\(.)/, '\1')  # Remove shell escaping
+      `echo "0;1;#{img_x};#{img_y};#{img_w};#{img_h};;;;;\"#{unescaped}\"\n4;\n3;" | #{@imgdisplay} 2>/dev/null`
     end
   rescue
     @pR.text = 'Error showing image'
