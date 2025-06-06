@@ -1,9 +1,9 @@
 Gem::Specification.new do |s|
   s.name        = 'rtfm-filemanager'
-  s.version     = '5.8'
+  s.version     = '5.8.1'
   s.licenses    = ['Unlicense']
   s.summary     = "RTFM - Ruby Terminal File Manager"
-  s.description = "Major release - RTFM v5: Complete rewrite using rcurses (https://github.com/isene/rcurses). Massive improvements. AI integration.\n A full featured terminal browser with syntax highlighted files, images shown in the terminal, videos thumbnailed, etc. You can bookmark and jump around easily, delete, rename, copy, symlink and move files. RTFM is one of the most feature-packed terminal file managers. 5.8: Fixed bug on images with space in file name."
+  s.description = "Major release - RTFM v5: Complete rewrite using rcurses (https://github.com/isene/rcurses). Massive improvements. AI integration.\n A full featured terminal browser with syntax highlighted files, images shown in the terminal, videos thumbnailed, etc. You can bookmark and jump around easily, delete, rename, copy, symlink and move files. RTFM is one of the most feature-packed terminal file managers. 5.8.1: Minor adjustment to max image width."
   s.authors     = ["Geir Isene"]
   s.email       = 'g@isene.com'
   s.files       = ["bin/rtfm", "README.md", "img/rtfm-kb.png", "img/logo.png"]
