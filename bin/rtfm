@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '5.8' # Fixed bug on images with space in file name
+@version    = '5.8.1' # Minor adjustment to max image width
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -2135,7 +2135,7 @@ def showimage(image) # SHOW THE SELECTED IMAGE IN THE RIGHT WINDOW {{{2
     char_h      = term_h / @h
     img_x       = char_w * @pR.x
     img_y       = char_h * 2
-    img_max_w   = char_w * (@pR.w - 1)
+    img_max_w   = char_w * (@pR.w - 2)
     img_max_h   = char_h * (@pR.h - 1)
     if image == 'clear'
       `clear`
