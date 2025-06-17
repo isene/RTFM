@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '5.8.1' # Minor adjustment to max image width
+@version    = '5.8.2' # Bug fix for carriage return (also in PDFs)
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -499,7 +499,7 @@ end
 preview_specs = {
   'txt, rb, py, sh'    => "#{@bat} -n --color=always @s",
   'md'                 => "pandoc @s -t plain",
-  'pdf'                => "pdftotext -f 1 -l 4 @s -",
+  'pdf'                => "pdftotext -f 1 -l 4 @s - | tr -d '\\r'",  # Filter carriage returns
   'odt, odp, odg, odc' => "odt2txt @s",
   'docx'               => "docx2txt @s -",
   'xlsx'               => "ssconvert -O 'separator=   ' -T Gnumeric_stf:stf_assistant @s fd://1",
@@ -1969,7 +1969,8 @@ def open_selected(html = nil) # OPEN SELECTED FILE {{{2
     end
     return
   end
-  if File.read(@selected).force_encoding('UTF-8').valid_encoding? # Pure text
+  # Don't try to read large files or PDFs as text for validation
+  if !@selected&.match(@pdffile) && File.size(@selected) < 1_000_000 && File.read(@selected).force_encoding('UTF-8').valid_encoding? # Pure text
     system("stty #{ORIG_STTY} < /dev/tty")
     # Clear to top-left
     system('clear < /dev/tty > /dev/tty')
@@ -2101,19 +2102,24 @@ def showcontent # SHOW CONTENTS IN THE RIGHT WINDOW {{{2
           @pR.say("No preview available for #{@selected}")
         end
       else # Fallback: treat as text if UTF‑8
-        text = File.read(@selected).force_encoding('UTF-8') rescue ''
-        if text.valid_encoding?
-          if @batuse
-            begin
-              showcommand("#{@bat} -n --color=always #{Shellwords.escape(@selected)}")
-            rescue
+        # Don't try to preview PDFs as text - they contain binary data
+        if @selected&.match(@pdffile)
+          @pR.say("No preview available for #{@selected}")
+        else
+          text = File.read(@selected).force_encoding('UTF-8') rescue ''
+          if text.valid_encoding?
+            if @batuse
+              begin
+                showcommand("#{@bat} -n --color=always #{Shellwords.escape(@selected)}")
+              rescue
+                showcommand("cat #{Shellwords.escape(@selected)}")
+              end
+            else
               showcommand("cat #{Shellwords.escape(@selected)}")
             end
-          else
-            showcommand("cat #{Shellwords.escape(@selected)}")
-          end
         else
           @pR.say("No preview available for #{@selected}")
+        end
         end
       end
     end
