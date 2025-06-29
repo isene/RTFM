@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '5.8.2' # Bug fix for carriage return (also in PDFs)
+@version    = '5.9' # Delete/move message in bottom pane, bug fix on terminal restoration
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -1002,7 +1002,7 @@ def delete_items # {{{3
     end
     @tagged.clear
     refresh_right
-    @pR.say("#{past_action} #{paths.size} items#{@trash ? " to #{TRASH_DIR}" : ''}".fg(204))
+    @pB.say("#{past_action} #{paths.size} items#{@trash ? " to #{TRASH_DIR}" : ''}".fg(204))
   else
     @pB.update = true
   end
@@ -1977,8 +1977,10 @@ def open_selected(html = nil) # OPEN SELECTED FILE {{{2
     Cursor.show
     editor = ENV.fetch('EDITOR', 'vi')      # Launch $EDITOR on the real TTY
     system("#{editor} #{Shellwords.escape(@selected)}")
+    system('stty raw -echo isig < /dev/tty')
     $stdin.raw!
     $stdin.echo = false
+    Rcurses.init! # Reinitialize rcurses to fix input handling
     Cursor.hide
     Rcurses.clear_screen # Redraw RTFM
     refresh
