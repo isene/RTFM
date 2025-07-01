@@ -70,6 +70,7 @@ autoload :Timeout,    'timeout'
 autoload :Open3,      'open3'
 autoload :PTY,        'pty'
 autoload :OpenAI,     'ruby/openai'
+autoload :Tempfile,   'tempfile'
 #checkpoint("Libraries loaded")
 
 # FIX TERMINAL MESSAGE BLEED-THROUGH {{{1
@@ -2252,9 +2253,20 @@ def showcontent # SHOW CONTENTS IN THE RIGHT WINDOW {{{2
       elsif pattern # Nil template → image or video
         case @selected
         when /\.(?:png|jpe?g|bmp|gif|webp|tiff?)$/i
-          showimage(Shellwords.escape(@selected))
-          @image = true
-        when /\.(?:mpg|mpeg|avi|mov|mkv|mp4)$/i
+          # Allow larger image files up to 50MB
+          begin
+            file_size = File.size(@selected)
+            if file_size > 50_000_000  # 50MB limit for images
+              @pR.say("Image too large for preview (#{(file_size / 1024.0 / 1024.0).round(1)}MB > 50MB limit)")
+            else
+              showimage(Shellwords.escape(@selected))
+              @image = true
+            end
+          rescue => e
+            @pR.say("Error checking image size: #{e}")
+          end
+        when /\.(?:mpg|mpeg|avi|mov|mkv|mp4|webm|flv|wmv|m4v)$/i
+          # Generate video thumbnail regardless of size
           tn = '/tmp/rtfm_video_tn.jpg'
           showcommand("ffmpegthumbnailer -s 1200 -i #{Shellwords.escape(@selected)} -o #{Shellwords.escape(tn)} 2>/dev/null")
           showimage(tn)
@@ -2267,29 +2279,75 @@ def showcontent # SHOW CONTENTS IN THE RIGHT WINDOW {{{2
         if @selected&.match(@pdffile)
           @pR.say("No preview available for #{@selected}")
         else
-          # Check file size before reading to prevent memory issues
+          # Enhanced text file preview with partial loading for large files
           begin
             file_size = File.size(@selected)
-            if file_size > 1_000_000  # 1MB limit
-              @pR.say("File too large for preview (#{(file_size / 1024.0 / 1024.0).round(1)}MB > 1MB limit)")
-            else
-              text = File.read(@selected).force_encoding('UTF-8') rescue ''
-              if text.valid_encoding?
-            if @batuse
-              begin
-                showcommand("#{@bat} -n --color=always #{Shellwords.escape(@selected)}")
-              rescue
-                showcommand("cat #{Shellwords.escape(@selected)}")
+            
+            # For text files, we can preview them partially even if large
+            if file_size > 1_000_000  # Files larger than 1MB
+              # Calculate how many lines fit in the preview pane
+              preview_lines = @pR.h * 3  # Allow for 3 screens worth of preview
+              
+              # Read only the first portion of the file
+              preview_content = nil
+              File.open(@selected, 'r:UTF-8') do |file|
+                lines = []
+                line_count = 0
+                
+                file.each_line do |line|
+                  lines << line
+                  line_count += 1
+                  break if line_count >= preview_lines
+                end
+                
+                preview_content = lines.join
+              end
+              
+              if preview_content && preview_content.valid_encoding?
+                # Show preview with truncation notice
+                @pR.say("=== Showing first #{preview_lines} lines of large file (#{(file_size / 1024.0 / 1024.0).round(1)}MB) ===\n\n")
+                
+                if @batuse
+                  # Write temp file for bat to process
+                  require 'tempfile'
+                  temp = Tempfile.new(['rtfm_preview', File.extname(@selected)])
+                  temp.write(preview_content)
+                  temp.close
+                  
+                  begin
+                    showcommand("#{@bat} -n --color=always #{Shellwords.escape(temp.path)}")
+                  rescue
+                    @pR.say(preview_content)
+                  ensure
+                    temp.unlink
+                  end
+                else
+                  @pR.say(preview_content)
+                end
+                
+                @pR.say("\n\n=== File truncated for preview ===")
+              else
+                @pR.say("File appears to be binary or has invalid encoding")
               end
             else
-              showcommand("cat #{Shellwords.escape(@selected)}")
-            end
+              # Small files - read entirely as before
+              text = File.read(@selected).force_encoding('UTF-8') rescue ''
+              if text.valid_encoding?
+                if @batuse
+                  begin
+                    showcommand("#{@bat} -n --color=always #{Shellwords.escape(@selected)}")
+                  rescue
+                    showcommand("cat #{Shellwords.escape(@selected)}")
+                  end
+                else
+                  showcommand("cat #{Shellwords.escape(@selected)}")
+                end
               else
                 @pR.say("No preview available for #{@selected}")
               end
             end
           rescue => e
-            @pR.say("Error checking file size: #{e}")
+            @pR.say("Error previewing file: #{e}")
           end
         end
       end
