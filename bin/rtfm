@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '5.9' # Delete/move message in bottom pane, bug fix on terminal restoration
+@version    = '5.10' # Enhanced tab management, eliminated dual-pane, fixed flickering, restored image redraw
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -51,8 +51,41 @@ require 'bootsnap/setup' # Speed up subsequent requires
 #  $last_checkpoint = now
 #end
 
+def check_image_redraw # {{{2
+  # Only check periodically to avoid performance impact
+  now = Time.now
+  return if now - @last_focus_check < @focus_check_interval
+  @last_focus_check = now
+  
+  # Only check if we have an image currently displayed
+  return unless @image && @current_image_path
+  
+  begin
+    # Check if terminal has focus and if image needs redrawing
+    active_window = `xdotool getactivewindow 2>/dev/null`.chomp
+    return if active_window.empty?
+    
+    # Simple heuristic: if we can't find any w3mimgdisplay processes,
+    # the image overlay was probably cleared and needs redrawing
+    img_processes = `pgrep w3mimgdisplay 2>/dev/null`.chomp
+    if img_processes.empty? && File.exist?(@current_image_path)
+      # Redraw the image
+      showimage(Shellwords.escape(@current_image_path))
+    end
+  rescue
+    # Silently fail - we don't want focus checking to break anything
+  end
+end
+
 # LOAD LIBRARIES {{{1
 begin
+  # Use local development version of rcurses 4.9.0 if available
+  rcurses_dev_path = File.expand_path('../../rcurses/lib', __dir__)
+  if File.directory?(rcurses_dev_path)
+    $LOAD_PATH.unshift(rcurses_dev_path)
+    puts "Using rcurses development version from #{rcurses_dev_path}" if ENV['RTFM_DEBUG']
+  end
+  
   require 'rcurses'
   class Object
     include Rcurses
@@ -93,13 +126,45 @@ $stderr.reopen(logfile)
 
 # RCURSES CLASS EXTENSION {{{1
 module Rcurses
-  # Add attributes, amend 'say' to set update to false
+  # Add location attribute for compatibility
   class Pane
-    attr_accessor :update, :locate
+    attr_accessor :locate
+    
+    # Compatibility layer for the new update control system
+    def update=(value)
+      # TEMPORARILY DISABLED: If rcurses 4.9.0+ is available, use new suspend/resume system
+      # if self.respond_to?(:suspend_updates)
+      #   if value
+      #     resume_updates
+      #   else
+      #     suspend_updates
+      #   end
+      # else
+        # Fallback for older rcurses versions
+        @update = value
+      # end
+    end
+    
+    def update
+      # For older rcurses versions compatibility
+      @update.nil? ? true : @update
+    end
+    
+    # Restore original say method override for compatibility
     alias original_say say
     def say(text)
       original_say(text)
       self.update = false
+    end
+  end
+  
+  # Batch update helper for rcurses 4.9.0+
+  def self.batch_refresh(&block)
+    if Rcurses.respond_to?(:batch_updates)
+      Rcurses.batch_updates(&block)
+    else
+      # Fallback for older versions - just execute the block
+      block.call
     end
   end
 end
@@ -171,6 +236,15 @@ CONFIG_FILE   = File.join(RTFM_HOME, 'conf')
     Ctrl-t  = Add items matching a pattern to list of tagged items (Ctrl-t and then . will tag all items)
     T       = Show currently tagged items in right pane
     u       = Untag all tagged items
+
+  TAB MANAGEMENT
+    ]       = Create new tab in current directory
+    [       = Close current tab (keeps at least one tab open)
+    J       = Previous tab (wraps around)
+    K       = Next tab (wraps around)
+    }       = Duplicate current tab (creates a copy with same directory)
+    {       = Rename current tab
+    1-9     = Switch to tab by number (1 = first tab, 2 = second tab, etc.)
 
   MANIPULATE ITEMS
     p       = Put (copy) tagged items here
@@ -413,6 +487,11 @@ else
 end
 @showimage = false unless cmd?('xwininfo') && cmd?('xdotool')
 
+# Image auto-redraw variables
+@current_image_path = nil  # Path of currently displayed image
+@last_focus_check = Time.now
+@focus_check_interval = 0.5  # Check focus every 500ms
+
 @bat = cmd?('bat') ? 'bat' : 'batcat'
 
 ## Set encoding for $stdin to utf-8 {{{2
@@ -420,6 +499,9 @@ $stdin.set_encoding(Encoding::UTF_8)
 
 ## Initialize rendering optimization variables {{{2
 @last_render_state = nil
+
+# Custom caching system - could be replaced with rcurses 4.9.0+ built-in cache
+# when Rcurses.cache_set/cache_get becomes available
 @dir_cache = {}
 @dir_cache_size = 0
 @max_cache_entries = 50
@@ -470,6 +552,211 @@ $stdin.set_encoding(Encoding::UTF_8)
 @index       = 0       # Set chosen item to first on startup
 @tagsize     = 0       # Size (in MB) of tagged items
 @navi        = ''      # Navi result when navi is invoked
+# @dual_pane removed - using tabs for multi-directory navigation
+
+## Dual-pane directory navigation variables
+# Dual-pane variables removed - using tabs for multi-directory navigation
+# @active_pane, @index_left/right, @files_left/right, @selected_left/right
+# @directory_left/right, @pwd_left/right all removed
+
+## Tab system variables
+@tabs        = []      # Array of tab objects
+@current_tab = 0       # Index of currently active tab
+@tab_counter = 0       # Counter for generating unique tab IDs
+@tab_bar_visible = false  # Whether tab bar is currently shown
+@tab_bar_hide_time = 0    # Time when tab bar should be hidden
+
+# TAB MANAGEMENT FUNCTIONS {{{1
+def create_tab(directory = Dir.pwd, name = nil) # {{{2
+  @tab_counter += 1
+  tab = {
+    id: @tab_counter,
+    name: name || File.basename(directory),
+    directory: directory,
+    index: 0,
+    tagged: [],
+    searched: '',
+    lsfiles: '',
+    lsmatch: '',
+    directory_memory: {},
+    files: []
+  }
+  @tabs << tab
+  tab
+end
+
+def current_tab # {{{2
+  @tabs[@current_tab] || create_tab
+end
+
+def switch_to_tab(tab_index) # {{{2
+  return if tab_index < 0 || tab_index >= @tabs.size
+  
+  # Save current tab state
+  save_tab_state
+  
+  # Switch to new tab
+  @current_tab = tab_index
+  restore_tab_state
+  
+  # Update display
+  @pL.update = @pR.update = @pT.update = @pTab.update = true
+end
+
+def save_tab_state # {{{2
+  return unless @tabs[@current_tab]
+  
+  tab = @tabs[@current_tab]
+  tab[:directory] = Dir.pwd
+  tab[:name] = File.basename(Dir.pwd)  # Update tab name to current directory
+  tab[:index] = @index
+  tab[:tagged] = @tagged.dup
+  tab[:searched] = @searched
+  tab[:lsfiles] = @lsfiles
+  tab[:lsmatch] = @lsmatch
+  tab[:directory_memory] = @directory.dup
+  tab[:files] = @files.dup if defined?(@files)
+  
+  # Save dual-pane state if in dual-pane mode
+  # Dual-pane tab state removed - using single-pane mode only
+end
+
+def restore_tab_state # {{{2
+  tab = current_tab
+  
+  begin
+    Dir.chdir(tab[:directory]) if Dir.exist?(tab[:directory])
+  rescue
+    # If directory doesn't exist, go to home
+    Dir.chdir
+    tab[:directory] = Dir.pwd
+  end
+  
+  @index = tab[:index]
+  @tagged = tab[:tagged].dup
+  @searched = tab[:searched]
+  @lsfiles = tab[:lsfiles]
+  @lsmatch = tab[:lsmatch]
+  @directory = tab[:directory_memory].dup
+  @files = tab[:files].dup if tab[:files]
+  
+  # Dual-pane state restoration removed - using single-pane mode only
+end
+
+def close_tab(tab_index = @current_tab) # {{{2
+  return if @tabs.size <= 1  # Always keep at least one tab
+  
+  @tabs.delete_at(tab_index)
+  
+  # Adjust current tab index if necessary
+  if @current_tab >= @tabs.size
+    @current_tab = @tabs.size - 1
+  elsif tab_index < @current_tab
+    @current_tab -= 1
+  end
+  
+  restore_tab_state
+  @pL.update = @pR.update = @pT.update = true
+end
+
+def new_tab # {{{2
+  save_tab_state
+  tab = create_tab(Dir.pwd)
+  @current_tab = @tabs.size - 1
+  @pL.update = @pR.update = @pT.update = true
+end
+
+def duplicate_tab # {{{2
+  # Duplicate current tab with same directory and state
+  save_tab_state
+  current = current_tab
+  # Create a smart copy name
+  base_name = current[:name].gsub(/ Copy.*$/, '')  # Remove existing " Copy" suffixes
+  copy_name = "#{base_name} Copy"
+  tab = create_tab(current[:directory], copy_name)
+  @current_tab = @tabs.size - 1
+  @pL.update = @pR.update = @pT.update = true
+end
+
+def rename_tab # {{{2
+  @pB.say("Enter new tab name: ".fg(156))
+  name = gets_custom("Tab name: ", current_tab[:name])
+  return if name.nil? || name.strip.empty?
+  
+  current_tab[:name] = name.strip
+  @pT.update = true  # Update tab bar display
+  @pB.clear
+end
+
+
+# Keyboard handler functions for tabs {{{2
+def prev_tab # {{{2
+  new_index = @current_tab > 0 ? @current_tab - 1 : @tabs.size - 1
+  switch_to_tab(new_index)
+end
+
+def next_tab # {{{2
+  new_index = @current_tab < @tabs.size - 1 ? @current_tab + 1 : 0
+  switch_to_tab(new_index)
+end
+
+def switch_tab_1; switch_to_tab(0); end
+def switch_tab_2; switch_to_tab(1); end
+def switch_tab_3; switch_to_tab(2); end
+def switch_tab_4; switch_to_tab(3); end
+def switch_tab_5; switch_to_tab(4); end
+def switch_tab_6; switch_to_tab(5); end
+def switch_tab_7; switch_to_tab(6); end
+def switch_tab_8; switch_to_tab(7); end
+def switch_tab_9; switch_to_tab(8); end
+
+def show_tab_overlay # {{{2
+  # Show tab overlay for 2 seconds, then restore top pane
+  @tab_bar_visible = true
+  @tab_bar_hide_time = Time.now + 2
+  
+  # Show tab overlay immediately
+  @pTab.text = render_tab_bar
+  @pTab.refresh
+end
+
+def update_tab_overlay # {{{2
+  # Check if we should hide the tab overlay and restore top pane
+  if @tab_bar_visible && Time.now >= @tab_bar_hide_time
+    @tab_bar_visible = false
+    @pT.refresh  # Restore the top pane display
+  end
+end
+
+def render_tab_bar # {{{2
+  tab_display = []
+  @tabs.each_with_index do |tab, i|
+    name = tab[:name]
+    # Show current directory in tab if different from name
+    dir = File.basename(tab[:directory] || '')
+    display_name = (name == "Main" && dir != name) ? "#{name}:#{dir}" : name
+    display_name = display_name[0..12] + '…' if display_name.length > 14  # Truncate long names
+    
+    if i == @current_tab
+      # Active tab with bright background and bold text
+      tab_display << " #{i+1}:#{display_name} ".bg(226).fg(0).b  # Yellow background, black text, bold
+    else
+      # Inactive tab with subtle styling
+      tab_display << " #{i+1}:#{display_name} ".fg(244)          # Gray text
+    end
+  end
+  
+  # Enhanced tab bar with better shortcuts
+  if @tabs.size == 1
+    # Show enhanced help for single tab
+    "#{tab_display.join('')} | ]:new }:dup {:rename | Auto-hiding in #{(@tab_bar_hide_time - Time.now).ceil}s"
+  else
+    # Show all available tab shortcuts
+    "#{tab_display.join('')} | ]:new }:dup {:rename [:close J/K:nav 1-9:switch"
+  end
+end
+
+# DUAL-PANE HELPER FUNCTIONS REMOVED - using tabs for multi-directory navigation
 
 # LOAD CONFIG {{{1
 ## Get variables from config file (written back to ~/.rtfm/conf when exit via 'q')
@@ -490,6 +777,9 @@ load_config
 
 # Handle start dir {{{2
 Dir.chdir(ARGV.shift) if ARGV[0] && File.directory?(ARGV[0])
+
+# Initialize first tab {{{2
+create_tab(Dir.pwd, "Main")
 
 # OPENAI SETUP {{{1
 def chat_history # {{{2
@@ -572,6 +862,7 @@ KEYMAP = { # {{{2
   '-'       => :toggle_preview,
   '_'       => :toggle_image,
   'b'       => :toggle_syntax,
+  # '{' key available for future use (dual-pane mode removed)
 
   # MOTION {{{3
   'DOWN'    => :move_down,
@@ -591,6 +882,7 @@ KEYMAP = { # {{{2
   'PgUP'    => :page_up,
   'END'     => :go_last,
   'HOME'    => :go_first,
+  # '}' key available for future use (dual-pane mode removed)
 
   # MARKS & JUMPING {{{3
   'm'       => :set_mark,
@@ -611,6 +903,23 @@ KEYMAP = { # {{{2
   'C-T'     => :tag_pattern,
   'T'       => :show_tagged,
   'u'       => :clear_tagged,
+
+  # TAB MANAGEMENT {{{3
+  ']'       => :new_tab,
+  '['       => :close_tab,
+  'J'       => :prev_tab,
+  'K'       => :next_tab,
+  '}'       => :duplicate_tab,     # Duplicate current tab  
+  '{'       => :rename_tab,        # Rename current tab
+  '1'       => :switch_tab_1,
+  '2'       => :switch_tab_2,
+  '3'       => :switch_tab_3,
+  '4'       => :switch_tab_4,
+  '5'       => :switch_tab_5,
+  '6'       => :switch_tab_6,
+  '7'       => :switch_tab_7,
+  '8'       => :switch_tab_8,
+  '9'       => :switch_tab_9,
 
   # MANIPULATE ITEMS {{{3
   'p'       => :copy_items,
@@ -656,8 +965,8 @@ KEYMAP = { # {{{2
   'S-TAB'   => :page_up_right,
 
   # CLIPBOARD COPY {{{3
-  'y'       => :copy_path,
-  'Y'       => :copy_path,
+  'y'       => :copy_path_primary,
+  'Y'       => :copy_path_clipboard,
   'C-Y'     => :copy_right,
 
   # SYSTEM SHORTCUTS {{{3
@@ -686,6 +995,10 @@ end
 # MAIN GETKEY FOR USER INPUT {{{2
 def getkey # {{{3
   chr = getchr(1)
+  
+  # Check for image redraw on focus regain (even if no key was pressed)
+  check_image_redraw if @showimage
+  
   return unless chr
 
   showimage('clear') if @image
@@ -696,6 +1009,7 @@ def getkey # {{{3
   end
 rescue Errno::EIO
   # ignore transient TTY/read errors when upon focus switch
+  # Note: rcurses 4.9.0+ has enhanced error handling, but keeping this for compatibility
   return
 rescue StandardError => e
   errormsg('⚷ Error in getkey', e)
@@ -738,13 +1052,28 @@ end
 def change_width # {{{3
   @width += 1
   @width = 2 if @width == 8
+  
+  if @dual_pane
+    # Show width setting info for dual-pane mode using the new ratio calculation
+    dir_panes_ratio = [0.5 - (@width - 2) * 0.034, 0.33].max
+    preview_ratio = 1.0 - dir_panes_ratio
+    @pB.say("Width: #{@width} (Dir panes: #{(dir_panes_ratio * 100).to_i}%, Preview: #{(preview_ratio * 100).to_i}%)")
+  else
+    @pB.say("Width: #{@width}")
+  end
+  
   refresh
-  @pR.update = @pB.update = true
+  @pL.update = @pR.update = @pT.update = @pB.update = true
+  # Also update dual-pane objects if they exist
+  if @dual_pane && @pLeft && @pRight && @pPreview
+    @pLeft.update = @pRight.update = @pPreview.update = true
+  end
 end
 
 def toggle_border # {{{3
   @border = (@border + 1) % 4
   setborder
+  @pL.update = @pR.update = @pT.update = @pB.update = true
 end
 
 def toggle_preview # {{{3
@@ -765,14 +1094,18 @@ def toggle_syntax # {{{3
   @pR.update = true
 end
 
+# toggle_dual_pane function removed - using tabs for multi-directory navigation
+
 # MOTION {{{2
 def move_down # {{{3
   @index = @index >= @max_index ? @min_index : @index + 1
+  @pL.update = true
   @pR.update = @pB.update = true
 end
 
 def move_up # {{{3
   @index = @index <= @min_index ? @max_index : @index - 1
+  @pL.update = true
   @pR.update = @pB.update = true
 end
 
@@ -787,8 +1120,11 @@ def move_left # {{{3
   @directory[parent] = child_idx
   mark_latest
   Dir.chdir(parent)
-  @pL.update = @pR.update = @pB.update = true
+  @pL.update = true
+  @pR.update = @pB.update = true
 end
+
+# dirlist_simple function removed - was only for dual-pane navigation
 
 def move_right # {{{3
   @directory[Dir.pwd] = @index
@@ -827,6 +1163,8 @@ def go_first # {{{3
   @pR.update = @pB.update = true
 end
 
+# switch_pane function removed - using tabs for multi-directory navigation
+
 # MARKS & JUMPING {{{2
 def set_mark # {{{3
   marks_info
@@ -863,9 +1201,46 @@ def jump_to_mark # {{{3
 end
 
 def go_home # {{{3
-  @directory[Dir.pwd] = @index
-  mark_latest
-  Dir.chdir
+  if @dual_pane
+    # In dual-pane mode, navigate the active pane to home directory
+    home_dir = Dir.home
+    
+    # Get home directory listing
+    newfiles = command(
+      "ls #{Shellwords.escape(home_dir)} #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}"
+    ).pure.split("\n")
+    
+    # Update the active pane's state
+    if @active_pane == :left
+      @directory_left[@pwd_left] = @index_left
+      @pwd_left = home_dir
+      @index_left = 0
+      @files_left = newfiles
+      @selected_left = newfiles[0] if newfiles.length > 0
+      @directory_left[home_dir] = 0
+      @pLeft.update = true
+    else
+      @directory_right[@pwd_right] = @index_right
+      @pwd_right = home_dir
+      @index_right = 0
+      @files_right = newfiles
+      @selected_right = newfiles[0] if newfiles.length > 0
+      @directory_right[home_dir] = 0
+      @pRight.update = true
+    end
+    
+    # Update compatibility variables
+    @index = @active_pane == :left ? @index_left : @index_right
+    @files = @active_pane == :left ? @files_left : @files_right
+    @selected = @active_pane == :left ? @selected_left : @selected_right
+    
+    @pPreview.update = true if @pPreview
+  else
+    # Original single-pane logic
+    @directory[Dir.pwd] = @index
+    mark_latest
+    Dir.chdir
+  end
   @pR.update = @pB.update = true
 end
 
@@ -935,15 +1310,55 @@ end
 
 # TAGGING {{{2
 def tag_current # {{{3
-  item = @selected
-  if @tagged.include?(item)
-    @tagged.delete(item); @tagsize -= File.size(item) rescue 0
+  if @dual_pane
+    # In dual-pane mode, get the correct selected item and construct full path
+    current_dir = @active_pane == :left ? @pwd_left : @pwd_right
+    current_index = @active_pane == :left ? @index_left : @index_right
+    current_files = @active_pane == :left ? @files_left : @files_right
+    
+    if current_files && current_index < current_files.length
+      selected_item = current_files[current_index]
+      item = File.join(current_dir, selected_item)
+      
+      # Tag/untag the item
+      if @tagged.include?(item)
+        @tagged.delete(item); @tagsize -= File.size(item) rescue 0
+      else
+        @tagged.push(item); @tagsize += File.size(item) rescue 0
+      end
+      
+      # Advance to next item in the active pane
+      max_index = current_files.size - 1
+      if @active_pane == :left
+        @index_left = [@index_left + 1, max_index].min
+        @selected_left = current_files[@index_left] if current_files[@index_left]
+        @pLeft.update = true
+      else
+        @index_right = [@index_right + 1, max_index].min
+        @selected_right = current_files[@index_right] if current_files[@index_right]
+        @pRight.update = true
+      end
+      
+      # Update compatibility variables
+      @index = @active_pane == :left ? @index_left : @index_right
+      @selected = @active_pane == :left ? @selected_left : @selected_right
+      
+      @pPreview.update = true if @pPreview
+    end
   else
-    @tagged.push(item); @tagsize += File.size(item) rescue 0
+    # Original single-pane logic
+    item = @selected
+    if @tagged.include?(item)
+      @tagged.delete(item); @tagsize -= File.size(item) rescue 0
+    else
+      @tagged.push(item); @tagsize += File.size(item) rescue 0
+    end
+    @index = [@index + 1, (@files.size - 1)].min
+    @pL.update = true
   end
-  @index = [@index + 1, (@files.size - 1)].min
+  
   @pB.say(" Tagged #{@tagged.size} files (#{(@tagsize.to_f / 1_000_000).round(2)}MB)".fg(204))
-  @pB.update = false; @pR.update = true; @pL.update = true
+  @pB.update = false; @pR.update = true
 end
 
 def tag_pattern # {{{3
@@ -974,11 +1389,13 @@ end
 # MANIPULATE ITEMS {{{2
 def copy_items # {{{3
   copy_move_link('copy')
+  # Dual-pane refresh is handled in copy_move_link function
   @pR.update = true
 end
 
 def move_items # {{{3
   copy_move_link('move')
+  # Dual-pane refresh is handled in copy_move_link function
   @pR.update = true
 end
 
@@ -1004,6 +1421,7 @@ end
 
 def link_items # {{{3
   copy_move_link('link')
+  # Dual-pane refresh is handled in copy_move_link function
   @pR.update = true
 end
 
@@ -1356,13 +1774,73 @@ def page_up_right # {{{3
 end
 
 # CLIPBOARD COPY {{{2
-def copy_path # {{{3
+def copy_path_primary # {{{3
   if @selected
-    clip = "xclip -selection #{getchr == 'Y' ? 'clipboard' : 'primary'} -in -loops 1"
-    @pB.say(' Path copied')
-    shell("echo -n '#{@selected}' | #{clip}")
+    # Get the correct path in dual-pane mode
+    path = get_selected_full_path
+    if path
+      copy_to_clipboard(path, 'primary')
+      @pB.say(' Path copied to primary selection (middle-click to paste)')
+    else
+      @pB.say(' No selected item path to copy')
+    end
   else
     @pB.say(' No selected item path to copy')
+  end
+end
+
+def copy_path_clipboard # {{{3
+  if @selected
+    # Get the correct path in dual-pane mode
+    path = get_selected_full_path
+    if path
+      copy_to_clipboard(path, 'clipboard')
+      @pB.say(' Path copied to clipboard (Ctrl+V to paste)')
+    else
+      @pB.say(' No selected item path to copy')
+    end
+  else
+    @pB.say(' No selected item path to copy')
+  end
+end
+
+def copy_to_clipboard(text, selection = 'clipboard') # {{{3
+  # Robust clipboard copying with fallback mechanisms
+  escaped_text = text.gsub("'", "'\"'\"'")  # Escape single quotes for shell
+  
+  # Try xsel first (often more reliable), then fall back to xclip
+  success = false
+  
+  if cmd?('xsel')
+    cmd = case selection
+          when 'primary' then "echo -n '#{escaped_text}' | xsel --primary --input"
+          else "echo -n '#{escaped_text}' | xsel --clipboard --input"
+          end
+    success = system(cmd + ' 2>/dev/null')
+  end
+  
+  unless success
+    # Fallback to xclip with timeout to prevent hanging
+    cmd = case selection
+          when 'primary' then "echo -n '#{escaped_text}' | timeout 2 xclip -selection primary -in"
+          else "echo -n '#{escaped_text}' | timeout 2 xclip -selection clipboard -in"
+          end
+    success = system(cmd + ' 2>/dev/null')
+  end
+  
+  unless success
+    @pB.say(' Warning: Clipboard copy may have failed')
+  end
+end
+
+def get_selected_full_path # {{{3
+  # Helper function to get the correct full path in both single and dual-pane modes
+  if @dual_pane
+    active_dir = @active_pane == :left ? @pwd_left : @pwd_right
+    active_selected = @active_pane == :left ? @selected_left : @selected_right
+    return active_selected ? File.join(active_dir, active_selected) : nil
+  else
+    return @selected
   end
 end
 
@@ -1560,20 +2038,23 @@ end
 
 # GENERIC FUNCTIONS {{{1
 def get_cached_dirlist(dir, ls_options) # {{{2
-  # Create cache key from directory and options
-  cache_key = "#{dir}:#{ls_options}"
+  # TEMPORARILY DISABLED: Always bypass cache to debug flickering
+  return nil
   
-  begin
-    dir_stat = File.stat(dir)
-    cache_with_time = "#{cache_key}:#{dir_stat.mtime.to_i}"
-  rescue
-    # Directory might not exist or be accessible
-    return nil
-  end
+  # Create cache key from directory and options
+  # cache_key = "#{dir}:#{ls_options}"
+  
+  # begin
+  #   dir_stat = File.stat(dir)
+  #   cache_with_time = "#{cache_key}:#{dir_stat.mtime.to_i}"
+  # rescue
+  #   # Directory might not exist or be accessible
+  #   return nil
+  # end
   
   # Check if we have cached results for this directory
-  cached_result = @dir_cache[cache_with_time]
-  return cached_result if cached_result
+  # cached_result = @dir_cache[cache_with_time]
+  # return cached_result if cached_result
   
   # Clean old cache entries if cache is getting too large
   if @dir_cache_size >= @max_cache_entries
@@ -1644,14 +2125,17 @@ def get_cached_file_metadata(file_path) # {{{2
   end
 end
 
-def dirlist(left: true) # LIST DIRECTORIES {{{2
-  @index ||= 0
-  @index = @index.to_i
+def dirlist(left: true, directory: nil) # LIST DIRECTORIES {{{2
+  current_index = @index || 0
+  current_index = current_index.to_i
+  
   if left
-    dir   = Dir.pwd
+    dir = directory || Dir.pwd
     width = @pL.w
   else
-    dir = if @selected && File.directory?(@selected)
+    dir = if directory
+            directory
+          elsif @selected && File.directory?(@selected)
             File.symlink?(@selected) ? File.realpath(@selected) : @selected.to_s
           else
             File.dirname(@selected)
@@ -1661,11 +2145,25 @@ def dirlist(left: true) # LIST DIRECTORIES {{{2
   # Use cached directory listing
   ls_options = "#{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}"
   cached = get_cached_dirlist(dir, ls_options)
-  purels = cached[:purels]
-  colorls = cached[:colorls]
+  
+  if cached
+    purels = cached[:purels]
+    colorls = cached[:colorls]
+  else
+    # No cache available, generate fresh directory listing
+    begin
+      color_output = command("ls #{Shellwords.escape(dir)} --color=always #{ls_options}")
+      pure_output = command("ls #{Shellwords.escape(dir)} #{ls_options}")
+      purels = pure_output.pure.split("\n")
+      colorls = color_output.split("\n")
+    rescue => e
+      purels = []
+      colorls = []
+    end
+  end
   colorls.shift if colorls[0]&.strip == "#{dir}:"
   colorls.shift if colorls[0]&.match?(/^total/)
-  if left && @orderchange # Keep the same @selected even when we re-sort
+  if left && @orderchange && !directory # Keep the same @selected even when we re-sort (only for single-pane)
     basename = File.basename(@selected.to_s)
     new_idx  = purels.index(basename)
     @index   = new_idx if new_idx
@@ -1684,19 +2182,22 @@ def dirlist(left: true) # LIST DIRECTORIES {{{2
   t = entries.transpose
   purels = t[0] || []
   ls     = t[1] || []
-  @files = purels if left
-  # Update @selected & @fileattr for left pane
-  if left && purels[@index]
-    @selected = Dir.pwd + '/' + purels[@index]
-    sfile = @selected.dup
-    sfile += '/' if File.directory?(@selected)
-    slsl_cmd = "ls -ldHlh --time-style=long-iso #{Shellwords.escape(sfile)}"
-    slsl = command(slsl_cmd)
-    a = slsl.split
-    @fileattr = a.size >= 7 ? "#{a[2]}:#{a[3]} #{a[0]}  #{a[4]}  #{a[5]} #{a[6]}" : ''
+  # Only update global variables in single-pane mode
+  if left && !directory
+    @files = purels
+    # Update @selected & @fileattr for left pane
+    if purels[@index]
+      @selected = Dir.pwd + '/' + purels[@index]
+      sfile = @selected.dup
+      sfile += '/' if File.directory?(@selected)
+      slsl_cmd = "ls -ldHlh --time-style=long-iso #{Shellwords.escape(sfile)}"
+      slsl = command(slsl_cmd)
+      a = slsl.split
+      @fileattr = a.size >= 7 ? "#{a[2]}:#{a[3]} #{a[0]}  #{a[4]}  #{a[5]} #{a[6]}" : ''
+    end
   end
   # Map & decorate each colored line - optimized version
-  base_dir = left ? Dir.pwd : dir
+  base_dir = left ? (directory || Dir.pwd) : dir
   search_regex = @searched.empty? ? nil : /#{@searched}/
   
   ls.map!.with_index do |el, i|
@@ -1717,7 +2218,11 @@ def dirlist(left: true) # LIST DIRECTORIES {{{2
     n = n.r if @tagged.include?(fullpath)
     
     if left
-      n = (i == @index ? '→ ' + n.u : '  ' + n)
+      if i == current_index
+        n = '→ ' + n.u  # Default terminal color
+      else
+        n = '  ' + n
+      end
     end
     n
   end
@@ -1726,29 +2231,63 @@ end
 
 def current_render_state # {{{2
   # Create a hash representing current state for conditional rendering
-  {
-    dir: Dir.pwd,
-    index: @index,
-    files_mtime: File.mtime(Dir.pwd).to_i,
-    selected: @selected,
-    tagged_count: @tagged.size,
-    preview: @preview,
-    showimage: @showimage,
-    searched: @searched,
-    filters: [@filter, @filtered].join,
-    pane_updates: [@pL.update, @pR.update, @pT.update, @pB.update]
-  }
+  # Note: pane_updates removed to avoid oscillation - panes update themselves when needed
+  if @dual_pane
+    # Dual-pane specific state tracking
+    {
+      dual_pane: true,
+      active_pane: @active_pane,
+      pwd_left: @pwd_left,
+      pwd_right: @pwd_right,
+      index_left: @index_left,
+      index_right: @index_right,
+      selected_left: @selected_left,
+      selected_right: @selected_right,
+      tagged_count: @tagged.size,
+      preview: @preview,
+      showimage: @showimage,
+      searched: @searched,
+      filters: [@filter, @filtered].join,
+      tabs_state: [@tabs.size, @current_tab, @tabs.map { |t| t[:name] }.join('|')]
+    }
+  else
+    # Single-pane state tracking
+    {
+      dual_pane: false,
+      dir: Dir.pwd,
+      index: @index,
+      files_mtime: File.mtime(Dir.pwd).to_i,
+      selected: @selected,
+      tagged_count: @tagged.size,
+      preview: @preview,
+      showimage: @showimage,
+      searched: @searched,
+      filters: [@filter, @filtered].join,
+      tabs_state: [@tabs.size, @current_tab, @tabs.map { |t| t[:name] }.join('|')]
+    }
+  end
 end
 
 def needs_render? # {{{2
   current_state = current_render_state
-  needs_update = @last_render_state != current_state
-  @last_render_state = current_state if needs_update
+  state_changed = @last_render_state != current_state
+  
+  # Also check if any panes need updating (for refresh operations)
+  panes_need_update = @pL&.update || @pR&.update || @pT&.update || @pB&.update
+  if @dual_pane
+    panes_need_update ||= @pLeft&.update || @pRight&.update || @pPreview&.update
+  end
+  
+  needs_update = state_changed || panes_need_update
+  @last_render_state = current_state if state_changed
   needs_update
 end
 
 def render # RENDER ALL PANES {{{2
   return unless needs_render?
+  
+  # TEMPORARILY DISABLED: Use batch updates for rcurses 4.9.0+ performance improvement
+  # Rcurses.batch_refresh do
   
   # LEFT pane {{{3
   if @pL.update
@@ -1774,16 +2313,49 @@ def render # RENDER ALL PANES {{{2
     @index     = @max_index if @index > @max_index
     @pL.refresh unless @pL.text == lefttext
   end
+  
+  # DUAL-PANE render section removed - using tabs for multi-directory navigation
 
-  # RIGHT pane {{{3
+  # RIGHT pane (or Preview pane in dual-pane mode) {{{3
   if @pR.update && @preview
     showimage('clear') if @image; @image = false
     righttext = @pR.text
-    if @selected && File.directory?(@selected)
-      @pR.text = dirlist(left: false)
+    
+    # In dual-pane mode, construct full path from active pane
+    if @dual_pane
+      active_dir = @active_pane == :left ? @pwd_left : @pwd_right
+      active_selected = @active_pane == :left ? @selected_left : @selected_right
+      
+      if active_selected && !active_selected.empty?
+        # Ensure we're only using the basename for the selected file
+        selected_basename = File.basename(active_selected)
+        full_selected_path = File.join(active_dir, selected_basename)
+        
+        # Temporarily set @selected for existing preview functions to work
+        old_selected = @selected
+        @selected = full_selected_path
+        
+        if File.exist?(full_selected_path) && File.directory?(full_selected_path)
+          @pR.text = dirlist(left: false)
+        else
+          # Use existing showcontent function for files
+          showcontent
+        end
+        
+        # Restore original @selected
+        @selected = old_selected
+      else
+        @pR.text = "No file selected"
+      end
     else
-      showcontent
+      # Original single-pane logic
+      if @selected && File.directory?(@selected)
+        @pR.text = dirlist(left: false)
+      else
+        showcontent
+      end
     end
+    
     @pR.full_refresh unless @pR.text == righttext || @image
   end
 
@@ -1826,7 +2398,22 @@ def render # RENDER ALL PANES {{{2
         text += ' [Denied]'
       end
     end
+    
+    # Add tab indicator to the right side if there are multiple tabs
+    if @tabs.size > 1
+      tab_indicator = "[#{@current_tab + 1}/#{@tabs.size}]"
+      # Calculate available space for the main text (including space for right-justification)
+      available_width = @pT.w - tab_indicator.length - 1  # -1 for space between text and indicator
+      if text.length > available_width
+        text = text[0, available_width - 3] + "..."
+      end
+      # Right-justify the tab indicator by padding with spaces
+      padding = @pT.w - text.length - tab_indicator.length
+      text += " " * padding + tab_indicator
+    end
+    
     @pT.text = text.b
+    
     @pT.bg   = @topmatch.find { |name, _| name.empty? || Dir.pwd.include?(name) }&.last
     @pT.refresh unless @pT.text == toptext
   end
@@ -1842,6 +2429,8 @@ def render # RENDER ALL PANES {{{2
     @pB.text = info
     @pB.refresh unless @pB.text == bottomtext
   end
+  
+  # end # Rcurses.batch_refresh - TEMPORARILY DISABLED
 end
 
 def refresh # {{{2
@@ -1850,16 +2439,41 @@ def refresh # {{{2
   @p0.clear
   @pT.w = @w
   @pT.clear; @pT.update = true
+  @pTab.w = @w  # Keep tab overlay same width as top pane
   @pB.w = @w
   @pB.y = @h
   @pB.clear; @pB.update = true
-  @pL.w = (@w - 4) * @width / 10
-  @pL.h = @h - 4
-  @pR.x = @pL.w + 4
-  @pR.w = @w - @pL.w - 4
-  @pR.h = @h - 4
-  @pL.clear; @pL.update = true
-  @pR.clear; @pR.update = true
+  if @dual_pane && @pLeft && @pRight && @pPreview
+    # Update dual-pane layout with width control via @width variable
+    total_width = @w - 6  # Account for spacing and borders (2 + 2 + 2 spacing)
+    # Map @width (2-7) to dir_panes_ratio (0.5 to 0.33) - balanced default
+    dir_panes_ratio = [0.5 - (@width - 2) * 0.034, 0.33].max
+    dir_panes_width = (total_width * dir_panes_ratio).to_i
+    left_width = dir_panes_width / 2
+    preview_width = total_width - dir_panes_width
+    
+    @pLeft.w = left_width
+    @pLeft.h = @h - 4
+    @pRight.x = left_width + 4  # 2 columns spacing
+    @pRight.w = left_width
+    @pRight.h = @h - 4
+    @pPreview.x = 2*left_width + 6  # 2 columns spacing
+    @pPreview.w = preview_width
+    @pPreview.h = @h - 4
+    
+    @pLeft.clear; @pLeft.update = true
+    @pRight.clear; @pRight.update = true
+    @pPreview.clear; @pPreview.update = true
+  else
+    # Update single-pane layout
+    @pL.w = (@w - 4) * @width / 10
+    @pL.h = @h - 4
+    @pR.x = @pL.w + 4
+    @pR.w = @w - @pL.w - 4
+    @pR.h = @h - 4
+    @pL.clear; @pL.update = true
+    @pR.clear; @pR.update = true
+  end
   @pCmd.y = @h
   @pCmd.w = @w
   @pRuby.y = @h
@@ -1992,8 +2606,16 @@ end
 
 def copy_move_link(type) # COPY OR MOVE TAGGED ITEMS {{{2
   @tagged.uniq!
+  
+  # Determine destination directory based on mode
+  dest_dir = if @dual_pane
+               @active_pane == :left ? @pwd_left : @pwd_right
+             else
+               Dir.pwd
+             end
+  
   @tagged.each do |item|
-    dest = File.join(Dir.pwd, File.basename(item))
+    dest = File.join(dest_dir, File.basename(item))
     dest += '1' if File.exist?(dest)
     while File.exist?(dest)
       # Replace the last character (presumed to be a digit) by incrementing it
@@ -2016,6 +2638,19 @@ def copy_move_link(type) # COPY OR MOVE TAGGED ITEMS {{{2
     end
   end
   @tagged = []
+  
+  # Set update flags for proper refresh - let render system handle the actual refresh
+  if @dual_pane
+    # Update the destination pane
+    if @active_pane == :left
+      @pLeft.update = true
+    else
+      @pRight.update = true
+    end
+    # Also update the preview pane
+    @pPreview.update = true if @pPreview
+  end
+  
   render
 end
 
@@ -2378,6 +3013,7 @@ def showimage(image) # SHOW THE SELECTED IMAGE IN THE RIGHT WINDOW {{{2
       img_max_w += char_w + 2
       img_max_h += 2
       `echo "6;#{img_x};#{img_y};#{img_max_w};#{img_max_h};\n4;\n3;" | #{@imgdisplay} 2>/dev/null`
+      @current_image_path = nil  # Clear tracking when image is cleared
     else
       # Use the already-escaped image for shell commands
       dimensions = `identify -format "%wx%h" #{image} 2>/dev/null`
@@ -2396,6 +3032,7 @@ def showimage(image) # SHOW THE SELECTED IMAGE IN THE RIGHT WINDOW {{{2
       # Fix: Unescape the filename for w3mimgdisplay protocol, then quote it
       unescaped = image.gsub(/\\(.)/, '\1')  # Remove shell escaping
       `echo "0;1;#{img_x};#{img_y};#{img_w};#{img_h};;;;;\"#{unescaped}\"\n4;\n3;" | #{@imgdisplay} 2>/dev/null`
+      @current_image_path = unescaped  # Track currently displayed image
     end
   rescue
     @pR.text = 'Error showing image'
@@ -2433,9 +3070,25 @@ end
 # p = Pane.new(        x,  y,              width, height,  fg,           bg)
 @p0 = Pane.new(        1,  1,                 @w,     @h,   0,            0)
 @pT = Pane.new(        1,  1,                 @w,      1,   0,    @topcolor)
+@pTab = Pane.new(      1,  1,                 @w,      1, 255,          238)  # Tab overlay pane (same coords as @pT)
 @pB = Pane.new(        1, @h,                 @w,      1, 252, @bottomcolor)
-@pL = Pane.new(        2,  3, (@w - 4)*@width/10, @h - 4,  15,            0)
-@pR = Pane.new(@pL.w + 4,  3,     @w - @pL.w - 4, @h - 4, 255,            0)
+# Create panes based on mode
+if @dual_pane
+  # Dual-pane layout: two directory panes + one preview pane
+  left_width = (@w - 6) / 3  # Each directory pane gets 1/3 of width
+  @pLeft = Pane.new(        2,  3,        left_width, @h - 4, 226,            0)  # Yellow fg for active
+  @pRight = Pane.new(left_width + 4,  3,  left_width, @h - 4,  15,            0)  # Normal fg for inactive
+  @pPreview = Pane.new(2*left_width + 6,  3, @w - 2*left_width - 6, @h - 4, 255,  0)
+  @pLeft.border = true
+  @pRight.border = true
+  @pPreview.border = false
+  @pL = @pLeft
+  @pR = @pPreview
+else
+  # Single-pane layout (default)
+  @pL = Pane.new(        2,  3, (@w - 4)*@width/10, @h - 4,  15,            0)
+  @pR = Pane.new(@pL.w + 4,  3,     @w - @pL.w - 4, @h - 4, 255,            0)
+end
 ## Create special panes
 @pCmd    = Pane.new( 1, @h, @w, 1, 255,    @cmdcolor)
 @pSearch = Pane.new( 1, @h, @w, 1, 255, @searchcolor)
@@ -2445,6 +3098,7 @@ end
 #checkpoint("Panes created")
 
 ## Set pane properties {{{2
+@pTab.update    = true
 @pT.update      = true
 @pL.update      = true
 @pR.update      = true
@@ -2479,17 +3133,18 @@ $stdin.getc while $stdin.wait_readable(0)
 #checkpoint("Program started")
 loop do
   @dir_old = Dir.pwd
+  
   # redraw, but ignore TTY‐focus errors
   begin
     render
   rescue Errno::EIO
-    # nothing
+    # Note: rcurses 4.9.0+ has enhanced error handling, reducing need for this
   end
   # read key, but ignore TTY-focus errors
   begin
     getkey
   rescue Errno::EIO
-    # nothing
+    # Note: rcurses 4.9.0+ has enhanced error handling, reducing need for this
   end
   # If cwd was deleted externally, jump home
   begin
@@ -2498,7 +3153,9 @@ loop do
     Dir.chdir
   end
   # restore index if we cd'd
-  @index = @directory[Dir.pwd] || 0 if Dir.pwd != @dir_old
+  if Dir.pwd != @dir_old
+    @index = @directory[Dir.pwd] || 0
+  end
   unless @navi.empty?
     command(@navi)
     @navi = ''

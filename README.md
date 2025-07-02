@@ -57,6 +57,9 @@ features are:
 * See if a directory (with sub dirs) has changed using cryptographic hashes
 * Integration with OpenAI to get an executive summary of file content
 * ***OpenAI chat integrated; Discuss files, content, commands with OpenAI***
+* ***Enhanced tab management*** with duplication, renaming, and smart navigation
+* ***Improved stability*** with simplified architecture and eliminated flickering
+* ***Automatic image redraw*** after workspace switching (i3-wm compatible)
 * Possibility to change top line background when matching a path
 * Theming of pane colors
 
@@ -74,10 +77,14 @@ written from scratch in pure Ruby - and from v5 and onwards, RTFM is based
 completely on this modern curses implementation.
 
 ## How?
-RTFM is a two-pane file manager. You navigate in the left pane and the content
-of the selected item (directory or file) is shown in the right pane. The right
-pane is also used to show information such as the currently tagged items, your
-(book)marks, output from commands, error messages, etc. 
+RTFM is a modern two-pane file manager with **enhanced tab support** for multi-directory navigation. You navigate in the left pane and the content of the selected item (directory or file) is shown in the right pane. The right pane is also used to show information such as the currently tagged items, your (book)marks, output from commands, error messages, etc.
+
+**Enhanced Tab Features:**
+* **Multiple tabs** for easy multi-directory management
+* **Tab duplication** (`}`) to quickly copy current directory context
+* **Tab renaming** (`{`) for better organization  
+* **Smart tab display** showing current directory and shortcuts
+* **Quick tab switching** with number keys (1-9), J/K navigation 
 
 When you start RTFM, you can supply a directory path as an argument to let
 RTFM start up in that directory. When you exit it exits into the current RTFM
