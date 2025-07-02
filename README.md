@@ -79,12 +79,15 @@ completely on this modern curses implementation.
 ## How?
 RTFM is a modern two-pane file manager with **enhanced tab support** for multi-directory navigation. You navigate in the left pane and the content of the selected item (directory or file) is shown in the right pane. The right pane is also used to show information such as the currently tagged items, your (book)marks, output from commands, error messages, etc.
 
+The **tab system** is visible in the top-right corner showing your current position like `[2/5]` (tab 2 of 5 total tabs). The tab bar displays when you have multiple tabs or use tab commands, showing directory names and management shortcuts.
+
 **Enhanced Tab Features:**
-* **Multiple tabs** for easy multi-directory management
+* **Multiple tabs** for easy multi-directory management  
 * **Tab duplication** (`}`) to quickly copy current directory context
 * **Tab renaming** (`{`) for better organization  
 * **Smart tab display** showing current directory and shortcuts
-* **Quick tab switching** with number keys (1-9), J/K navigation 
+* **Quick tab switching** with number keys (1-9), J/K navigation
+* **Visual tab indicator** in top-right corner `[current/total]` 
 
 When you start RTFM, you can supply a directory path as an argument to let
 RTFM start up in that directory. When you exit it exits into the current RTFM
@@ -228,6 +231,17 @@ Key      | Description
  Ctrl-t  | Add items matching a pattern to list of tagged items (Ctrl-t and then . will tag all items)
  T       | Show currently tagged items in right pane
  u       | Untag all tagged items
+
+### Tab management
+Key      | Description
+---------|------------------------------------------------------------------
+ ]       | Create new tab in current directory
+ [       | Close current tab (keeps at least one tab open)
+ J       | Previous tab (wraps around)
+ K       | Next tab (wraps around)
+ }       | Duplicate current tab (creates a copy with same directory)
+ {       | Rename current tab
+ 1-9     | Switch to tab by number (1 = first tab, 2 = second tab, etc.)
 
 ### Manipulate items
 Key      | Description

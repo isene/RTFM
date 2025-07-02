@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name        = 'rtfm-filemanager'
-  s.version     = '5.10.1'
+  s.version     = '5.10.2'
   s.licenses    = ['Unlicense']
   s.summary     = "RTFM - Ruby Terminal File Manager"
   s.description = "Major release - RTFM v5: Complete rewrite using rcurses (https://github.com/isene/rcurses). Massive improvements. AI integration.\n A full featured terminal browser with syntax highlighted files, images shown in the terminal, videos thumbnailed, etc. You can bookmark and jump around easily, delete, rename, copy, symlink and move files. RTFM is one of the most feature-packed terminal file managers. 5.10: Enhanced tab management, eliminated dual-pane flickering, improved stability, restored image redraw."
