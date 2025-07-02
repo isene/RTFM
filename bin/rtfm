@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '5.10.3' # Fixed color rendering issues with rcurses 4.9.4
+@version    = '5.10.4' # Fixed color rendering issues with rcurses 4.9.5
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
