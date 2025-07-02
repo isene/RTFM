@@ -79,13 +79,6 @@ end
 
 # LOAD LIBRARIES {{{1
 begin
-  # Use local development version of rcurses 4.9.0 if available
-  rcurses_dev_path = File.expand_path('../../rcurses/lib', __dir__)
-  if File.directory?(rcurses_dev_path)
-    $LOAD_PATH.unshift(rcurses_dev_path)
-    puts "Using rcurses development version from #{rcurses_dev_path}" if ENV['RTFM_DEBUG']
-  end
-  
   require 'rcurses'
   class Object
     include Rcurses
