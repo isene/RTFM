@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '5.10' # Enhanced tab management, eliminated dual-pane, fixed flickering, restored image redraw
+@version    = '5.10.1' # Enhanced tab management, eliminated dual-pane, fixed flickering, restored image redraw
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
