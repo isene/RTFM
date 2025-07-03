@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '5.10.4' # Fixed color rendering issues with rcurses 4.9.5
+@version    = '5.11.0' # Added comprehensive undo system for file operations
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -216,6 +216,9 @@ CONFIG_FILE   = File.join(RTFM_HOME, 'conf')
               The 5 latest directories visited are stored in marks 1-5 (1 being the very latest)
     ~       = Jump to Home directory
     >       = Follow symlink to the directory where the target resides
+    Ctrl-r  = Show recently accessed files and directories (press number to jump)
+    Ctrl-e  = Browse remote directories via SSH/SFTP (toggle remote mode)
+                In remote mode: d=download, u=upload, s=shell, →=file info, ←=parent dir
 
   DIRECTORY VIEWS
     a       = Show all (also hidden) items
@@ -243,11 +246,20 @@ CONFIG_FILE   = File.join(RTFM_HOME, 'conf')
     p       = Put (copy) tagged items here
     P       = PUT (move) tagged items here
     c       = Change/rename selected (adds command to bottom window)
+    E       = Bulk rename tagged files using patterns (regex, templates, case conversion)
+    X       = Compare two tagged files (text diff or binary comparison)
     s       = Create symlink to tagged items here
     d       = Delete selected item and tagged items. Confirm with 'y'. 
               Moves items to trash directory (~/.rtfm/trash/) if @trash = true
     D       = Empty trash directory
     Ctrl-d  = Toggle use of trash directory
+
+  UNDO OPERATIONS
+    U       = Undo last file operation (delete from trash, move, rename, copy, symlink, bulk rename)
+              Only operations that can be safely undone are tracked
+              Permanent deletions cannot be undone
+
+  OWNERSHIP AND PERMISSIONS
     Ctrl-o  = Change ownership to user:group of selected and tagged items
     Ctrl-p  = Change permissions of selected and tagged items
               Format = rwxr-xr-x or 755 or rwx (applies the trio to user, group and others)
@@ -295,6 +307,7 @@ CONFIG_FILE   = File.join(RTFM_HOME, 'conf')
   SYSTEM SHORTCUTS
     S       = Show comprehensive System info (system, CPU, filesystem, latest dmesg messages)
     =       = Create a new directory (a shortcut for ":mkdir ")
+    e       = Show comprehensive file/directory properties (size, permissions, timestamps, etc.)
     Ctrl-n  = Invoke navi (see https://github.com/denisidoro/navi) with any output in right window
 
   COMMAND MODE
@@ -558,6 +571,25 @@ $stdin.set_encoding(Encoding::UTF_8)
 @tab_counter = 0       # Counter for generating unique tab IDs
 @tab_bar_visible = false  # Whether tab bar is currently shown
 @tab_bar_hide_time = 0    # Time when tab bar should be hidden
+
+## Undo system variables
+@undo_history = []      # Array to store undo operations
+@max_undo_levels = 20   # Maximum number of undo levels to keep
+@undo_enabled = true    # Enable/disable undo system
+
+## Recently accessed files/directories
+@recent_files = []      # Last 50 accessed files
+@recent_dirs = []       # Last 20 accessed directories  
+@max_recent_files = 50  # Maximum recent files to track
+@max_recent_dirs = 20   # Maximum recent directories to track
+
+## Remote browsing variables
+@remote_connections = {}  # Cache of active remote connections
+@current_remote = nil     # Current remote connection info
+@remote_cache = {}        # Cache of remote directory listings
+@remote_mode = false      # Whether currently browsing remotely
+@remote_path = '~'        # Current remote directory path
+@remote_files_cache = []  # Cache of current remote directory files with full info
 
 # TAB MANAGEMENT FUNCTIONS {{{1
 def create_tab(directory = Dir.pwd, name = nil) # {{{2
@@ -897,6 +929,15 @@ KEYMAP = { # {{{2
   'T'       => :show_tagged,
   'u'       => :clear_tagged,
 
+  # UNDO {{{3
+  'U'       => :undo_last_operation,
+
+  # RECENT FILES {{{3
+  'C-R'     => :show_recent_files,
+
+  # REMOTE BROWSING {{{3
+  'C-E'     => :browse_remote,
+
   # TAB MANAGEMENT {{{3
   ']'       => :new_tab,
   '['       => :close_tab,
@@ -918,6 +959,8 @@ KEYMAP = { # {{{2
   'p'       => :copy_items,
   'P'       => :move_items,
   'c'       => :rename_item,
+  'E'       => :bulk_rename,
+  'X'       => :compare_files,
   's'       => :link_items,
   'd'       => :delete_items,
   'D'       => :empty_trash,
@@ -970,7 +1013,7 @@ KEYMAP = { # {{{2
   # COMMAND MODE {{{3
   ':'       => :command_mode,
   ';'       => :show_history,
-  '+'       => :add_interactive,
+  'e'       => :show_file_properties,
 
   # RUBY MODE {{{3
   '@'       => :ruby_debug
@@ -1010,7 +1053,34 @@ end
 
 # BASIC KEYS {{{2
 def show_help # {{{3
-  @pR.say(@help.fg(249))
+  # Format help text with colors and structure
+  formatted_help = ""
+  
+  @help.lines.each do |line|
+    case line
+    when /^  [A-Z][A-Z ]+$/  # Section headers like "BASIC KEYS"
+      formatted_help << line.strip.b.fg(156) + "\n"
+    when /^    \w+.*=\s+/     # Key descriptions like "?       = Show this help"
+      # Split key and description
+      if line =~ /^    ([^=]+)\s*=\s*(.+)$/
+        key_part = $1.strip
+        desc_part = $2.strip
+        formatted_help << sprintf("    %-12s %s\n", key_part.fg(226).b, desc_part.fg(249))
+      else
+        formatted_help << line.fg(249)
+      end
+    when /^  RTFM - Ruby Terminal File Manager/  # Title
+      formatted_help << line.b.fg(154) 
+    when /^  COPYRIGHT:/
+      formatted_help << line.fg(240)
+    when /^\s*$/  # Empty lines
+      formatted_help << line
+    else  # Other lines (descriptions, URLs, etc.)
+      formatted_help << line.fg(249)
+    end
+  end
+  
+  @pR.say(formatted_help)
 end
 
 def show_version # {{{3
@@ -1093,38 +1163,82 @@ end
 def move_down # {{{3
   @index = @index >= @max_index ? @min_index : @index + 1
   @pL.update = true
-  @pR.update = @pB.update = true
+  # In remote mode, only update bottom pane (for file attributes)
+  if @remote_mode
+    @pB.update = true
+  else
+    @pR.update = @pB.update = true
+  end
 end
 
 def move_up # {{{3
   @index = @index <= @min_index ? @max_index : @index - 1
   @pL.update = true
-  @pR.update = @pB.update = true
+  # In remote mode, only update bottom pane (for file attributes)
+  if @remote_mode
+    @pB.update = true
+  else
+    @pR.update = @pB.update = true
+  end
 end
 
 def move_left # {{{3
-  old_dir = Dir.pwd
-  parent  = File.dirname(old_dir)
-  child   = File.basename(old_dir)
-  purels = command(
-    "ls #{Shellwords.escape(parent)} #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}"
-  ).pure.split("\n")
-  child_idx = purels.index(child) || 0
-  @directory[parent] = child_idx
-  mark_latest
-  Dir.chdir(parent)
-  @pL.update = true
-  @pR.update = @pB.update = true
+  if @remote_mode
+    # Remote mode - go to parent directory
+    return if @remote_path == '/' || @remote_path == '~'
+    
+    old_path = @remote_path
+    @remote_path = File.dirname(@remote_path)
+    @remote_files_cache = []  # Clear cache when changing directories
+    @index = 0  # Reset selection
+    @pL.update = true
+    @pR.update = @pB.update = true
+  else
+    # Local mode
+    old_dir = Dir.pwd
+    parent  = File.dirname(old_dir)
+    child   = File.basename(old_dir)
+    purels = command(
+      "ls #{Shellwords.escape(parent)} #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}"
+    ).pure.split("\n")
+    child_idx = purels.index(child) || 0
+    @directory[parent] = child_idx
+    mark_latest
+    Dir.chdir(parent)
+    track_directory_access(parent)
+    @pL.update = true
+    @pR.update = @pB.update = true
+  end
 end
 
 # dirlist_simple function removed - was only for dual-pane navigation
 
 def move_right # {{{3
-  @directory[Dir.pwd] = @index
-  mark_latest
-  open_selected
-  @index = @directory[Dir.pwd] || 0
-  @pB.update = true
+  if @remote_mode
+    # Remote mode - enter directory or perform action on file
+    return unless @files && @files[@index] && @remote_files_cache[@index]
+    
+    selected_file = @remote_files_cache[@index]
+    
+    if selected_file[:type] == 'directory'
+      # Enter directory
+      @remote_path = File.join(@remote_path, selected_file[:name])
+      @remote_files_cache = []  # Clear cache when changing directories
+      @index = 0  # Reset selection
+      @pL.update = true
+      @pR.update = @pB.update = true
+    else
+      # File selected - show file info in right pane
+      show_remote_file_info(selected_file)
+    end
+  else
+    # Local mode
+    @directory[Dir.pwd] = @index
+    mark_latest
+    open_selected
+    @index = @directory[Dir.pwd] || 0
+    @pB.update = true
+  end
 end
 
 def open_force # {{{3
@@ -1137,23 +1251,47 @@ end
 def page_down # {{{3
   @index += @pL.h - 2
   @index = @max_index if @index > @max_index
-  @pR.update = @pB.update = true
+  @pL.update = true
+  # In remote mode, only update bottom pane (for file attributes)
+  if @remote_mode
+    @pB.update = true
+  else
+    @pR.update = @pB.update = true
+  end
 end
 
 def page_up # {{{3
   @index -= @pL.h - 2
   @index = @min_index if @index < @min_index
-  @pR.update = @pB.update = true
+  @pL.update = true
+  # In remote mode, only update bottom pane (for file attributes)
+  if @remote_mode
+    @pB.update = true
+  else
+    @pR.update = @pB.update = true
+  end
 end
 
 def go_last # {{{3
   @index = @max_index
-  @pR.update = @pB.update = true
+  @pL.update = true
+  # In remote mode, only update bottom pane (for file attributes)
+  if @remote_mode
+    @pB.update = true
+  else
+    @pR.update = @pB.update = true
+  end
 end
 
 def go_first # {{{3
   @index = @min_index
-  @pR.update = @pB.update = true
+  @pL.update = true
+  # In remote mode, only update bottom pane (for file attributes)
+  if @remote_mode
+    @pB.update = true
+  else
+    @pR.update = @pB.update = true
+  end
 end
 
 # switch_pane function removed - using tabs for multi-directory navigation
@@ -1186,7 +1324,7 @@ def jump_to_mark # {{{3
   if m =~ /[\w']/ && @marks[m]
     @directory[Dir.pwd] = @index
     dir_before = Dir.pwd
-    begin; Dir.chdir(@marks[m]); rescue; @pB.say(' No such directory'); end
+    begin; Dir.chdir(@marks[m]); track_directory_access(@marks[m]); rescue; @pB.say(' No such directory'); end
     mark_latest
     @marks["'"] = dir_before
   end
@@ -1374,9 +1512,1343 @@ def show_tagged # {{{3
 end
 
 def clear_tagged # {{{3
+  if @remote_mode
+    # In remote mode, 'u' key uploads a file
+    remote_upload_file
+    return
+  end
+  
   @tagged = []
   tagged_info
   @pB.update = true
+end
+
+# UNDO SYSTEM {{{2
+def add_undo_operation(operation) # {{{3
+  return unless @undo_enabled
+  
+  @undo_history << operation
+  # Keep only the most recent operations
+  @undo_history.shift if @undo_history.length > @max_undo_levels
+end
+
+def undo_last_operation # {{{3
+  return unless @undo_enabled
+  
+  if @undo_history.empty?
+    @pB.say("No operations to undo".fg(196))
+    return
+  end
+  
+  operation = @undo_history.pop
+  
+  begin
+    case operation[:type]
+    when 'delete'
+      undo_delete(operation)
+    when 'move'
+      undo_move(operation)
+    when 'rename'
+      undo_rename(operation)
+    when 'copy'
+      undo_copy(operation)
+    when 'link'
+      undo_link(operation)
+    when 'bulk_rename'
+      undo_bulk_rename(operation)
+    else
+      @pB.say("Unknown operation type: #{operation[:type]}".fg(196))
+      return
+    end
+    
+    dirlist
+    render
+    @pB.say("Undid #{operation[:type]} operation".fg(156))
+  rescue StandardError => e
+    @pB.say("Undo failed: #{e.message}".fg(196))
+    # Don't re-add the operation to history if undo failed
+  end
+end
+
+def undo_delete(operation) # {{{3
+  if operation[:trash]
+    # Restore from trash
+    operation[:paths].each do |path_info|
+      source = File.join(TRASH_DIR, File.basename(path_info[:path]))
+      dest = path_info[:path]
+      
+      if File.exist?(source)
+        FileUtils.mv(source, dest)
+      else
+        raise "Cannot restore #{path_info[:path]}: not found in trash"
+      end
+    end
+  else
+    raise "Cannot undo permanent deletion"
+  end
+end
+
+def undo_move(operation) # {{{3
+  # Move items back to their original locations
+  operation[:moves].each do |move_info|
+    source = move_info[:dest_path]
+    dest = move_info[:source_path]
+    
+    if File.exist?(source)
+      FileUtils.mv(source, dest)
+    else
+      raise "Cannot undo move: #{source} not found"
+    end
+  end
+end
+
+def undo_rename(operation) # {{{3
+  old_path = operation[:old_path]
+  new_path = operation[:new_path]
+  
+  if File.exist?(new_path)
+    FileUtils.mv(new_path, old_path)
+  else
+    raise "Cannot undo rename: #{new_path} not found"
+  end
+end
+
+def undo_copy(operation) # {{{3
+  # Remove copied files
+  operation[:copies].each do |copy_info|
+    dest = copy_info[:dest_path]
+    
+    if File.exist?(dest)
+      if File.directory?(dest)
+        FileUtils.rm_rf(dest)
+      else
+        FileUtils.rm(dest)
+      end
+    end
+  end
+end
+
+def undo_link(operation) # {{{3
+  # Remove symlinks
+  operation[:links].each do |link_info|
+    dest = link_info[:dest_path]
+    
+    if File.symlink?(dest)
+      FileUtils.rm(dest)
+    elsif File.exist?(dest)
+      raise "Cannot undo link: #{dest} is not a symlink"
+    end
+  end
+end
+
+def undo_bulk_rename(operation) # {{{3
+  # Undo bulk rename operations by reversing each rename
+  operation[:renames].reverse.each do |rename_info|
+    old_path = rename_info[:old_path]
+    new_path = rename_info[:new_path]
+    
+    if File.exist?(new_path)
+      FileUtils.mv(new_path, old_path)
+    else
+      raise "Cannot undo bulk rename: #{new_path} not found"
+    end
+  end
+end
+
+# RECENTLY ACCESSED FILES {{{2
+def track_file_access(file_path) # {{{3
+  return unless File.exist?(file_path)
+  
+  abs_path = File.expand_path(file_path)
+  @recent_files.delete(abs_path)  # Remove if already exists
+  @recent_files.unshift(abs_path) # Add to front
+  @recent_files = @recent_files.first(@max_recent_files) # Limit size
+end
+
+def track_directory_access(dir_path) # {{{3
+  return unless File.directory?(dir_path)
+  
+  abs_path = File.expand_path(dir_path)
+  @recent_dirs.delete(abs_path)   # Remove if already exists
+  @recent_dirs.unshift(abs_path)  # Add to front  
+  @recent_dirs = @recent_dirs.first(@max_recent_dirs) # Limit size
+end
+
+def show_recent_files # {{{3
+  text = "Recently Accessed Files and Directories\n".b.fg(156)
+  text << "=" * 40 + "\n\n"
+  
+  unless @recent_files.empty?
+    text << "Files:\n".fg(226)
+    @recent_files.first(15).each_with_index do |file, i|
+      basename = File.basename(file)
+      dirname = File.dirname(file)
+      mtime = File.exist?(file) ? File.mtime(file).strftime("%Y-%m-%d %H:%M") : "MISSING"
+      text << sprintf("%2d. %-30s %s\n", i + 1, basename.fg(156), "#{dirname} (#{mtime})".fg(240))
+    end
+    text << "\n"
+  end
+  
+  unless @recent_dirs.empty?
+    text << "Directories:\n".fg(226)  
+    @recent_dirs.first(10).each_with_index do |dir, i|
+      basename = File.basename(dir) 
+      parent = File.dirname(dir)
+      exists = File.exist?(dir) ? "✓".fg(156) : "✗".fg(196)
+      text << sprintf("%2d. %s %-25s %s\n", i + 1, exists, basename.fg(156), parent.fg(240))
+    end
+  end
+  
+  if @recent_files.empty? && @recent_dirs.empty?
+    text << "No recently accessed files or directories.\n".fg(240)
+    text << "Files and directories will appear here as you use RTFM.\n".fg(240)
+  else
+    text << "\nPress number to jump to item, or any other key to close.".fg(240)
+  end
+  
+  @pR.say(text)
+  @pR.update = false
+  
+  # Handle selection
+  chr = getchr
+  if chr =~ /\d/
+    num = chr.to_i
+    if num > 0 && num <= @recent_files.length
+      # Jump to recent file
+      target = @recent_files[num - 1]
+      if File.exist?(target)
+        Dir.chdir(File.dirname(target))
+        dirlist
+        # Select the file in the list
+        basename = File.basename(target)
+        @index = @files.index(basename) || 0
+        @selected = target
+        render
+      else
+        @pB.say("File no longer exists: #{target}".fg(196))
+      end
+    elsif num > 0 && num <= @recent_dirs.length + @recent_files.length 
+      # Jump to recent directory
+      dir_index = num - @recent_files.length - 1
+      if dir_index >= 0 && dir_index < @recent_dirs.length
+        target = @recent_dirs[dir_index]
+        if File.directory?(target)
+          Dir.chdir(target)
+          dirlist 
+          render
+        else
+          @pB.say("Directory no longer exists: #{target}".fg(196))
+        end
+      end
+    end
+  end
+  
+  @pR.update = true
+end
+
+# FILE PROPERTIES {{{2
+def show_file_properties # {{{3
+  return unless @selected && File.exist?(@selected)
+  
+  begin
+    stat = File.stat(@selected)
+    text = "File Properties: #{File.basename(@selected)}\n".b.fg(156)
+    text << "=" * 50 + "\n\n"
+    
+    # Basic information
+    text << "Basic Information:\n".fg(226)
+    text << sprintf("  %-20s %s\n", "Full Path:", @selected.fg(156))
+    text << sprintf("  %-20s %s\n", "Directory:", File.dirname(@selected).fg(240))
+    text << sprintf("  %-20s %s\n", "Size:", format_file_size(stat.size))
+    text << sprintf("  %-20s %s\n", "Type:", File.ftype(@selected).capitalize.fg(156))
+    
+    # MIME type
+    begin
+      mime_output = `file --mime-type #{Shellwords.escape(@selected)} 2>/dev/null`.strip
+      mime_type = mime_output.split(':')[1]&.strip || "Unknown"
+      text << sprintf("  %-20s %s\n", "MIME Type:", mime_type.fg(156))
+    rescue
+      text << sprintf("  %-20s %s\n", "MIME Type:", "Unknown".fg(240))
+    end
+    
+    text << "\n"
+    
+    # Permissions and ownership
+    text << "Permissions & Ownership:\n".fg(226)
+    mode_oct = sprintf("%04o", stat.mode & 0777)
+    mode_str = File.world_readable?(@selected) ? 
+               sprintf("%s (readable)", mode_oct) : 
+               sprintf("%s (protected)", mode_oct)
+    text << sprintf("  %-20s %s\n", "Permissions:", mode_str.fg(156))
+    
+    begin
+      require 'etc'
+      owner = Etc.getpwuid(stat.uid).name rescue stat.uid.to_s
+      group = Etc.getgrgid(stat.gid).name rescue stat.gid.to_s
+      text << sprintf("  %-20s %s\n", "Owner:Group:", "#{owner}:#{group}".fg(156))
+    rescue
+      text << sprintf("  %-20s %s\n", "Owner:Group:", "#{stat.uid}:#{stat.gid}".fg(156))
+    end
+    
+    text << "\n"
+    
+    # Timestamps
+    text << "Timestamps:\n".fg(226)
+    text << sprintf("  %-20s %s\n", "Created:", stat.ctime.strftime("%Y-%m-%d %H:%M:%S").fg(156))
+    text << sprintf("  %-20s %s\n", "Modified:", stat.mtime.strftime("%Y-%m-%d %H:%M:%S").fg(156))
+    text << sprintf("  %-20s %s\n", "Accessed:", stat.atime.strftime("%Y-%m-%d %H:%M:%S").fg(156))
+    
+    # Symlink information
+    if File.symlink?(@selected)
+      text << "\n"
+      text << "Symlink Information:\n".fg(226)
+      begin
+        target = File.readlink(@selected)
+        text << sprintf("  %-20s %s\n", "Points to:", target.fg(156))
+        text << sprintf("  %-20s %s\n", "Target exists:", File.exist?(target) ? "Yes".fg(156) : "No".fg(196))
+      rescue
+        text << sprintf("  %-20s %s\n", "Target:", "Cannot read link".fg(196))
+      end
+    end
+    
+    # Directory-specific information
+    if File.directory?(@selected)
+      text << "\n"
+      text << "Directory Information:\n".fg(226)
+      begin
+        entries = Dir.entries(@selected).reject { |e| e == '.' || e == '..' }
+        text << sprintf("  %-20s %d\n", "Total entries:", entries.length)
+        dirs = entries.select { |e| File.directory?(File.join(@selected, e)) }
+        files = entries.select { |e| File.file?(File.join(@selected, e)) }
+        text << sprintf("  %-20s %s\n", "Breakdown:", "#{dirs.length} directories, #{files.length} files")
+      rescue
+        text << sprintf("  %-20s %s\n", "Contents:", "Cannot read directory".fg(196))
+      end
+    end
+    
+    # File-specific information
+    if File.file?(@selected)
+      text << "\n"
+      text << "File Information:\n".fg(226)
+      
+      # Try to get checksum for regular files
+      if stat.size < 100 * 1024 * 1024 # Only for files under 100MB
+        begin
+          require 'digest'
+          checksum = Digest::SHA256.file(@selected).hexdigest[0, 16]
+          text << sprintf("  %-20s %s...\n", "SHA256 (partial):", checksum.fg(156))
+        rescue
+          text << sprintf("  %-20s %s\n", "Checksum:", "Cannot calculate".fg(240))
+        end
+      else
+        text << sprintf("  %-20s %s\n", "Checksum:", "File too large".fg(240))
+      end
+      
+      # Check if binary or text
+      begin
+        File.open(@selected, 'rb') do |f|
+          chunk = f.read(1024)
+          is_binary = chunk && chunk.encoding == Encoding::ASCII_8BIT && 
+                     (chunk.bytes.any? { |b| b < 32 && ![9, 10, 13].include?(b) })
+          text << sprintf("  %-20s %s\n", "Content type:", is_binary ? "Binary".fg(196) : "Text".fg(156))
+        end
+      rescue
+        text << sprintf("  %-20s %s\n", "Content type:", "Unknown".fg(240))
+      end
+    end
+    
+    text << "\n"
+    text << "Press any key to close...".fg(240)
+    
+    @pR.say(text)
+    @pR.update = false
+    getchr
+    @pR.update = true
+    
+  rescue StandardError => e
+    @pB.say("Error getting file properties: #{e.message}".fg(196))
+  end
+end
+
+def format_file_size(bytes) # {{{3
+  units = ['B', 'KB', 'MB', 'GB', 'TB']
+  size = bytes.to_f
+  unit_index = 0
+  
+  while size >= 1024 && unit_index < units.length - 1
+    size /= 1024.0
+    unit_index += 1
+  end
+  
+  if unit_index == 0
+    "#{size.to_i} #{units[unit_index]}".fg(156)
+  else
+    "#{sprintf('%.1f', size)} #{units[unit_index]}".fg(156)
+  end
+end
+
+# BULK RENAME {{{2
+def bulk_rename # {{{3
+  if @tagged.empty?
+    @pB.say("No files tagged for bulk rename. Tag files first with 't'".fg(196))
+    return
+  end
+  
+  @pB.say("Bulk rename pattern: ".fg(156))
+  @pR.say(build_pattern_help)
+  @pR.update = false
+  
+  pattern = @pCmd.ask('Pattern: ', '')
+  return if pattern.nil? || pattern.strip.empty?
+  
+  # Parse and preview renames
+  rename_operations = []
+  errors = []
+  
+  @tagged.each do |file|
+    next unless File.exist?(file)
+    
+    old_name = File.basename(file)
+    new_name = apply_rename_pattern(old_name, pattern)
+    
+    if new_name && new_name != old_name
+      old_path = file
+      new_path = File.join(File.dirname(file), new_name)
+      
+      if File.exist?(new_path) && new_path != old_path
+        errors << "#{old_name} -> #{new_name} (target exists)"
+      else
+        rename_operations << {
+          old_path: old_path,
+          new_path: new_path,
+          old_name: old_name,
+          new_name: new_name
+        }
+      end
+    end
+  end
+  
+  # Show preview
+  show_rename_preview(rename_operations, errors, pattern)
+  
+  if rename_operations.empty?
+    @pB.say("No valid renames to perform".fg(196))
+    return
+  end
+  
+  # Confirm and execute
+  @pB.say("Apply #{rename_operations.length} renames? (y/N): ".fg(226))
+  
+  if getchr.downcase == 'y'
+    successful_renames = []
+    failed_renames = []
+    
+    rename_operations.each do |op|
+      begin
+        FileUtils.mv(op[:old_path], op[:new_path])
+        successful_renames << op
+      rescue StandardError => e
+        failed_renames << { operation: op, error: e.message }
+      end
+    end
+    
+    # Record undo information for successful renames
+    unless successful_renames.empty?
+      add_undo_operation({
+        type: 'bulk_rename',
+        renames: successful_renames,
+        timestamp: Time.now
+      })
+    end
+    
+    # Show results
+    result_msg = "Renamed #{successful_renames.length} files"
+    result_msg += ", #{failed_renames.length} failed" unless failed_renames.empty?
+    @pB.say(result_msg.fg(successful_renames.empty? ? 196 : 156))
+    
+    # Update file listing and clear tags
+    @tagged.clear
+    dirlist
+    render
+  else
+    @pB.say("Bulk rename cancelled".fg(240))
+  end
+  
+  @pR.update = true
+end
+
+def apply_rename_pattern(old_name, pattern) # {{{3
+  case pattern
+  when /^s\/(.+?)\/(.+?)\/([gimx]*)$/
+    # Regex substitution: s/old/new/flags
+    regex_pattern, replacement, flags = $1, $2, $3
+    options = 0
+    options |= Regexp::IGNORECASE if flags.include?('i')
+    options |= Regexp::MULTILINE if flags.include?('m')
+    options |= Regexp::EXTENDED if flags.include?('x')
+    
+    begin
+      regex = Regexp.new(regex_pattern, options)
+      if flags.include?('g')
+        old_name.gsub(regex, replacement)
+      else
+        old_name.sub(regex, replacement)
+      end
+    rescue StandardError
+      nil # Invalid regex
+    end
+    
+  when /^\*(.+)$/
+    # Append suffix: *_backup
+    suffix = $1
+    base = File.basename(old_name, '.*')
+    ext = File.extname(old_name)
+    "#{base}#{suffix}#{ext}"
+    
+  when /^(.+)\*$/
+    # Prepend prefix: backup_*
+    prefix = $1
+    "#{prefix}#{old_name}"
+    
+  when /^(.+)\*(.+)$/
+    # Prefix and suffix: backup_*_old
+    prefix, suffix = $1, $2
+    base = File.basename(old_name, '.*')
+    ext = File.extname(old_name)
+    "#{prefix}#{base}#{suffix}#{ext}"
+    
+  when /^upper$/i
+    # Convert to uppercase
+    old_name.upcase
+    
+  when /^lower$/i
+    # Convert to lowercase
+    old_name.downcase
+    
+  when /^title$/i
+    # Convert to title case
+    old_name.split(/[-_\s]/).map(&:capitalize).join('_')
+    
+  when /^\*\.(.+)$/
+    # Change extension: *.txt
+    new_ext = $1
+    base = File.basename(old_name, '.*')
+    "#{base}.#{new_ext}"
+    
+  when /^(\d+)-(\d+)$/
+    # Sequential numbering: 1-100 (start-end)
+    # This will be handled by the caller with an index
+    nil
+    
+  else
+    # Direct replacement
+    pattern
+  end
+end
+
+def build_pattern_help # {{{3
+  <<~HELP
+    Bulk Rename Patterns:
+    
+    Regex substitution:
+      s/old/new/       - Replace first occurrence
+      s/old/new/g      - Replace all occurrences  
+      s/old/new/i      - Case insensitive
+    
+    Template patterns:
+      prefix_*         - Add prefix: "backup_filename.txt"
+      *_suffix         - Add suffix: "filename_backup.txt"
+      prefix_*_suffix  - Both: "backup_filename_old.txt"
+    
+    Extension change:
+      *.txt            - Change all extensions to .txt
+    
+    Case conversion:
+      upper            - Convert to UPPERCASE
+      lower            - convert to lowercase  
+      title            - Convert To Title_Case
+    
+    Examples:
+      s/IMG/Photo/g    - Replace "IMG" with "Photo"
+      backup_*         - Add "backup_" prefix
+      *_old            - Add "_old" suffix
+      *.backup         - Change extension to .backup
+      lower            - Convert to lowercase
+  HELP
+end
+
+def show_rename_preview(operations, errors, pattern) # {{{3
+  text = "Bulk Rename Preview: #{pattern}\n".b.fg(156)
+  text << "=" * 50 + "\n\n"
+  
+  unless operations.empty?
+    text << "Successful renames (#{operations.length}):\n".fg(156)
+    operations.first(10).each do |op|
+      text << "  #{op[:old_name].fg(240)} -> #{op[:new_name].fg(156)}\n"
+    end
+    
+    if operations.length > 10
+      text << "  ... and #{operations.length - 10} more\n".fg(240)
+    end
+    text << "\n"
+  end
+  
+  unless errors.empty?
+    text << "Errors (#{errors.length}):\n".fg(196)
+    errors.first(5).each do |error|
+      text << "  #{error}\n".fg(196)
+    end
+    
+    if errors.length > 5
+      text << "  ... and #{errors.length - 5} more errors\n".fg(240)
+    end
+    text << "\n"
+  end
+  
+  if operations.empty? && errors.empty?
+    text << "No changes would be made with this pattern.\n".fg(240)
+  end
+  
+  @pR.say(text)
+end
+
+# FILE COMPARISON {{{2
+def compare_files # {{{3
+  if @tagged.length == 0
+    @pB.say("No files tagged for comparison. Tag 2 files with 't'".fg(196))
+    return
+  elsif @tagged.length == 1
+    @pB.say("Only 1 file tagged. Tag a second file to compare with #{File.basename(@tagged[0])}".fg(196))
+    return
+  elsif @tagged.length > 2
+    @pB.say("Too many files tagged (#{@tagged.length}). Tag exactly 2 files for comparison.".fg(196))
+    return
+  end
+  
+  file1, file2 = @tagged
+  
+  # Validate files exist
+  unless File.exist?(file1) && File.exist?(file2)
+    @pB.say("One or both tagged files no longer exist".fg(196))
+    return
+  end
+  
+  # Show comparison
+  show_file_comparison(file1, file2)
+end
+
+def show_file_comparison(file1, file2) # {{{3
+  basename1 = File.basename(file1)
+  basename2 = File.basename(file2)
+  
+  text = "File Comparison\n".b.fg(156)
+  text << "=" * 50 + "\n\n"
+  text << sprintf("%-25s vs %s\n", basename1.fg(156), basename2.fg(156))
+  text << "=" * 50 + "\n\n"
+  
+  # Basic file info comparison
+  stat1 = File.stat(file1)
+  stat2 = File.stat(file2)
+  
+  text << "File Information:\n".fg(226)
+  text << sprintf("  %-20s %-25s %s\n", "Size:", format_size_simple(stat1.size), format_size_simple(stat2.size))
+  text << sprintf("  %-20s %-25s %s\n", "Modified:", stat1.mtime.strftime("%Y-%m-%d %H:%M"), stat2.mtime.strftime("%Y-%m-%d %H:%M"))
+  text << sprintf("  %-20s %-25s %s\n", "Type:", File.ftype(file1), File.ftype(file2))
+  
+  # Check if files are identical
+  if stat1.size == stat2.size && files_identical?(file1, file2)
+    text << "\n"
+    text << "Files are identical! ✓".fg(156).b
+    @pR.say(text)
+    @pR.update = false
+    getchr
+    @pR.update = true
+    return
+  end
+  
+  text << "\n"
+  
+  # Determine comparison type
+  if binary_file?(file1) || binary_file?(file2)
+    text << show_binary_comparison(file1, file2, stat1, stat2)
+  else
+    text << show_text_comparison(file1, file2)
+  end
+  
+  text << "\n"
+  text << "Press any key to close...".fg(240)
+  
+  @pR.say(text)
+  @pR.update = false
+  getchr
+  @pR.update = true
+end
+
+def show_binary_comparison(file1, file2, stat1, stat2) # {{{3
+  text = "Binary File Comparison:\n".fg(226)
+  
+  # Size comparison
+  size_diff = stat2.size - stat1.size
+  if size_diff == 0
+    text << "  Same size: #{format_size_simple(stat1.size)}\n".fg(156)
+  else
+    sign = size_diff > 0 ? "+" : ""
+    text << "  Size difference: #{sign}#{format_size_simple(size_diff.abs)}\n".fg(size_diff > 0 ? 196 : 156)
+  end
+  
+  # Checksum comparison
+  text << "\n  Computing checksums...\n".fg(240)
+  
+  begin
+    require 'digest'
+    hash1 = Digest::SHA256.file(file1).hexdigest
+    hash2 = Digest::SHA256.file(file2).hexdigest
+    
+    if hash1 == hash2
+      text << "  SHA256: Identical ✓\n".fg(156)
+    else
+      text << "  SHA256: Different ✗\n".fg(196)
+      text << "    File 1: #{hash1[0, 16]}...\n".fg(240)
+      text << "    File 2: #{hash2[0, 16]}...\n".fg(240)
+    end
+  rescue StandardError => e
+    text << "  Checksum: Error - #{e.message}\n".fg(196)
+  end
+  
+  # File type analysis
+  begin
+    type1 = `file #{Shellwords.escape(file1)} 2>/dev/null`.strip
+    type2 = `file #{Shellwords.escape(file2)} 2>/dev/null`.strip
+    
+    text << "\n  File types:\n".fg(226)
+    text << "    #{File.basename(file1)}: #{type1.split(':')[1]&.strip || 'Unknown'}\n".fg(240)
+    text << "    #{File.basename(file2)}: #{type2.split(':')[1]&.strip || 'Unknown'}\n".fg(240)
+  rescue
+    # Ignore file type detection errors
+  end
+  
+  text
+end
+
+def show_text_comparison(file1, file2) # {{{3
+  text = "Text File Comparison:\n".fg(226)
+  
+  begin
+    lines1 = File.readlines(file1, chomp: true)
+    lines2 = File.readlines(file2, chomp: true)
+  rescue StandardError => e
+    return "Error reading files: #{e.message}\n".fg(196)
+  end
+  
+  # Line count comparison
+  if lines1.length == lines2.length
+    text << "  Same line count: #{lines1.length}\n".fg(156)
+  else
+    diff = lines2.length - lines1.length
+    sign = diff > 0 ? "+" : ""
+    text << "  Line count: #{lines1.length} vs #{lines2.length} (#{sign}#{diff})\n".fg(diff > 0 ? 196 : 156)
+  end
+  
+  # Generate and show diff
+  diff_lines = generate_unified_diff(lines1, lines2, File.basename(file1), File.basename(file2))
+  
+  if diff_lines.empty?
+    text << "  Content: Identical ✓\n".fg(156)
+  else
+    text << "\n  Differences (unified diff):\n".fg(226)
+    
+    # Show first 15 lines of diff
+    diff_lines.first(15).each do |line|
+      color = case line[0]
+              when '+' then 156  # Green for additions
+              when '-' then 196  # Red for deletions  
+              when '@' then 226  # Yellow for headers
+              else 240           # Gray for context
+              end
+      text << "    #{line}\n".fg(color)
+    end
+    
+    if diff_lines.length > 15
+      text << "    ... and #{diff_lines.length - 15} more lines\n".fg(240)
+    end
+  end
+  
+  text
+end
+
+def generate_unified_diff(lines1, lines2, name1, name2) # {{{3
+  # Simple unified diff implementation
+  diff_lines = []
+  
+  # Find differences using basic LCS-like approach
+  i1 = i2 = 0
+  context_size = 3
+  
+  while i1 < lines1.length || i2 < lines2.length
+    if i1 < lines1.length && i2 < lines2.length && lines1[i1] == lines2[i2]
+      # Lines match, move forward
+      i1 += 1
+      i2 += 1
+    else
+      # Found a difference, create a hunk
+      hunk_start1, hunk_start2 = i1, i2
+      
+      # Find the end of differences
+      temp_i1, temp_i2 = i1, i2
+      while temp_i1 < lines1.length || temp_i2 < lines2.length
+        if temp_i1 < lines1.length && temp_i2 < lines2.length && lines1[temp_i1] == lines2[temp_i2]
+          break
+        end
+        temp_i1 += 1 if temp_i1 < lines1.length
+        temp_i2 += 1 if temp_i2 < lines2.length
+      end
+      
+      # Add hunk header
+      diff_lines << "@@ -#{hunk_start1 + 1},#{temp_i1 - hunk_start1} +#{hunk_start2 + 1},#{temp_i2 - hunk_start2} @@"
+      
+      # Add removed lines
+      (hunk_start1...temp_i1).each do |idx|
+        diff_lines << "-#{lines1[idx]}" if idx < lines1.length
+      end
+      
+      # Add added lines  
+      (hunk_start2...temp_i2).each do |idx|
+        diff_lines << "+#{lines2[idx]}" if idx < lines2.length
+      end
+      
+      i1, i2 = temp_i1, temp_i2
+      
+      break if diff_lines.length > 50 # Prevent huge diffs
+    end
+  end
+  
+  diff_lines
+end
+
+def files_identical?(file1, file2) # {{{3
+  # Quick check for identical files
+  return false unless File.size(file1) == File.size(file2)
+  
+  File.open(file1, 'rb') do |f1|
+    File.open(file2, 'rb') do |f2|
+      while (chunk1 = f1.read(8192))
+        chunk2 = f2.read(8192)
+        return false if chunk1 != chunk2
+      end
+    end
+  end
+  
+  true
+rescue
+  false
+end
+
+def binary_file?(file) # {{{3
+  # Check if file appears to be binary
+  File.open(file, 'rb') do |f|
+    chunk = f.read(1024)
+    return false if chunk.nil? || chunk.empty?
+    
+    # Consider file binary if it contains null bytes or too many non-printable chars
+    null_count = chunk.count("\x00")
+    non_printable = chunk.bytes.count { |b| b < 32 && ![9, 10, 13].include?(b) }
+    
+    null_count > 0 || (non_printable.to_f / chunk.length) > 0.3
+  end
+rescue
+  true # Assume binary if we can't read it
+end
+
+def format_size_simple(bytes) # {{{3
+  units = ['B', 'KB', 'MB', 'GB']
+  size = bytes.to_f
+  unit_index = 0
+  
+  while size >= 1024 && unit_index < units.length - 1
+    size /= 1024.0
+    unit_index += 1
+  end
+  
+  if unit_index == 0
+    "#{size.to_i} #{units[unit_index]}"
+  else
+    "#{sprintf('%.1f', size)} #{units[unit_index]}"
+  end
+end
+
+# REMOTE BROWSING {{{2
+def browse_remote # {{{3
+  if @remote_mode
+    # Exit remote mode
+    exit_remote_mode
+  else
+    # Enter remote mode
+    @pB.say("Remote connection: ".fg(156))
+    @pR.say(build_remote_help)
+    @pR.update = false
+    
+    connection_string = @pCmd.ask('Connect to: ', '')
+    return if connection_string.nil? || connection_string.strip.empty?
+    
+    # Parse connection string
+    remote_info = parse_remote_connection(connection_string)
+    return unless remote_info
+    
+    # Test connection and enter remote mode
+    begin
+      connect_remote(remote_info)
+      enter_remote_mode(remote_info[:path])
+    rescue StandardError => e
+      @pB.say("Connection failed: #{e.message}".fg(196))
+      @pR.update = true
+    end
+  end
+end
+
+def enter_remote_mode(path = '~') # {{{3
+  @remote_mode = true
+  @remote_path = path
+  @index = 0  # Reset selection
+  @remote_files_cache = []  # Clear cache when entering remote mode
+  @pB.say("Remote mode: #{@current_remote[:user]}@#{@current_remote[:host]}:#{@remote_path} (Ctrl+E to exit)".fg(156))
+  @pR.update = true
+  dirlist
+  render
+end
+
+def exit_remote_mode # {{{3
+  @remote_mode = false
+  @current_remote = nil
+  @remote_path = '~'
+  @remote_files_cache = []  # Clear cache when exiting remote mode
+  @index = 0  # Reset selection
+  @pB.say("Returned to local browsing".fg(156))
+  dirlist
+  render
+end
+
+def show_remote_file_info(file) # {{{3
+  info_text = ""
+  info_text << "Remote File Information\n".b.fg(156)
+  info_text << "=" * 40 + "\n\n"
+  
+  info_text << "Name:          #{file[:name]}\n".fg(255)
+  info_text << "Type:          #{file[:type].capitalize}\n".fg(255)
+  info_text << "Size:          #{format_size_simple(file[:size])}\n".fg(255)
+  info_text << "Permissions:   #{file[:permissions]}\n".fg(255)
+  info_text << "Owner:         #{file[:owner]}\n".fg(255)
+  info_text << "Group:         #{file[:group]}\n".fg(255)
+  info_text << "Modified:      #{file[:modified]}\n".fg(255)
+  info_text << "Remote Path:   #{@remote_path}/#{file[:name]}\n".fg(240)
+  
+  info_text << "\n"
+  info_text << "Actions:\n".fg(226)
+  if file[:type] == 'directory'
+    info_text << "  Enter  = Navigate into directory\n".fg(240)
+    info_text << "  ←      = Go to parent directory\n".fg(240)
+  else
+    info_text << "  d      = Download file\n".fg(240)
+    info_text << "  Enter  = Show this information\n".fg(240)
+  end
+  info_text << "  s      = Open SSH shell in current directory\n".fg(240)
+  info_text << "  u      = Upload file to current directory\n".fg(240)
+  info_text << "  Ctrl+E = Exit remote mode\n".fg(240)
+  
+  @pR.say(info_text)
+  @pR.update = true
+end
+
+def remote_download_selected # {{{3
+  return unless @remote_mode && @files && @files[@index] && @remote_files_cache[@index]
+  
+  selected_file = @remote_files_cache[@index]
+  
+  if selected_file[:type] == 'directory'
+    @pB.say("Cannot download directories directly".fg(196))
+    return
+  end
+  
+  # Show download prompt in right pane to avoid interfering with top pane
+  default_dest = File.join(Dir.pwd, selected_file[:name])
+  prompt_text = "Download: #{selected_file[:name]}\n\n"
+  prompt_text << "Default destination:\n#{default_dest}\n\n"
+  prompt_text << "Press Enter to use default,\ntype new path, or clear field to cancel:"
+  
+  @pR.say(prompt_text.fg(156))
+  @pR.update = true
+  
+  # Ask for local destination with clearer instructions
+  destination = @pCmd.ask('Download to (Enter=default, clear field to cancel): ', default_dest)
+  
+  # Check if user cancelled by clearing the field
+  if destination.nil? || destination.strip.empty?
+    @pB.say("Download cancelled".fg(240))
+    # Restore file info display
+    show_remote_file_info(selected_file)
+    return
+  end
+  
+  # Download the file
+  remote_file = File.join(@remote_path, selected_file[:name])
+  scp_cmd = build_scp_command(@current_remote, destination, remote_file, :download)
+  
+  @pB.say("Downloading #{selected_file[:name]}...".fg(156))
+  
+  begin
+    result = system(scp_cmd)
+    if result
+      @pB.say("Downloaded: #{selected_file[:name]} -> #{destination}".fg(156))
+      # Refresh local directory if we downloaded to current directory
+      if File.dirname(destination) == Dir.pwd
+        dirlist(left: false)  # Refresh right pane if needed
+      end
+      # Show success and restore file info
+      show_remote_file_info(selected_file)
+    else
+      @pB.say("Download failed".fg(196))
+      show_remote_file_info(selected_file)
+    end
+  rescue StandardError => e
+    @pB.say("Download error: #{e.message}".fg(196))
+    show_remote_file_info(selected_file)
+  end
+end
+
+def open_remote_shell # {{{3
+  return unless @remote_mode && @current_remote
+  
+  @pB.say("Launching SSH shell...".fg(156))
+  
+  begin
+    # Build SSH command with proper directory navigation
+    ssh_opts = "-t"
+    ssh_opts += " -i #{Shellwords.escape(@current_remote[:ssh_key])}" if @current_remote[:ssh_key]
+    
+    ssh_target = "#{@current_remote[:user]}@#{@current_remote[:host]}"
+    
+    # Create SSH command that changes to the remote directory
+    ssh_cmd = "ssh #{ssh_opts} #{ssh_target} -t 'cd #{Shellwords.escape(@remote_path)} 2>/dev/null || cd ~; exec bash -l'"
+    
+    # Use RTFM's interactive program pattern
+    system("stty #{ORIG_STTY} < /dev/tty")
+    system('clear < /dev/tty > /dev/tty')
+    Cursor.show
+    
+    # Show connection info
+    puts "Connecting to #{ssh_target}..."
+    puts "Starting in directory: #{@remote_path}"
+    puts "Type 'exit' to return to RTFM"
+    puts "=" * 50
+    puts
+    
+    # Launch SSH on real TTY using Process.spawn like RTFM does
+    pid = Process.spawn(ssh_cmd,
+                       in:  '/dev/tty',
+                       out: '/dev/tty',
+                       err: '/dev/tty')
+    begin
+      Process.wait(pid)
+    rescue Interrupt
+      Process.kill('TERM', pid) rescue nil
+      retry
+    end
+    
+    # Restore RTFM's terminal state
+    system('stty raw -echo isig < /dev/tty')
+    $stdin.raw!
+    $stdin.echo = false
+    Rcurses.init! # Reinitialize rcurses to fix input handling
+    Cursor.hide
+    Rcurses.clear_screen
+    
+    # Refresh RTFM interface
+    @pL.update = true
+    @pR.update = true
+    @pB.say("Returned from SSH shell session".fg(118))
+    dirlist
+    refresh
+    render
+    
+  rescue StandardError => e
+    # Error handling with proper terminal restoration
+    system('stty raw -echo isig < /dev/tty') rescue nil
+    $stdin.raw! rescue nil
+    $stdin.echo = false rescue nil
+    Cursor.hide rescue nil
+    Rcurses.clear_screen rescue nil
+    
+    @pL.update = true
+    @pR.update = true
+    @pB.say("SSH shell failed: #{e.message}".fg(196))
+    dirlist
+    refresh
+    render
+  end
+end
+
+def remote_upload_file # {{{3
+  return unless @remote_mode
+  
+  # Show upload prompt in right pane
+  upload_text = "Upload File to Remote Directory\n\n".fg(156)
+  upload_text << "Current remote path: #{@remote_path}\n\n".fg(240)
+  upload_text << "Enter local file path to upload\n(or ESC to cancel):"
+  
+  @pR.say(upload_text)
+  @pR.update = true
+  
+  # Ask for local file to upload
+  local_file = @pCmd.ask('Local file (clear to cancel): ', '')
+  
+  # Check if user cancelled
+  if local_file.nil? || local_file.strip.empty?
+    @pB.say("Upload cancelled".fg(240))
+    @pR.update = true  # Restore normal right pane
+    return
+  end
+  
+  unless File.exist?(local_file)
+    @pB.say("File not found: #{local_file}".fg(196))
+    @pR.update = true
+    return
+  end
+  
+  if File.directory?(local_file)
+    @pB.say("Cannot upload directories directly".fg(196))
+    @pR.update = true
+    return
+  end
+  
+  # Ask for remote destination name (default to same name)
+  default_name = File.basename(local_file)
+  remote_name = @pCmd.ask('Remote filename (Enter=default, clear to cancel): ', default_name)
+  
+  # Check if user cancelled
+  if remote_name.nil? || remote_name.strip.empty?
+    @pB.say("Upload cancelled".fg(240))
+    @pR.update = true
+    return
+  end
+  
+  # Upload the file
+  remote_destination = File.join(@remote_path, remote_name)
+  scp_cmd = build_scp_command(@current_remote, local_file, remote_destination, :upload)
+  
+  @pB.say("Uploading #{File.basename(local_file)}...".fg(156))
+  
+  begin
+    result = system(scp_cmd)
+    if result
+      @pB.say("Uploaded: #{local_file} -> #{remote_name}".fg(156))
+      # Clear cache and refresh remote directory
+      connection_id = "#{@current_remote[:user]}@#{@current_remote[:host]}"
+      cache_key = "#{connection_id}:#{@remote_path}"
+      @remote_cache.delete(cache_key)
+      @remote_files_cache = []  # Clear file cache too
+      @pL.update = true  # Force refresh of left pane
+    else
+      @pB.say("Upload failed".fg(196))
+    end
+  rescue StandardError => e
+    @pB.say("Upload error: #{e.message}".fg(196))
+  end
+  
+  @pR.update = true  # Restore normal right pane
+end
+
+def parse_remote_connection(connection_string) # {{{3
+  # Support various formats:
+  # ssh://user@host/path
+  # user@host:/path  
+  # host:/path
+  # user@host (defaults to home directory)
+  # -i ~/.ssh/keyfile user@host:/path
+  # user@host:/path -i ~/.ssh/keyfile
+  
+  parts = connection_string.strip.split(/\s+/)
+  ssh_key = nil
+  main_connection = nil
+  
+  # Look for -i flag and extract key file
+  if parts.include?('-i')
+    key_index = parts.index('-i')
+    if key_index && key_index + 1 < parts.length
+      ssh_key = parts[key_index + 1]
+      # Remove -i and keyfile from parts
+      parts.delete_at(key_index + 1)  # Remove keyfile
+      parts.delete_at(key_index)      # Remove -i flag
+    end
+  end
+  
+  # Join remaining parts back (in case there were spaces in paths)
+  main_connection = parts.join(' ')
+  
+  # Parse the main connection string
+  result = case main_connection
+  when %r{^ssh://([^@]+@)?([^/]+)(/.*)?$}
+    user_part, host, path = $1, $2, $3
+    user = user_part ? user_part.chomp('@') : ENV['USER']
+    path ||= '~'
+    { protocol: 'ssh', user: user, host: host, path: path }
+    
+  when %r{^([^@]+@)?([^:]+):(.*)$}
+    user_part, host, path = $1, $2, $3
+    user = user_part ? user_part.chomp('@') : ENV['USER']
+    { protocol: 'ssh', user: user, host: host, path: path }
+    
+  when %r{^([^@]+@)?([^:]+)$}
+    user_part, host = $1, $2
+    user = user_part ? user_part.chomp('@') : ENV['USER']
+    { protocol: 'ssh', user: user, host: host, path: '~' }
+    
+  else
+    @pB.say("Invalid connection format. Use: user@host:/path or -i ~/.ssh/key user@host:/path".fg(196))
+    nil
+  end
+  
+  # Add SSH key to result if specified
+  result[:ssh_key] = ssh_key if result && ssh_key
+  result
+end
+
+def build_ssh_command(remote_info, command = nil) # {{{3
+  # Build SSH command with optional key file
+  ssh_opts = "-o ConnectTimeout=10 -o BatchMode=yes"
+  ssh_opts += " -i #{Shellwords.escape(remote_info[:ssh_key])}" if remote_info[:ssh_key]
+  
+  ssh_cmd = "ssh #{ssh_opts} #{remote_info[:user]}@#{remote_info[:host]}"
+  ssh_cmd += " '#{command}'" if command
+  ssh_cmd
+end
+
+def build_scp_command(remote_info, local_path, remote_path, direction = :download) # {{{3
+  # Build SCP command with optional key file
+  scp_opts = ""
+  scp_opts += " -i #{Shellwords.escape(remote_info[:ssh_key])}" if remote_info[:ssh_key]
+  
+  ssh_target = "#{remote_info[:user]}@#{remote_info[:host]}"
+  
+  # Handle tilde expansion for SCP
+  scp_remote_path = if remote_path.start_with?('~')
+                      "#{ssh_target}:#{remote_path}"
+                    else
+                      "#{ssh_target}:#{Shellwords.escape(remote_path)}"
+                    end
+  
+  if direction == :download
+    "scp#{scp_opts} #{scp_remote_path} #{Shellwords.escape(local_path)}"
+  else  # upload
+    "scp#{scp_opts} #{Shellwords.escape(local_path)} #{scp_remote_path}"
+  end
+end
+
+def connect_remote(remote_info) # {{{3
+  @pB.say("Connecting to #{remote_info[:user]}@#{remote_info[:host]}...".fg(156))
+  
+  # Test SSH connection
+  ssh_cmd = build_ssh_command(remote_info, 'echo connected')
+  result = `#{ssh_cmd} 2>&1`
+  
+  unless $?.success?
+    key_hint = remote_info[:ssh_key] ? " with key #{remote_info[:ssh_key]}" : ""
+    raise "SSH connection failed#{key_hint}. Check your SSH keys or try: ssh #{remote_info[:user]}@#{remote_info[:host]}"
+  end
+  
+  # Store connection info
+  @current_remote = remote_info
+  connection_id = "#{remote_info[:user]}@#{remote_info[:host]}"
+  @remote_connections[connection_id] = remote_info
+  
+  @pB.say("Connected successfully!".fg(156))
+end
+
+
+def list_remote_directory(remote_path) # {{{3
+  # Handle tilde expansion - don't escape ~ as it needs shell expansion
+  escaped_path = if remote_path.start_with?('~')
+                   remote_path  # Don't escape paths starting with ~
+                 else
+                   Shellwords.escape(remote_path)
+                 end
+  
+  # Use ls -la to get detailed file listing
+  ls_cmd = build_ssh_command(@current_remote, "cd #{escaped_path} && ls -la 2>/dev/null")
+  output = `#{ls_cmd} 2>&1`
+  
+  unless $?.success?
+    raise "Failed to list remote directory: #{remote_path}"
+  end
+  
+  # Parse ls output
+  files = []
+  output.lines.each do |line|
+    next if line.match?(/^total \d+/) # Skip total line
+    
+    parts = line.strip.split(/\s+/, 9)
+    next if parts.length < 9
+    
+    permissions, links, owner, group, size, month, day, time_or_year, name = parts
+    next if name == '.' || name == '..'
+    
+    # Determine file type
+    type = case permissions[0]
+           when 'd' then 'directory'
+           when 'l' then 'symlink'
+           when '-' then 'file'
+           else 'other'
+           end
+    
+    files << {
+      name: name,
+      type: type,
+      size: size.to_i,
+      permissions: permissions,
+      owner: owner,
+      group: group,
+      modified: "#{month} #{day} #{time_or_year}"
+    }
+  end
+  
+  # Sort: directories first, then by name
+  files.sort_by { |f| [f[:type] == 'directory' ? 0 : 1, f[:name].downcase] }
+end
+
+
+def build_remote_help # {{{3
+  <<~HELP
+    Remote Connection Examples:
+    
+    SSH/SFTP connections:
+      user@hostname:/path      - Connect to specific path
+      user@hostname            - Connect to home directory
+      ssh://user@host/path     - Full SSH URI format
+      myserver.com:/var/www    - Connect to web directory
+      
+    With SSH keys:
+      -i ~/.ssh/keyfile user@host:/path    - Use specific SSH key
+      user@host:/path -i ~/.ssh/keyfile    - SSH key at end
+      -i ~/.ssh/pf-do pfadmin@server.com   - Custom key example
+      
+    Examples:
+      john@server.com:/home/john/documents
+      admin@192.168.1.100:/var/log
+      user@myserver.com
+      ssh://deploy@prod.server.com/app
+      -i ~/.ssh/aws-key ec2-user@1.2.3.4
+      pfadmin@159.65.204.97 -i ~/.ssh/pf-do
+    
+    Requirements:
+      - SSH access to remote host
+      - SSH key authentication (recommended)
+      - Or password authentication enabled
+      
+    Navigation:
+      - Browse with number keys (1-9, 0)
+      - Use '..' to go to parent directory
+      - Press 'd' to download files
+      - Press 'u' to upload files
+      - Press 'q' to return to local browsing
+  HELP
 end
 
 # MANIPULATE ITEMS {{{2
@@ -1400,44 +2872,108 @@ def rename_item # {{{3
   cmd      = @pCmd.ask(': ', tpl).pure
   match        = cmd.match(/mv\s+"[^"]+"\s+"([^"]+)"/)
   new_basename = match ? match[1] : basename
-  old_esc      = Shellwords.escape(@selected)
-  new_path     = File.join(dir, new_basename)
-  new_esc      = Shellwords.escape(new_path)
-  shellexec("mv #{old_esc} #{new_esc}")
-  dirlist
-  # point @selected and @index at the new name
-  @selected = new_path
-  new_idx   = @files.index(new_basename)
-  @index    = new_idx if new_idx
-  render
+  
+  # Only proceed if name actually changed
+  if new_basename != basename
+    old_path = @selected
+    old_esc  = Shellwords.escape(old_path)
+    new_path = File.join(dir, new_basename)
+    new_esc  = Shellwords.escape(new_path)
+    
+    # Record undo information before rename
+    undo_info = {
+      type: 'rename',
+      old_path: old_path,
+      new_path: new_path,
+      timestamp: Time.now
+    }
+    
+    shellexec("mv #{old_esc} #{new_esc}")
+    
+    # Only add to undo history if rename was successful
+    if File.exist?(new_path)
+      add_undo_operation(undo_info)
+    end
+    
+    dirlist
+    # point @selected and @index at the new name
+    @selected = new_path
+    new_idx   = @files.index(new_basename)
+    @index    = new_idx if new_idx
+    render
+  end
 end
 
 def link_items # {{{3
+  if @remote_mode
+    # In remote mode, 's' key opens SSH shell
+    open_remote_shell
+    return
+  end
+  
   copy_move_link('link')
   # Dual-pane refresh is handled in copy_move_link function
   @pR.update = true
 end
 
 def delete_items # {{{3
+  if @remote_mode
+    # In remote mode, 'd' key downloads the selected file
+    remote_download_selected
+    return
+  end
+  
   tagged_info
-  @pR.text << "\n\n Selected:\n\n #{@selected}".fg(204).b
+  
+  # Add deletion warning to the right pane
+  warning_text = "\n" + "=" * 50 + "\n"
+  action = @trash ? 'Move to Trash' : 'PERMANENT DELETE'
+  action_color = @trash ? 220 : 196
+  warning_text << action.fg(action_color).b + "\n\n"
+  
+  if @trash
+    warning_text << "Items will be moved to:\n".fg(249)
+    warning_text << "  ~/.rtfm/trash/\n".fg(240)
+    warning_text << "\nYou can restore them with " + "C-z".fg(156) + "\n".fg(249)
+  else
+    warning_text << "⚠️  WARNING: PERMANENT DELETION!\n".fg(196).b
+    warning_text << "Files will be permanently removed\n".fg(196)
+    warning_text << "This action CANNOT be undone!\n".fg(196).b
+  end
+  
+  warning_text << "\n" + "Press " + "y".fg(156).b + " to confirm, any other key to cancel".fg(249)
+  
+  @pR.text << warning_text
   @pR.refresh
-  # choose wording based on @trash
-  action      = @trash ? 'Move (to ~/.rtfm/trash)' : 'Delete'
-  past_action = @trash ? 'Moved'                   : 'Deleted'
-  @pB.say(" #{action} selected and tagged? (press 'y')")
+  
+  # Bottom pane prompt
+  prompt_text = @trash ? "Move to trash? (y/n)" : "⚠️  PERMANENTLY DELETE? (y/n)"
+  @pB.say(" #{prompt_text}".fg(action_color))
   if getchr == 'y'
     # collect & escape every path with existence verification
     paths = (@tagged + [@selected]).uniq.select { |p| File.exist?(p) }
     if paths.empty?
       @pB.say("No valid items to #{action.downcase}".fg(196))
     else
+      # Record undo information before deletion
+      if @trash
+        undo_info = {
+          type: 'delete',
+          trash: true,
+          paths: paths.map { |p| { path: p } },
+          timestamp: Time.now
+        }
+      end
+      
       esc = paths.map { |p| Shellwords.escape(p) }.join(' ')
       if @trash
         esc_trash = Shellwords.escape(TRASH_DIR)
         command("mv -f #{esc} #{esc_trash}")
+        # Only add to undo history if operation succeeded and we can undo it
+        add_undo_operation(undo_info)
       else
         command("rm -rf #{esc}")
+        # Cannot undo permanent deletion, so don't add to undo history
       end
       @tagged.clear
       refresh_right
@@ -1846,70 +3382,141 @@ end
 
 # SYSTEM SHORTCUTS {{{2
 def system_info # {{{3
-  text = ''
+  text = "System Information\n".b.fg(156)
+  text << "=" * 50 + "\n\n"
+  
   begin
-    uname    = `uname -o`.chomp + '  '
-    uname   += `uname -r`.chomp + '  '
-    uname   += `uname -v`.chomp + '  '
-    uname   += `uname -p`.chomp + '  '
-    uname   += `awk -F '"' '/PRETTY/ {print $2}' /etc/os-release` + "\n"
-    text    += uname.b.fg(253)
-    host     = `hostnamectl`
-    chost    = host.lines.map do |line|
-      if line.include?(':')
-        before, after = line.split(':', 2)
-        "#{(before + ':').fg(253)}#{after.fg(111)}"
-      else
-        line
+    # Operating System Information
+    text << "Operating System:\n".fg(226)
+    os_name = `awk -F '"' '/PRETTY/ {print $2}' /etc/os-release 2>/dev/null`.chomp
+    kernel_version = `uname -r 2>/dev/null`.chomp
+    architecture = `uname -m 2>/dev/null`.chomp
+    text << sprintf("  %-15s %s\n", "Distribution:", os_name.fg(156))
+    text << sprintf("  %-15s %s\n", "Kernel:", kernel_version.fg(156))
+    text << sprintf("  %-15s %s\n", "Architecture:", architecture.fg(156))
+    text << "\n"
+  rescue # rubocop:disable Lint/SuppressedException
+  end
+  
+  begin
+    # Hardware Information  
+    text << "Hardware:\n".fg(226)
+    cpu_count = `nproc 2>/dev/null`.chomp
+    cpuinfo = `lscpu 2>/dev/null`
+    cpu_model = cpuinfo[/^.*Model name:\s*(.*)/, 1] || "Unknown"
+    cpu_max = cpuinfo[/^.*CPU max MHz:\s*(.*)/, 1]&.to_i || 0
+    cpu_min = cpuinfo[/^.*CPU min MHz:\s*(.*)/, 1]&.to_i || 0
+    
+    text << sprintf("  %-15s %s cores\n", "CPU Count:", cpu_count.fg(156))
+    text << sprintf("  %-15s %s\n", "CPU Model:", cpu_model.fg(156))
+    if cpu_max > 0 && cpu_min > 0
+      text << sprintf("  %-15s %d-%d MHz\n", "CPU Speed:", cpu_min, cpu_max)
+    end
+    text << "\n"
+  rescue # rubocop:disable Lint/SuppressedException
+  end
+  
+  begin
+    # Memory Information
+    text << "Memory Usage:\n".fg(226)
+    mem_output = `free -h 2>/dev/null`
+    if mem_output && !mem_output.empty?
+      mem_lines = mem_output.lines
+      mem_lines.each_with_index do |line, i|
+        if i == 0  # Header
+          text << "  " + line.strip.fg(240) + "\n"
+        else
+          text << "  " + line.strip.fg(156) + "\n"
+        end
       end
-    end.join
-    text    += chost + "\n"
+    end
+    text << "\n"
   rescue # rubocop:disable Lint/SuppressedException
   end
+  
   begin
-    system   = 'Shell & Terminal: ' + `echo $SHELL`.sub(%r{.*/}, '').chomp + ', ' + `echo $TERM`.chomp + '   '
-    packages = `pacman -Q 2>/dev/null | wc -l`.chomp
-    packages = `dpkg-query -l 2>/dev/null | grep -c '^.i'`.chomp if packages == '0'
-    packages = 'Unrecognized' if packages == '0'
-    cpu      = 'CPUs = ' + `nproc`.chop + '  '
-    cpuinfo  = `lscpu`
-    cpu     += cpuinfo[/^.*Model name:\s*(.*)/, 1] + '  '
-    cpu     += 'Max: ' + cpuinfo[/^.*CPU max MHz:\s*(.*)/, 1].to_i.to_s + 'MHz  '
-    cpu     += 'Min: ' + cpuinfo[/^.*CPU min MHz:\s*(.*)/, 1].to_i.to_s + "MHz\n\n"
-    text    += cpu.fg(154)
-    system  += 'Packages: ' + packages + "\n"
-    system  += 'Desktop: ' + `awk '/^DesktopNames/' /usr/share/xsessions/* | sed 's/DesktopNames=//g' | \\
-                sed 's/\\;/\\n/g' | sed '/^$/d' | sort -u | sed ':a;N;$!ba;s/\\n/, /g'`.chomp + '/'
-    system  += `grep 'gtk-theme-name' ~/.config/gtk-3.0/* | sed 's/gtk-theme-name=//g' | \\
-                sed 's/-/ /g'`.sub(/.*:/, '') + "\n"
-    text    += system.fg(251)
+    # Environment Information
+    text << "Environment:\n".fg(226)
+    shell = `echo $SHELL 2>/dev/null`.sub(%r{.*/}, '').chomp
+    terminal = `echo $TERM 2>/dev/null`.chomp
+    packages = `dpkg-query -l 2>/dev/null | grep -c '^.i'`.chomp
+    packages = `pacman -Q 2>/dev/null | wc -l`.chomp if packages == '0'
+    packages = "Unknown" if packages == '0'
+    
+    text << sprintf("  %-15s %s\n", "Shell:", shell.fg(156))
+    text << sprintf("  %-15s %s\n", "Terminal:", terminal.fg(156))
+    text << sprintf("  %-15s %s\n", "Packages:", packages.fg(156))
+    text << "\n"
   rescue # rubocop:disable Lint/SuppressedException
   end
+  
   begin
-    mem      = `free -h` + "\n"
-    text    += mem.fg(229)
+    # Disk Usage
+    text << "Disk Usage:\n".fg(226)
+    disk_output = `df -h 2>/dev/null | head -8`
+    if disk_output && !disk_output.empty?
+      disk_lines = disk_output.lines
+      disk_lines.each_with_index do |line, i|
+        if i == 0  # Header
+          text << "  " + line.strip.fg(240) + "\n"
+        else
+          # Highlight usage percentage
+          colored_line = line.gsub(/(\d+)%/) do |match|
+            percent = $1.to_i
+            color = percent > 90 ? 196 : percent > 80 ? 220 : 156
+            match.fg(color)
+          end
+          text << "  " + colored_line.strip.fg(249) + "\n"
+        end
+      end
+    end
+    text << "\n"
   rescue # rubocop:disable Lint/SuppressedException
   end
+  
   begin
-    ps       = `ps -eo comm,pid,user,pcpu,pmem,stat --sort -pcpu,-pmem | head` + "\n"
-    text    += ps.fg(195)
+    # Top Processes
+    text << "Top Processes (CPU & Memory):\n".fg(226)
+    ps_output = `ps -eo comm,pid,user,pcpu,pmem,stat --sort -pcpu,-pmem 2>/dev/null | head -8`
+    if ps_output && !ps_output.empty?
+      ps_lines = ps_output.lines
+      ps_lines.each_with_index do |line, i|
+        if i == 0  # Header
+          text << "  " + line.strip.fg(240) + "\n"
+        else
+          text << "  " + line.strip.fg(249) + "\n"
+        end
+      end
+    end
+    text << "\n"
   rescue # rubocop:disable Lint/SuppressedException
   end
+  
   begin
-    disk     = `df -H | head -8`
-    text    += disk.fg(172)
+    # System Messages
+    text << "Recent System Messages:\n".fg(226)
+    dmesg_output = `dmesg 2>/dev/null | tail -5`
+    if dmesg_output && !dmesg_output.empty?
+      dmesg_output.lines.reverse.each do |line|
+        # Color code different message types
+        colored_line = case line
+                      when /error|fail|critical/i then line.fg(196)
+                      when /warn/i then line.fg(220) 
+                      when /info/i then line.fg(156)
+                      else line.fg(249)
+                      end
+        text << "  " + colored_line.strip + "\n"
+      end
+    else
+      text << "  " + "dmesg requires root access".fg(240) + "\n"
+      text << "  " + "Run: sudo sysctl kernel.dmesg_restrict=0".fg(240) + "\n"
+    end
   rescue # rubocop:disable Lint/SuppressedException
   end
-  begin
-    dmesg  = "\nDMESG (latest first):\n"
-    dcmd   = `dmesg 2>/dev/null | tail -6`.split("\n").sort.reverse.join("\n")
-    dmesg += dcmd == '' ? "dmesg requires root, run 'sudo sysctl kernel.dmesg_restrict=0' if you need permission\n" : dcmd
-    text  += dmesg.fg(219)
-  rescue # rubocop:disable Lint/SuppressedException
-  end
+  
   @pR.say(text)
 rescue
-  @pR.say('Unable to show system info')
+  @pR.say('Unable to show system info'.fg(196))
 end
 
 def make_directory # {{{3
@@ -2118,9 +3725,92 @@ def get_cached_file_metadata(file_path) # {{{2
   end
 end
 
+def dirlist_remote # {{{2
+  return '' unless @current_remote && @remote_mode
+  
+  current_index = @index || 0
+  current_index = current_index.to_i
+  width = @pL.w
+  
+  # Check if we need to refresh the directory listing
+  connection_id = "#{@current_remote[:user]}@#{@current_remote[:host]}"
+  cache_key = "#{connection_id}:#{@remote_path}"
+  
+  # Use cache if available and recent (60 seconds for navigation)
+  if @remote_cache[cache_key] && (Time.now - @remote_cache[cache_key][:timestamp]) < 60
+    files = @remote_cache[cache_key][:files]
+  else
+    # Only fetch remote listing when cache is stale or missing
+    begin
+      files = list_remote_directory(@remote_path)
+      # Cache the result
+      @remote_cache[cache_key] = {
+        files: files,
+        timestamp: Time.now
+      }
+    rescue StandardError => e
+      @pB.say("Remote listing failed: #{e.message}".fg(196))
+      return ''
+    end
+  end
+  
+  # Update global @files for navigation (simple names array)
+  @files = files.map { |f| f[:name] }
+  
+  # Store the full file info for later use (avoid repeated SSH calls)
+  @remote_files_cache = files
+  
+  # Update @selected for current selection
+  if @files[@index] && files[@index]
+    @selected = "#{@remote_path}/#{@files[@index]}"
+    selected_file = files[@index]
+    @fileattr = "#{selected_file[:owner]}:#{selected_file[:group]} #{selected_file[:permissions]}  #{format_size_simple(selected_file[:size])}  #{selected_file[:modified]}"
+  end
+  
+  # Format the listing with remote-specific styling
+  search_regex = @searched.empty? ? nil : /#{@searched}/
+  
+  result = files.map.with_index do |file, i|
+    name = file[:name]
+    
+    # Color coding for different file types
+    color = case file[:type]
+           when 'directory' then 156  # Blue-ish
+           when 'symlink' then 226    # Yellow  
+           when 'file' then 255       # White
+           else 240                   # Gray
+           end
+    
+    # Apply color and decorations
+    n = name.fg(color)
+    n = n.inject('@', -1) if file[:type] == 'symlink'
+    n = n.inject('/', -1) if file[:type] == 'directory'
+    n = n.bg(238) if search_regex && name.match(search_regex)
+    
+    # Truncate if too long
+    n = n.shorten(width - 5).inject('…', -1) if name.length > width - 6
+    
+    # Add selection indicator and remote mode indicator (red background)
+    if i == current_index
+      n = '→ ' + n.u.bg(52)  # Red background for remote mode selection
+    else
+      n = '  ' + n.bg(52)    # Red background for remote mode
+    end
+    
+    n
+  end
+  
+  result.join("\n")
+end
+
 def dirlist(left: true, directory: nil) # LIST DIRECTORIES {{{2
   current_index = @index || 0
   current_index = current_index.to_i
+  
+  # Handle remote mode for left pane
+  if left && @remote_mode
+    return dirlist_remote
+  end
   
   if left
     dir = directory || Dir.pwd
@@ -2607,6 +4297,9 @@ def copy_move_link(type) # COPY OR MOVE TAGGED ITEMS {{{2
                Dir.pwd
              end
   
+  # Track operations for undo
+  operations = []
+  
   @tagged.each do |item|
     dest = File.join(dest_dir, File.basename(item))
     dest += '1' if File.exist?(dest)
@@ -2618,18 +4311,46 @@ def copy_move_link(type) # COPY OR MOVE TAGGED ITEMS {{{2
       case type
       when 'copy'
         FileUtils.cp_r(item, dest)
+        operations << { source_path: item, dest_path: dest }
         @pB.say(' Item(s) copied here.')
       when 'move'
         FileUtils.mv(item, dest)
+        operations << { source_path: item, dest_path: dest }
         @pB.say(' Item(s) moved here.')
       when 'link'
         FileUtils.ln_s(item, dest)
+        operations << { source_path: item, dest_path: dest }
         @pB.say(' Item(s) symlinked here.')
       end
     rescue => e
       @pB.say(e.to_s)
     end
   end
+  
+  # Record undo information if operations were successful
+  unless operations.empty?
+    case type
+    when 'copy'
+      add_undo_operation({
+        type: 'copy',
+        copies: operations,
+        timestamp: Time.now
+      })
+    when 'move'
+      add_undo_operation({
+        type: 'move',
+        moves: operations,
+        timestamp: Time.now
+      })
+    when 'link'
+      add_undo_operation({
+        type: 'link',
+        links: operations,
+        timestamp: Time.now
+      })
+    end
+  end
+  
   @tagged = []
   
   # Set update flags for proper refresh - let render system handle the actual refresh
@@ -2709,8 +4430,12 @@ def open_selected(html = nil) # OPEN SELECTED FILE {{{2
   if File.directory?(@selected) # Dir? just cd into it
     mark_latest
     Dir.chdir(@selected) rescue nil
+    track_directory_access(@selected)
     return
   end
+  
+  # Track file access when opening files
+  track_file_access(@selected)
   
   # Check if this file should use an interactive program (same as § prefix logic)
   if !html && (prog = get_interactive_program(@selected))
@@ -3034,24 +4759,77 @@ end
 
 def marks_info # SHOW MARKS IN RIGHT WINDOW {{{2
   @marks = @marks.sort.to_h
-  info = ' ' + 'MARKS'.u + ":\n\n"
+  info = "Directory Marks".b.fg(156) + "\n"
+  info << "=" * 50 + "\n\n"
+  
   if @marks.empty?
-    info += ' (none)'
+    info << "No marks set".fg(240) + "\n\n"
+    info << "Use 'm' followed by a letter to set a mark\n".fg(249)
+    info << "Use " + "'" + " followed by a letter to jump to mark".fg(249)
   else
+    info << "Current marks:".fg(226) + "\n\n"
     @marks.each do |mark, dir|
-      info += " #{mark} = #{dir}\n"
-      info += "\n" if mark == "'"
-      info += "\n" if mark == '5'
+      # Color special marks differently
+      mark_color = case mark
+                   when "'" then 196  # Red for 'latest' mark
+                   when /[0-9]/ then 220  # Yellow for number marks
+                   else 156  # Green for letter marks
+                   end
+      
+      # Truncate long paths for better display
+      display_dir = dir.length > 45 ? "..." + dir[-42..-1] : dir
+      info << sprintf("  %s  →  %s\n", mark.fg(mark_color).b, display_dir.fg(249))
+      
+      # Add spacing after special marks
+      info << "\n" if mark == "'"
+      info << "\n" if mark == '5'
     end
+    info << "\n" + "Press " + "'" + " + letter to jump".fg(240)
   end
-  @pR.say(info.fg(156))
+  @pR.say(info)
 end
 
 def tagged_info # SHOW THE LIST OF TAGGED ITEMS IN @pR {{{2
-  info = ' ' + "TAGGED (#{@tagged.size} items, #{(@tagsize.to_f / 1_000_000).round(2)}MB)".u + ":\n\n"
-  info += @tagged.empty? ? ' (None)' : ' ' + @tagged.join("\n ")
-  info += "\n\n " + 'Selected'.u + ":\n " + @selected.b
-  @pR.say(info.fg(204))
+  info = "Tagged Items".b.fg(204) + "\n"
+  info << "=" * 50 + "\n\n"
+  
+  # Summary information
+  size_mb = (@tagsize.to_f / 1_000_000).round(2)
+  info << "Summary:\n".fg(226)
+  info << sprintf("  %-12s %d\n", "Items:", @tagged.size)
+  info << sprintf("  %-12s %.2f MB\n", "Total size:", size_mb)
+  info << "\n"
+  
+  if @tagged.empty?
+    info << "No items tagged\n".fg(240)
+    info << "\nUse " + "SPACE".fg(156) + " to tag/untag items\n".fg(249)
+  else
+    info << "Tagged files:\n".fg(226)
+    @tagged.each_with_index do |item, i|
+      # Show just filename for long paths
+      display_name = File.basename(item)
+      full_path = item.length > 50 ? "..." + item[-47..-1] : item
+      
+      # Color based on file type
+      color = File.directory?(item) ? 156 : 249
+      info << sprintf("  %2d. %s\n", i + 1, display_name.fg(color))
+      
+      # Show full path on separate line if truncated
+      if item.length > 50
+        info << sprintf("      %s\n", full_path.fg(240))
+      end
+    end
+  end
+  
+  info << "\n" + "Currently selected:\n".fg(226)
+  selected_name = File.basename(@selected)
+  selected_color = File.directory?(@selected) ? 156 : 249
+  info << "  \u2192 " + selected_name.fg(selected_color).b + "\n"
+  if @selected.length > 50
+    info << "    " + @selected.fg(240) + "\n"
+  end
+  
+  @pR.say(info)
 end
 
 # MAIN PROGRAM {{{1

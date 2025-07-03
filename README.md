@@ -55,6 +55,9 @@ features are:
 * Show git status for the current directory
 * Show comprehensive system info (processes running, disk space, dmesg, etc.)
 * See if a directory (with sub dirs) has changed using cryptographic hashes
+* ***Remote directory browsing via SSH/SFTP*** with seamless navigation and file operations
+* ***SSH shell integration*** for dropping into interactive shell sessions on remote hosts  
+* ***Remote file operations*** including download, upload, and file info display
 * Integration with OpenAI to get an executive summary of file content
 * ***OpenAI chat integrated; Discuss files, content, commands with OpenAI***
 * ***Enhanced tab management*** with duplication, renaming, and smart navigation
@@ -96,6 +99,42 @@ directory.
 You can run any command in the bottom "command bar" and have the output
 presented in the right pane. History of commands are preserved like in your
 shell.
+
+## Remote Directory Browsing
+
+RTFM includes comprehensive **remote directory browsing** capabilities via SSH/SFTP, allowing you to seamlessly navigate and manage files on remote servers directly from your local terminal.
+
+**Key Remote Features:**
+* **Seamless remote navigation** - Browse remote directories as if they were local
+* **SSH shell integration** - Drop into interactive shell sessions with `s` key
+* **File operations** - Download (`d`), upload (`u`), and view file info (`→`)
+* **Connection caching** - Intelligent caching for improved performance
+* **Multiple connection formats** supported
+
+**Connection Examples:**
+```bash
+# Basic SSH connection
+user@server.com:/path/to/directory
+
+# With custom SSH key
+-i ~/.ssh/custom-key user@server.com:/path
+
+# SSH URI format  
+ssh://user@server.com/path/to/directory
+
+# Key at end format
+user@server.com:/path -i ~/.ssh/custom-key
+```
+
+**Remote Mode Usage:**
+1. Press `Ctrl+E` to enter/exit remote mode
+2. Enter connection string when prompted
+3. Navigate with standard keys (`←`, `→`, `↑`, `↓`)
+4. Use `d` to download files, `u` to upload files
+5. Press `s` to open SSH shell in current remote directory
+6. Press `Ctrl+E` to return to local mode
+
+The remote browsing feature includes visual indicators (red background) to clearly show when you're in remote mode, and all standard RTFM navigation and information features work seamlessly with remote directories.
 
 ## Installation
 You can install RTFM by cloning this repo and put the file `rtfm` in your
