@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '5.11.0' # Added comprehensive undo system for file operations
+@version    = '6.0.0' # Major release: Remote SSH/SFTP browsing, enhanced help system, SSH comments, undo system
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -37,19 +37,6 @@ require 'bootsnap/setup' # Speed up subsequent requires
 # ENCODING {{{1
 # encoding: utf-8
 
-# PROFILER {{{1
-#$start_time      = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-#$last_checkpoint = $start_time
-#$checkpoints     = []
-#def checkpoint(label)
-#  now      = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-#  delta_ms = ((now - $last_checkpoint) * 1000).round(2)
-#  total_ms = ((now - $start_time)     * 1000).round(2)
-#  $checkpoints << "#{label.ljust(20)}: #{delta_ms} ms"
-#  $checkpoints.reject! { |line| line.start_with?("Total:") }
-#  $checkpoints << "Total: #{total_ms} ms"
-#  $last_checkpoint = now
-#end
 
 def check_image_redraw # {{{2
   # Only check periodically to avoid performance impact
@@ -97,7 +84,6 @@ autoload :Open3,      'open3'
 autoload :PTY,        'pty'
 autoload :OpenAI,     'ruby/openai'
 autoload :Tempfile,   'tempfile'
-#checkpoint("Libraries loaded")
 
 # FIX TERMINAL MESSAGE BLEED-THROUGH {{{1
 LOG_PATH     = File.join(Dir.tmpdir, 'rtfm.log')
@@ -115,7 +101,6 @@ end
 logfile = File.open(LOG_PATH, 'a+')
 logfile.sync = true
 $stderr.reopen(logfile)
-#checkpoint("Bleed-through fix")
 
 # RCURSES CLASS EXTENSION {{{1
 module Rcurses
@@ -181,10 +166,10 @@ CONFIG_FILE   = File.join(RTFM_HOME, 'conf')
     v       = Display RTFM version (and latest Gem version) in bottom window/command bar
     r       = Refresh RTFM (recreates all windows. Use on terminal resize or when there is garbage somewhere)
     R       = Reload configuration (~/.rtfm/conf)
-    W       = Write parameters to ~/.rtfm/conf: @marks, @hash, @history, @rubyhistory, @aihistory
+    W       = Write parameters to ~/.rtfm/conf: @marks, @hash, @history, @rubyhistory, @aihistory, @sshhistory
               @lslong, @lsall, @lsorder, @lsinvert, @width, @border, @preview, @trash
     C       = Show the current configuration in ~/.rtfm/conf
-    q       = Quit (save basic configuration: @marks, @hash, @history, @rubyhistory, @aihistory)
+    q       = Quit (save basic configuration: @marks, @hash, @history, @rubyhistory, @aihistory, @sshhistory)
     Q       = QUIT (without writing any changes to the config file)
 
   LAYOUT
@@ -219,6 +204,7 @@ CONFIG_FILE   = File.join(RTFM_HOME, 'conf')
     Ctrl-r  = Show recently accessed files and directories (press number to jump)
     Ctrl-e  = Browse remote directories via SSH/SFTP (toggle remote mode)
                 In remote mode: d=download, u=upload, s=shell, →=file info, ←=parent dir
+                SSH connections support comments: user@host:/path # Comment
 
   DIRECTORY VIEWS
     a       = Show all (also hidden) items
@@ -293,10 +279,10 @@ CONFIG_FILE   = File.join(RTFM_HOME, 'conf')
 
   RIGHT PANE CONTROLS
     ENTER   = Refresh the right pane
-    S-RIGHT = One line down in the preview
-    S-LEFT  = One line up in the preview
-    S-DOWN  = Next page of the preview (if doc long and ∇ in the bottom right) (TAB does the same)
-    S-UP    = Previous page (if you have moved down the document first - ∆ in the top right) (or S-TAB)
+    S-DOWN  = One line down in the preview
+    S-UP    = One line up in the preview
+    S-RIGHT = Next page of the preview (if doc long and ∇ in the bottom right) (TAB does the same)
+    S-LEFT  = Previous page (if you have moved down the document first - ∆ in the top right) (or S-TAB)
 
   CLIPBOARD COPY
     y       = Copy path of selected item to primary selection (for pasting with middle mouse button)
@@ -315,6 +301,7 @@ CONFIG_FILE   = File.join(RTFM_HOME, 'conf')
               Prefix the command with a '§' to force the program to run in interactive mode
               Full screen TUI programs like htop, vim or any shell must run in interactive mode
     ;       = Show command history in right pane
+    Ctrl-;  = Show SSH connection history in right pane
     +       = Add program(s) to the list of full-UI interactive terminal programs
 
   RUBY DEBUG MODE
@@ -386,6 +373,7 @@ def setup_config # {{{2
     @history     = []
     @rubyhistory = []
     @aihistory   = []
+    @sshhistory  = []
   CONFIG
 end
 
@@ -477,7 +465,6 @@ def display_welcome_message # {{{2
 # rubocop:enable Layout/IndentationWidth
 puts @firstrun
 end
-#checkpoint("Preliminaries done")
 
 # BASIC SETUP {{{1
 ## Check for installed basic applications {{{2
@@ -521,6 +508,7 @@ $stdin.set_encoding(Encoding::UTF_8)
 @history     = []      # Initialize the command line history array
 @rubyhistory = []      # Initialize the command line history array for ruby commands
 @aihistory   = []      # Initialize the command line history array for AI chat
+@sshhistory  = []      # Initialize the command line history array for SSH connections
 ### Saved on Write Config ('W')
 @lslong      = ''      # Set short form ls (toggled by pressing "A")
 @lsall       = ''      # Set "ls -a" to false (toggled by pressing "a" - sets it to "-a")
@@ -538,7 +526,8 @@ $stdin.set_encoding(Encoding::UTF_8)
 @searchcolor = 23      # Default color for Search pane at bottom
 @cmdcolor    = 18      # Default color for Command pane at bottom
 @rubycolor   = 52      # Default color for Ruby pane at bottom
-@aicolor     = 58
+@aicolor     = 58      # Default color for AI pane at bottom
+@sshcolor    = 54      # Default color for SSH pane at bottom (purple-ish)
 @lsbase      = '--group-directories-first' # Basic ls setup
 @lsuser      = ''      # Set this variable in ~/.rtfm/conf to any 'ls' switch you want to customize directory listings
 @batuse      = true    # Use batcat for syntax highlighting
@@ -798,7 +787,6 @@ end
 load_config
 @marks['0']  = Dir.pwd # Original dir
 @marks["'"]  = Dir.pwd # Initial mark
-#checkpoint("Vars/config loaded")
 
 # Handle start dir {{{2
 Dir.chdir(ARGV.shift) if ARGV[0] && File.directory?(ARGV[0])
@@ -867,7 +855,6 @@ PREVIEW_HANDLERS = preview_specs.map do |exts_str, tmpl|
   exts = exts_str.split(',').map(&:strip).map { |ext| Regexp.escape(ext) }.join('|')
   [/\.#{exts}$/i, tmpl]
 end
-#checkpoint("Plugins loaded")
 
 # KEY DISPATCH TABLE & HANDLERS {{{1
 KEYMAP = { # {{{2
@@ -887,7 +874,6 @@ KEYMAP = { # {{{2
   '-'       => :toggle_preview,
   '_'       => :toggle_image,
   'b'       => :toggle_syntax,
-  # '{' key available for future use (dual-pane mode removed)
 
   # MOTION {{{3
   'DOWN'    => :move_down,
@@ -907,7 +893,6 @@ KEYMAP = { # {{{2
   'PgUP'    => :page_up,
   'END'     => :go_last,
   'HOME'    => :go_first,
-  # '}' key available for future use (dual-pane mode removed)
 
   # MARKS & JUMPING {{{3
   'm'       => :set_mark,
@@ -1013,6 +998,8 @@ KEYMAP = { # {{{2
   # COMMAND MODE {{{3
   ':'       => :command_mode,
   ';'       => :show_history,
+  'C-;'     => :show_ssh_history,
+  '+'       => :add_interactive,
   'e'       => :show_file_properties,
 
   # RUBY MODE {{{3
@@ -1053,34 +1040,57 @@ end
 
 # BASIC KEYS {{{2
 def show_help # {{{3
-  # Format help text with colors and structure
-  formatted_help = ""
+  help_info
+end
+
+def help_info # {{{3
+  help_text = "RTFM Help\n".b.fg(156)
+  help_text << "=" * 50 + "\n\n"
   
+  # First pass: find the longest key to determine column alignment
+  max_key_length = 0
   @help.lines.each do |line|
-    case line
-    when /^  [A-Z][A-Z ]+$/  # Section headers like "BASIC KEYS"
-      formatted_help << line.strip.b.fg(156) + "\n"
-    when /^    \w+.*=\s+/     # Key descriptions like "?       = Show this help"
-      # Split key and description
-      if line =~ /^    ([^=]+)\s*=\s*(.+)$/
-        key_part = $1.strip
-        desc_part = $2.strip
-        formatted_help << sprintf("    %-12s %s\n", key_part.fg(226).b, desc_part.fg(249))
-      else
-        formatted_help << line.fg(249)
-      end
-    when /^  RTFM - Ruby Terminal File Manager/  # Title
-      formatted_help << line.b.fg(154) 
-    when /^  COPYRIGHT:/
-      formatted_help << line.fg(240)
-    when /^\s*$/  # Empty lines
-      formatted_help << line
-    else  # Other lines (descriptions, URLs, etc.)
-      formatted_help << line.fg(249)
+    if line =~ /^  ([\S\/\-]+)\s+=\s+/
+      key_length = $1.length
+      max_key_length = key_length if key_length > max_key_length
     end
   end
   
-  @pR.say(formatted_help)
+  # Add some padding for visual clarity
+  equal_column = max_key_length + 2
+  desc_column = equal_column + 2  # Description starts 2 spaces after '='
+  
+  # Process help text with formatting but create completely new strings
+  @help.lines.each do |line|
+    content = line.chomp  # Remove newline and create new string
+    
+    case content
+    when /^[A-Z][A-Z \/]+$/  # Section headers like "BASIC KEYS", "GIT/HASH/OPENAI" (no leading spaces)
+      help_text << content.b.fg(156) + "\n"  # Removed extra newline before
+    when /^  RTFM - Ruby Terminal File Manager/  # Title
+      help_text << content.b.fg(154) + "\n"
+    when /^COPYRIGHT:/  # Copyright line (no leading spaces)
+      help_text << "\n" + content.fg(242) + "\n"
+    when /^  (\S+)\s+=\s+/  # Key lines: "  key = description"
+      # Extract the key part and the description part
+      if content =~ /^  ([\S\/\-]+)\s+=\s+(.*)$/
+        key_part = $1
+        desc_part = $2
+        padding = " " * (equal_column - key_part.length)
+        help_text << "  " + key_part.fg(51) + padding + "= ".fg(252) + desc_part.fg(252) + "\n"  # Changed to lighter gray (252)
+      else
+        help_text << content.fg(252) + "\n"
+      end
+    when /^            /  # Continuation lines (12 spaces)
+      # Align continuation lines with the description column
+      indent = " " * (2 + desc_column)  # 2 for initial indent + column position
+      help_text << indent + content.strip.fg(252) + "\n"
+    else
+      help_text << content.fg(252) + "\n"
+    end
+  end
+  
+  @pR.say(help_text)
 end
 
 def show_version # {{{3
@@ -2387,12 +2397,22 @@ def browse_remote # {{{3
     @pR.say(build_remote_help)
     @pR.update = false
     
-    connection_string = @pCmd.ask('Connect to: ', '')
-    return if connection_string.nil? || connection_string.strip.empty?
+    connection_string = @pSsh.ask('SSH connect to: ', '')
+    
+    # Check if user cancelled (ESC or empty input)
+    if connection_string.nil? || connection_string.strip.empty?
+      @pB.clear; @pB.update = true
+      @pR.update = true
+      return
+    end
     
     # Parse connection string
     remote_info = parse_remote_connection(connection_string)
-    return unless remote_info
+    unless remote_info
+      @pB.clear; @pB.update = true
+      @pR.update = true
+      return
+    end
     
     # Test connection and enter remote mode
     begin
@@ -2478,7 +2498,7 @@ def remote_download_selected # {{{3
   @pR.update = true
   
   # Ask for local destination with clearer instructions
-  destination = @pCmd.ask('Download to (Enter=default, clear field to cancel): ', default_dest)
+  destination = @pSsh.ask('Download to (Enter=default, clear field to cancel): ', default_dest)
   
   # Check if user cancelled by clearing the field
   if destination.nil? || destination.strip.empty?
@@ -2598,7 +2618,7 @@ def remote_upload_file # {{{3
   @pR.update = true
   
   # Ask for local file to upload
-  local_file = @pCmd.ask('Local file (clear to cancel): ', '')
+  local_file = @pSsh.ask('Local file (clear to cancel): ', '')
   
   # Check if user cancelled
   if local_file.nil? || local_file.strip.empty?
@@ -2621,7 +2641,7 @@ def remote_upload_file # {{{3
   
   # Ask for remote destination name (default to same name)
   default_name = File.basename(local_file)
-  remote_name = @pCmd.ask('Remote filename (Enter=default, clear to cancel): ', default_name)
+  remote_name = @pSsh.ask('Remote filename (Enter=default, clear to cancel): ', default_name)
   
   # Check if user cancelled
   if remote_name.nil? || remote_name.strip.empty?
@@ -2664,8 +2684,12 @@ def parse_remote_connection(connection_string) # {{{3
   # user@host (defaults to home directory)
   # -i ~/.ssh/keyfile user@host:/path
   # user@host:/path -i ~/.ssh/keyfile
+  # Comments are supported: user@host:/path # My server
   
-  parts = connection_string.strip.split(/\s+/)
+  # Strip comments (everything after #)
+  connection_string = connection_string.split('#').first.strip
+  
+  parts = connection_string.split(/\s+/)
   ssh_key = nil
   main_connection = nil
   
@@ -2815,40 +2839,63 @@ end
 
 
 def build_remote_help # {{{3
-  <<~HELP
-    Remote Connection Examples:
-    
-    SSH/SFTP connections:
-      user@hostname:/path      - Connect to specific path
-      user@hostname            - Connect to home directory
-      ssh://user@host/path     - Full SSH URI format
-      myserver.com:/var/www    - Connect to web directory
-      
-    With SSH keys:
-      -i ~/.ssh/keyfile user@host:/path    - Use specific SSH key
-      user@host:/path -i ~/.ssh/keyfile    - SSH key at end
-      -i ~/.ssh/pf-do pfadmin@server.com   - Custom key example
-      
-    Examples:
-      john@server.com:/home/john/documents
-      admin@192.168.1.100:/var/log
-      user@myserver.com
-      ssh://deploy@prod.server.com/app
-      -i ~/.ssh/aws-key ec2-user@1.2.3.4
-      pfadmin@159.65.204.97 -i ~/.ssh/pf-do
-    
-    Requirements:
-      - SSH access to remote host
-      - SSH key authentication (recommended)
-      - Or password authentication enabled
-      
-    Navigation:
-      - Browse with number keys (1-9, 0)
-      - Use '..' to go to parent directory
-      - Press 'd' to download files
-      - Press 'u' to upload files
-      - Press 'q' to return to local browsing
-  HELP
+  help_text = "Remote Connection Setup\n".b.fg(156)
+  help_text << "=" * 50 + "\n\n"
+  
+  # Show recent SSH connections if any exist
+  unless @pSsh.history.empty?
+    help_text << "Recent Connections:\n".fg(226)
+    @pSsh.history.reverse.first(5).each_with_index do |connection, i|
+      if connection =~ /([^@]+@[^:\s]+)/
+        host_part = $1
+        help_text << sprintf("  %d. %s\n", i + 1, host_part.fg(156))
+      else
+        help_text << sprintf("  %d. %s\n", i + 1, connection.fg(156))
+      end
+    end
+    help_text << "\nUse " + "↑/↓".fg(156) + " in prompt to recall connections\n\n".fg(249)
+  end
+  
+  help_text << "Connection Examples:\n".fg(226)
+  help_text << "  Basic SSH/SFTP connections:\n".fg(249)
+  help_text << "    user@hostname:/path      - Connect to specific path\n"
+  help_text << "    user@hostname            - Connect to home directory\n"
+  help_text << "    ssh://user@host/path     - Full SSH URI format\n"
+  help_text << "    myserver.com:/var/www    - Connect to web directory\n\n"
+  
+  help_text << "  With SSH keys:\n".fg(249)
+  help_text << "    -i ~/.ssh/keyfile user@host:/path    - Use specific SSH key\n"
+  help_text << "    user@host:/path -i ~/.ssh/keyfile    - SSH key at end\n"
+  help_text << "    -i ~/.ssh/pf-do pfadmin@server.com   - Custom key example\n\n"
+  
+  help_text << "  Example connections:\n".fg(249)
+  help_text << "    john@server.com:/home/john/documents\n".fg(240)
+  help_text << "    admin@192.168.1.100:/var/log\n".fg(240)
+  help_text << "    ssh://deploy@prod.server.com/app\n".fg(240)
+  help_text << "    -i ~/.ssh/aws-key ec2-user@1.2.3.4\n".fg(240)
+  help_text << "\n"
+  
+  help_text << "  Comments for organization:\n".fg(249)
+  help_text << "    user@server.com:/path # Production server\n".fg(240)
+  help_text << "    admin@192.168.1.10 # Local development\n".fg(240)
+  help_text << "    root@backup.server.com # Backup storage\n".fg(240)
+  help_text << "    (Comments after # are ignored)\n".fg(240)
+  help_text << "\n"
+  
+  help_text << "Requirements:\n".fg(226)
+  help_text << "  • SSH access to remote host\n"
+  help_text << "  • SSH key authentication (recommended)\n"
+  help_text << "  • Or password authentication enabled\n\n"
+  
+  help_text << "Remote Navigation:\n".fg(226)
+  help_text << "  • Use arrow keys to navigate directories\n"
+  help_text << "  • Press " + "d".fg(156) + " to download files\n"
+  help_text << "  • Press " + "u".fg(156) + " to upload files\n"
+  help_text << "  • Press " + "s".fg(156) + " to open SSH shell\n"
+  help_text << "  • Press " + "→".fg(156) + " to view file info\n"
+  help_text << "  • Press " + "Ctrl+E".fg(156) + " to return to local browsing\n"
+  
+  help_text
 end
 
 # MANIPULATE ITEMS {{{2
@@ -3606,6 +3653,34 @@ def show_history # {{{3
   @pB.update = true
 end
 
+def show_ssh_history # {{{3
+  history_text = "SSH Connection History\n".b.fg(156)
+  history_text << "=" * 50 + "\n\n"
+  
+  if @pSsh.history.empty?
+    history_text << "No SSH connections in history\n".fg(240)
+    history_text << "\nPress " + "Ctrl+E".fg(156) + " to start browsing remote directories\n".fg(249)
+  else
+    history_text << "Recent connections:\n".fg(226)
+    @pSsh.history.reverse.each_with_index do |connection, i|
+      # Parse and format connection for display
+      if connection =~ /([^@]+@[^:\s]+)/
+        host_part = $1
+        history_text << sprintf("  %2d. %s\n", i + 1, host_part.fg(156))
+        if connection.length > host_part.length + 10
+          history_text << sprintf("      %s\n", connection.fg(240))
+        end
+      else
+        history_text << sprintf("  %2d. %s\n", i + 1, connection.fg(156))
+      end
+    end
+    history_text << "\n" + "Use " + "↑/↓".fg(156) + " in SSH prompt to recall connections".fg(249)
+  end
+  
+  @pR.say(history_text)
+  @pB.update = true
+end
+
 def add_interactive # {{{
   @interactive = @pB.ask('Add program to @interactive: '.fg(213), @interactive.fg(213))
   @pB.clear; @pB.update = true
@@ -3615,6 +3690,13 @@ end
 def ruby_debug # {{{3
   require 'stringio'
   cmd = @pRuby.ask('Ruby command: ', '')
+  
+  # If user cancelled (ESC) or entered empty command, don't execute or output anything
+  if cmd.nil? || cmd.strip.empty?
+    @pB.clear; @pB.update = true
+    return
+  end
+  
   @pR.text = "Command: #{cmd}\n\n".fg(205)
   original_stdout = $stdout
   original_stderr = $stderr
@@ -3638,23 +3720,8 @@ end
 
 # GENERIC FUNCTIONS {{{1
 def get_cached_dirlist(dir, ls_options) # {{{2
-  # TEMPORARILY DISABLED: Always bypass cache to debug flickering
+  # Directory caching disabled for stability
   return nil
-  
-  # Create cache key from directory and options
-  # cache_key = "#{dir}:#{ls_options}"
-  
-  # begin
-  #   dir_stat = File.stat(dir)
-  #   cache_with_time = "#{cache_key}:#{dir_stat.mtime.to_i}"
-  # rescue
-  #   # Directory might not exist or be accessible
-  #   return nil
-  # end
-  
-  # Check if we have cached results for this directory
-  # cached_result = @dir_cache[cache_with_time]
-  # return cached_result if cached_result
   
   # Clean old cache entries if cache is getting too large
   if @dir_cache_size >= @max_cache_entries
@@ -3969,9 +4036,6 @@ end
 def render # RENDER ALL PANES {{{2
   return unless needs_render?
   
-  # TEMPORARILY DISABLED: Use batch updates for rcurses 4.9.0+ performance improvement
-  # Rcurses.batch_refresh do
-  
   # LEFT pane {{{3
   if @pL.update
     lefttext = @pL.text
@@ -4112,8 +4176,6 @@ def render # RENDER ALL PANES {{{2
     @pB.text = info
     @pB.refresh unless @pB.text == bottomtext
   end
-  
-  # end # Rcurses.batch_refresh - TEMPORARILY DISABLED
 end
 
 def refresh # {{{2
@@ -4161,6 +4223,8 @@ def refresh # {{{2
   @pCmd.w = @w
   @pRuby.y = @h
   @pRuby.w = @w
+  @pSsh.y = @h
+  @pSsh.w = @w
 end
 
 def setborder # {{{2
@@ -4524,7 +4588,8 @@ def conf_write(all: false) # WRITE TO ~/.rtfm/conf {{{2
     'hash'        => "@hash        = #{@hash}",
     'history'     => "@history     = #{@pCmd.history.reverse.uniq.reverse.last(40)}",
     'rubyhistory' => "@rubyhistory = #{@pRuby.history.reverse.uniq.reverse.last(40)}",
-    'aihistory'   => "@aihistory   = #{@pAI.history.reverse.uniq.reverse.last(40)}"
+    'aihistory'   => "@aihistory   = #{@pAI.history.reverse.uniq.reverse.last(40)}",
+    'sshhistory'  => "@sshhistory  = #{@pSsh.history.reverse.uniq.reverse.last(40)}"
   }
   if all
     assignments.merge!(
@@ -4865,8 +4930,8 @@ end
 @pSearch = Pane.new( 1, @h, @w, 1, 255, @searchcolor)
 @pRuby   = Pane.new( 1, @h, @w, 1, 255,   @rubycolor)
 @pAI     = Pane.new( 1, @h, @w, 1, 255,     @aicolor)
+@pSsh    = Pane.new( 1, @h, @w, 1, 255,     @sshcolor)
 # rubocop:enable Naming/VariableName
-#checkpoint("Panes created")
 
 ## Set pane properties {{{2
 @pTab.update    = true
@@ -4881,6 +4946,8 @@ end
 @pRuby.history  = @rubyhistory
 @pAI.record     = true
 @pAI.history    = @aihistory
+@pSsh.record    = true
+@pSsh.history   = @sshhistory
 
 # Report plugin errors {{{2
 @pR.say("Plugin load errors:\n" + @plugin_errors.join("\n").fg(196)) if @plugin_errors.any? 
@@ -4901,7 +4968,6 @@ end
 $stdin.getc while $stdin.wait_readable(0)
 
 ## THE LOOP {{{2
-#checkpoint("Program started")
 loop do
   @dir_old = Dir.pwd
   
