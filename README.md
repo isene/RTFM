@@ -2,18 +2,20 @@
  
 ![Ruby](https://img.shields.io/badge/language-Ruby-red) [![Gem Version](https://badge.fury.io/rb/rtfm-filemanager.svg)](https://badge.fury.io/rb/rtfm-filemanager) ![Unlicense](https://img.shields.io/badge/license-Unlicense-green) ![Stay Amazing](https://img.shields.io/badge/Stay-Amazing-important)
 
-## Version 5
+## Version 6.0
 
-Version 5 is a complete rewrite of RTFM using
-[rcurses](https://github.com/isene/rcurses) as the underlying library. With
-this, RTFM gains more stability, higher quality code and more features.
+Version 6.0 introduces comprehensive remote directory browsing capabilities and enhanced user experience improvements:
 
-Among the new version 5 features are an optional trash bin, advanced OpenAI
-integrations, plugin architectures for keybindings, user defined features and
-file viewers. You also get better feedback, better visuals, more error
-capture. Plenty.
+- **Remote SSH/SFTP browsing** with seamless navigation and file operations
+- **SSH shell integration** for interactive remote sessions  
+- **Enhanced help system** with color-coded sections and aligned formatting
+- **SSH connection comments** for better organization (user@host # comment)
+- **Comprehensive undo system** for file operations with safety checks
+- **Performance optimizations** and code cleanup for improved stability
 
-The major feature additions in v5 are marked in ***bold italic***.
+Version 5 was a complete rewrite using [rcurses](https://github.com/isene/rcurses) as the underlying library, providing stability, higher quality code and extensive features including optional trash bin, advanced OpenAI integrations, plugin architectures for keybindings, user defined features and file viewers.
+
+The major feature additions are marked in ***bold italic***.
 
 ## What?  
 <img src="img/logo.png" align="left" width="150" height="150"> RTFM is a
@@ -124,6 +126,10 @@ ssh://user@server.com/path/to/directory
 
 # Key at end format
 user@server.com:/path -i ~/.ssh/custom-key
+
+# With comments for organization
+user@server.com:/path # Production server
+admin@192.168.1.10 # Local development
 ```
 
 **Remote Mode Usage:**
