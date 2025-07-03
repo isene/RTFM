@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '6.0.0' # Major release: Remote SSH/SFTP browsing, enhanced help system, SSH comments, undo system
+@version    = '6.0.1' # Remote mode fixes: FrozenError fix, enhanced upload workflow, refresh functionality
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -1098,6 +1098,11 @@ def show_version # {{{3
 end
 
 def refresh_all # {{{3
+  # Clear remote directory cache if in remote mode
+  if @remote_mode
+    @remote_files_cache = []
+    @pL.update = true
+  end
   refresh
 end
 
@@ -2448,8 +2453,7 @@ def exit_remote_mode # {{{3
 end
 
 def show_remote_file_info(file) # {{{3
-  info_text = ""
-  info_text << "Remote File Information\n".b.fg(156)
+  info_text = "Remote File Information\n".b.fg(156)
   info_text << "=" * 40 + "\n\n"
   
   info_text << "Name:          #{file[:name]}\n".fg(255)
@@ -2609,8 +2613,119 @@ end
 def remote_upload_file # {{{3
   return unless @remote_mode
   
+  # Check if there are tagged files first
+  unless @tagged.empty?
+    # Show tagged files for upload confirmation
+    upload_text = "Upload Tagged Files to Remote Directory\n\n".fg(156)
+    upload_text << "Current remote path: #{@remote_path}\n\n".fg(240)
+    upload_text << "Tagged files to upload:\n".fg(226)
+    
+    @tagged.each_with_index do |file, i|
+      if File.exist?(file)
+        upload_text << sprintf("  %d. %s\n", i + 1, file.fg(255))
+      else
+        upload_text << sprintf("  %d. %s [MISSING]\n", i + 1, file.fg(196))
+      end
+    end
+    
+    total_size = @tagged.sum { |f| File.exist?(f) ? File.size(f) : 0 }
+    upload_text << "\nTotal size: #{(total_size.to_f / 1_000_000).round(2)}MB\n".fg(240)
+    upload_text << "\nPress 'y' to upload all tagged files\n".fg(226)
+    upload_text << "Press 'i' to upload individual files\n".fg(226)
+    upload_text << "Press any other key to cancel\n".fg(240)
+    
+    @pR.say(upload_text)
+    @pR.update = true
+    
+    choice = getchr
+    case choice
+    when 'y', 'Y'
+      upload_tagged_files
+    when 'i', 'I'
+      upload_individual_file
+    else
+      @pB.say("Upload cancelled".fg(240))
+      @pR.update = true
+    end
+  else
+    # No tagged files, show instructions
+    upload_text = "Upload Files to Remote Directory\n\n".fg(156)
+    upload_text << "Current remote path: #{@remote_path}\n\n".fg(240)
+    upload_text << "No files are currently tagged.\n\n".fg(226)
+    upload_text << "Workflow:\n".fg(226)
+    upload_text << "  1. Press Ctrl+E to exit remote mode\n".fg(240)
+    upload_text << "  2. Navigate and tag files with 't'\n".fg(240)
+    upload_text << "  3. Press Ctrl+E to return to remote mode\n".fg(240)
+    upload_text << "  4. Press 'u' to upload tagged files\n\n".fg(240)
+    upload_text << "Options:\n".fg(226)
+    upload_text << "  'i' = Upload individual file\n".fg(240)
+    upload_text << "  'l' = Show local directory for tagging\n".fg(240)
+    upload_text << "  Any other key = Cancel\n".fg(240)
+    
+    @pR.say(upload_text)
+    @pR.update = true
+    
+    choice = getchr
+    case choice
+    when 'i', 'I'
+      upload_individual_file
+    when 'l', 'L'
+      show_local_for_tagging
+    else
+      @pB.say("Upload cancelled".fg(240))
+      @pR.update = true
+    end
+  end
+end
+
+def upload_tagged_files # {{{3
+  return unless @remote_mode
+  
+  existing_files = @tagged.select { |f| File.exist?(f) }
+  
+  if existing_files.empty?
+    @pB.say("No valid tagged files to upload".fg(196))
+    @pR.update = true
+    return
+  end
+  
+  uploaded_count = 0
+  failed_count = 0
+  
+  existing_files.each do |local_file|
+    begin
+      remote_name = File.basename(local_file)
+      remote_destination = File.join(@remote_path, remote_name)
+      scp_cmd = build_scp_command(@current_remote, local_file, remote_destination, :upload)
+      
+      @pB.say("Uploading #{File.basename(local_file)}...".fg(156))
+      
+      if system(scp_cmd)
+        uploaded_count += 1
+        @pB.say("✓ #{File.basename(local_file)} uploaded".fg(156))
+      else
+        failed_count += 1
+        @pB.say("✗ Failed to upload #{File.basename(local_file)}".fg(196))
+      end
+    rescue => e
+      failed_count += 1
+      @pB.say("✗ Error uploading #{File.basename(local_file)}: #{e.message}".fg(196))
+    end
+  end
+  
+  @pB.say("Upload complete: #{uploaded_count} successful, #{failed_count} failed. Press 'r' to refresh if files don't appear.".fg(226))
+  
+  # Refresh remote directory listing
+  @remote_files_cache = []
+  @pL.update = true
+  @pR.update = true
+end
+
+def upload_individual_file # {{{3
+  return unless @remote_mode
+  
   # Show upload prompt in right pane
-  upload_text = "Upload File to Remote Directory\n\n".fg(156)
+  upload_text = "Upload Individual File to Remote Directory\n\n".fg(156)
   upload_text << "Current remote path: #{@remote_path}\n\n".fg(240)
   upload_text << "Enter local file path to upload\n(or ESC to cancel):"
   
@@ -2659,7 +2774,7 @@ def remote_upload_file # {{{3
   begin
     result = system(scp_cmd)
     if result
-      @pB.say("Uploaded: #{local_file} -> #{remote_name}".fg(156))
+      @pB.say("Uploaded: #{local_file} -> #{remote_name}. Press 'r' to refresh if not visible.".fg(156))
       # Clear cache and refresh remote directory
       connection_id = "#{@current_remote[:user]}@#{@current_remote[:host]}"
       cache_key = "#{connection_id}:#{@remote_path}"
@@ -2674,6 +2789,62 @@ def remote_upload_file # {{{3
   end
   
   @pR.update = true  # Restore normal right pane
+end
+
+def show_local_for_tagging # {{{3
+  return unless @remote_mode
+  
+  # Temporarily exit remote mode for tagging
+  @pB.say("Temporarily exiting remote mode for file tagging...".fg(156))
+  
+  # Store current remote state
+  saved_remote_mode = @remote_mode
+  saved_remote_path = @remote_path
+  saved_current_remote = @current_remote
+  saved_remote_files_cache = @remote_files_cache
+  
+  # Exit remote mode
+  @remote_mode = false
+  @current_remote = nil
+  @remote_path = '~'
+  @remote_files_cache = []
+  
+  # Refresh local directory
+  dirlist
+  render
+  
+  # Show tagging instructions
+  tag_text = "Local File Tagging Mode\n\n".fg(156)
+  tag_text << "You are now in local mode for tagging files.\n\n".fg(240)
+  tag_text << "Instructions:\n".fg(226)
+  tag_text << "  't' = Tag/untag files\n".fg(240)
+  tag_text << "  'T' = Show tagged files\n".fg(240)
+  tag_text << "  'u' = Clear all tags\n".fg(240)
+  tag_text << "  Navigate with arrow keys\n".fg(240)
+  tag_text << "  Tab/Shift+Tab = Switch tabs\n\n".fg(240)
+  tag_text << "Press 'r' when done tagging to return to remote mode\n".fg(226)
+  tag_text << "Press any other key to continue in local mode\n".fg(240)
+  
+  @pR.say(tag_text)
+  @pR.update = true
+  
+  choice = getchr
+  if choice == 'r' || choice == 'R'
+    # Restore remote mode
+    @remote_mode = saved_remote_mode
+    @remote_path = saved_remote_path
+    @current_remote = saved_current_remote
+    @remote_files_cache = saved_remote_files_cache
+    
+    # Refresh remote directory
+    @pL.update = true
+    @pR.update = true
+    render
+    
+    @pB.say("Returned to remote mode. Press 'u' to upload tagged files.".fg(156))
+  else
+    @pB.say("Staying in local mode. Press Ctrl+E to return to remote mode when ready.".fg(240))
+  end
 end
 
 def parse_remote_connection(connection_string) # {{{3
@@ -4655,6 +4826,13 @@ def showcontent # SHOW CONTENTS IN THE RIGHT WINDOW {{{2
     @pR.clear
   end
   begin
+    # Handle remote mode separately
+    if @remote_mode && @files && @files[@index] && @remote_files_cache[@index]
+      selected_file = @remote_files_cache[@index]
+      show_remote_file_info(selected_file)
+      return
+    end
+    
     if @selected && File.directory?(@selected)
       @pR.say(dirlist(left: false))
     else # Look up first matching handler
