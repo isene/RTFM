@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '6.0.2' # Terminal state bug fix for vim editing, enhanced Git status display
+@version    = '6.0.3' # Fixed undefined past_action variable in delete_items method
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -3195,7 +3195,7 @@ def delete_items # {{{3
       end
       @tagged.clear
       refresh_right
-      @pB.say("#{past_action} #{paths.size} items#{@trash ? " to #{TRASH_DIR}" : ''}".fg(204))
+      @pB.say("#{action} #{paths.size} items#{@trash ? " to #{TRASH_DIR}" : ''}".fg(204))
     end
   else
     @pB.update = true
