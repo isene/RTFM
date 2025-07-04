@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '6.0.1' # Remote mode fixes: FrozenError fix, enhanced upload workflow, refresh functionality
+@version    = '6.0.2' # Terminal state bug fix for vim editing, enhanced Git status display
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -3394,10 +3394,114 @@ end
 # GIT/HASH/OPENAI {{{2
 def git_status # {{{3
   @pR.clear
-  out, err   = command('git status', return_both: true)
-  @pR.text  += err.fg(196) unless err.empty?
-  @pR.text  += out.fg(214) unless out.empty?
-  @pR.full_refresh
+  
+  # Check if we're in a git repository
+  unless Dir.exist?('.git') || system('git rev-parse --git-dir > /dev/null 2>&1')
+    @pR.say("Not a Git Repository".b.fg(196) + "\n\n" + "This directory is not under Git version control.".fg(240))
+    @pR.update = false
+    @pB.update = true
+    return
+  end
+  
+  # Get git status with porcelain format for parsing
+  status_out, status_err = command('git status --porcelain', return_both: true)
+  
+  # Get branch info
+  branch_out, branch_err = command('git branch --show-current', return_both: true)
+  current_branch = branch_out.chomp
+  
+  # Get commit info
+  commit_out, commit_err = command('git log --oneline -n 5 2>/dev/null || echo "No commits"', return_both: true)
+  
+  # Build formatted output
+  info = "Git Status".b.fg(156) + "\n"
+  info << "=" * 50 + "\n\n"
+  
+  # Show errors if any
+  unless status_err.empty? && branch_err.empty?
+    info << "Errors:".fg(196) + "\n"
+    info << status_err.fg(196) unless status_err.empty?
+    info << branch_err.fg(196) unless branch_err.empty?
+    info << "\n"
+  end
+  
+  # Branch information
+  if current_branch.empty?
+    info << "Branch: ".fg(226) + "Not on any branch".fg(240) + "\n\n"
+  else
+    info << "Branch: ".fg(226) + current_branch.fg(156).b + "\n\n"
+  end
+  
+  # Parse and categorize changes
+  if status_out.empty?
+    info << "Working directory clean".fg(156) + "\n"
+  else
+    staged = []
+    modified = []
+    untracked = []
+    
+    status_out.lines.each do |line|
+      status_code = line[0..1]
+      filename = line[3..-1].chomp
+      
+      case status_code
+      when /^[MADRC]./
+        staged << [status_code[0], filename]
+      when /^.[MD]/
+        modified << [status_code[1], filename]
+      when '??'
+        untracked << filename
+      end
+    end
+    
+    # Show staged changes
+    unless staged.empty?
+      info << "Staged for commit:".fg(156) + "\n"
+      staged.each do |status, file|
+        status_text = case status
+                      when 'M' then 'modified'
+                      when 'A' then 'new file'
+                      when 'D' then 'deleted'
+                      when 'R' then 'renamed'
+                      when 'C' then 'copied'
+                      else 'changed'
+                      end
+        info << sprintf("  %-10s %s\n", status_text.fg(156), file.fg(249))
+      end
+      info << "\n"
+    end
+    
+    # Show modified files
+    unless modified.empty?
+      info << "Changes not staged:".fg(220) + "\n"
+      modified.each do |status, file|
+        status_text = status == 'M' ? 'modified' : 'deleted'
+        info << sprintf("  %-10s %s\n", status_text.fg(220), file.fg(249))
+      end
+      info << "\n"
+    end
+    
+    # Show untracked files
+    unless untracked.empty?
+      info << "Untracked files:".fg(240) + "\n"
+      untracked.first(10).each do |file|
+        info << sprintf("  %-10s %s\n", "new".fg(240), file.fg(249))
+      end
+      info << "  (showing first 10)\n".fg(240) if untracked.length > 10
+      info << "\n"
+    end
+  end
+  
+  # Recent commits
+  unless commit_out.chomp == "No commits"
+    info << "Recent commits:".fg(226) + "\n"
+    commit_out.lines.first(5).each_with_index do |commit, i|
+      hash, *message = commit.chomp.split(' ', 2)
+      info << sprintf("  %s %s\n", hash.fg(214), message.join(' ').fg(249))
+    end
+  end
+  
+  @pR.say(info)
   @pR.update = false
   @pB.update = true
 end
@@ -4719,6 +4823,14 @@ def open_selected(html = nil) # OPEN SELECTED FILE {{{2
   end
   # Don't try to read large files or PDFs as text for validation
   if !@selected&.match(@pdffile) && File.size(@selected) < 1_000_000 && File.read(@selected).force_encoding('UTF-8').valid_encoding? # Pure text
+    # Flush any pending input before switching terminal modes
+    while IO.select([$stdin], nil, nil, 0)
+      begin
+        $stdin.read_nonblock(4096)
+      rescue IO::WaitReadable, EOFError
+        break
+      end
+    end
     system("stty #{ORIG_STTY} < /dev/tty")
     # Clear to top-left
     system('clear < /dev/tty > /dev/tty')
