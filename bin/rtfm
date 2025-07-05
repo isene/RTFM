@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '6.0.3' # Fixed undefined past_action variable in delete_items method
+@version    = '6.0.4' # Fixed preview handler regex bug causing false matches
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -853,7 +853,7 @@ end
 # Compile into an array of [Regexp, template] for fast lookup
 PREVIEW_HANDLERS = preview_specs.map do |exts_str, tmpl|
   exts = exts_str.split(',').map(&:strip).map { |ext| Regexp.escape(ext) }.join('|')
-  [/\.#{exts}$/i, tmpl]
+  [/\.(#{exts})$/i, tmpl]
 end
 
 # KEY DISPATCH TABLE & HANDLERS {{{1
@@ -5022,13 +5022,16 @@ def showcontent # SHOW CONTENTS IN THE RIGHT WINDOW {{{2
                   temp.write(preview_content)
                   temp.close
                   
-                  begin
-                    showcommand("#{@bat} -n --color=always #{Shellwords.escape(temp.path)}")
-                  rescue
+                  # Try bat with robust fallback
+                  bat_cmd = "#{@bat} -n --color=always #{Shellwords.escape(temp.path)}"
+                  bat_output = command(bat_cmd, timeout: 10)
+                  if bat_output.empty?
+                    # Bat failed or returned empty - show plain text
                     @pR.say(preview_content)
-                  ensure
-                    temp.unlink
+                  else
+                    @pR.say(bat_output)
                   end
+                  temp.unlink
                 else
                   @pR.say(preview_content)
                 end
@@ -5042,10 +5045,14 @@ def showcontent # SHOW CONTENTS IN THE RIGHT WINDOW {{{2
               text = File.read(@selected).force_encoding('UTF-8') rescue ''
               if text.valid_encoding?
                 if @batuse
-                  begin
-                    showcommand("#{@bat} -n --color=always #{Shellwords.escape(@selected)}")
-                  rescue
+                  # Try bat first, with robust fallback
+                  bat_cmd = "#{@bat} -n --color=always #{Shellwords.escape(@selected)}"
+                  bat_output = command(bat_cmd, timeout: 10)
+                  if bat_output.empty?
+                    # Bat failed or returned empty - try plain cat
                     showcommand("cat #{Shellwords.escape(@selected)}")
+                  else
+                    @pR.say(bat_output)
                   end
                 else
                   showcommand("cat #{Shellwords.escape(@selected)}")
