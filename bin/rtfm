@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '6.0.4' # Fixed preview handler regex bug causing false matches
+@version    = '6.0.5' # Fixed symlink following and command bar cd functionality
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -1406,7 +1406,21 @@ def follow_symlink # {{{3
       @symlink_history.add(resolved_path)
       target = File.readlink(@selected)
       target = File.expand_path(target, File.dirname(@selected)) unless target.start_with?('/')
-      Dir.chdir(target)
+      
+      # Check if target is a directory or file
+      if File.directory?(target)
+        Dir.chdir(target)
+      elsif File.file?(target)
+        # If it's a file, change to the directory containing the file
+        target_dir = File.dirname(target)
+        Dir.chdir(target_dir)
+        # Select the target file in the new directory
+        @selected = target
+      else
+        @pB.say("Error: Symlink target does not exist or is not accessible".fg(196))
+        @symlink_history&.clear
+        return
+      end
       
       # Clear history after successful navigation
       @symlink_history.clear
@@ -3865,6 +3879,24 @@ def command_mode # {{{3
   sel = Shellwords.escape(@selected.to_s)
   tg  = @tagged.map { |p| Shellwords.escape(p) }.join(' ')
   cmd = raw.gsub('@s', sel).gsub('@t', tg)
+  
+  # Handle cd commands specially
+  if cmd.match(/^\s*cd\s*(.*)$/)
+    target = $1.strip
+    target = ENV['HOME'] if target.empty?  # Default to home directory
+    target = File.expand_path(target)
+    
+    if File.directory?(target)
+      @directory[Dir.pwd] = @index; mark_latest
+      Dir.chdir(target)
+      @pB.update = @pR.update = true
+      refresh
+      return
+    else
+      @pB.say("cd: #{target}: No such directory".fg(196))
+      return
+    end
+  end
   # Determine program name
   prog = Shellwords.split(cmd).first
   prog = File.basename(prog) if prog
