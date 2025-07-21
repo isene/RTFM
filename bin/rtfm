@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '6.0.5' # Fixed symlink following and command bar cd functionality
+@version    = '6.0.7' # Fixed preview update after deletion + enhanced System Info with visual indicators
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -1413,9 +1413,25 @@ def follow_symlink # {{{3
       elsif File.file?(target)
         # If it's a file, change to the directory containing the file
         target_dir = File.dirname(target)
+        target_basename = File.basename(target)
         Dir.chdir(target_dir)
-        # Select the target file in the new directory
-        @selected = target
+        # Clear the index first to force a full refresh
+        @index = 0
+        @selected = nil
+        # Refresh the directory listing
+        dirlist
+        # Find and select the target file in the new directory
+        file_index = @files.index(target_basename)
+        if file_index
+          @index = file_index
+          @selected = @files[@index]
+          # Update the directory memory with the new index so it's not reset by the main loop
+          @directory[Dir.pwd] = @index
+        else
+          # If file not found in listing (possibly filtered), still try to select it
+          @selected = target_basename
+          @directory[Dir.pwd] = 0
+        end
       else
         @pB.say("Error: Symlink target does not exist or is not accessible".fg(196))
         @symlink_history&.clear
@@ -3208,7 +3224,22 @@ def delete_items # {{{3
         # Cannot undo permanent deletion, so don't add to undo history
       end
       @tagged.clear
-      refresh_right
+      
+      # Refresh the file list to reflect deletions
+      @pL.update = true
+      render  # This will update @files and @selected
+      
+      # After render, check if we still have files
+      if @files.empty?
+        # No files left in directory - clear the preview
+        @pR.text = ""
+        @pR.refresh
+      else
+        # Files exist - update preview for new selection
+        @pR.update = true
+        render  # Update the preview pane
+      end
+      
       @pB.say("#{action} #{paths.size} items#{@trash ? " to #{TRASH_DIR}" : ''}".fg(204))
     end
   else
@@ -3617,7 +3648,6 @@ end
 
 # RIGHT PANE CONTROLS {{{2
 def refresh_right # {{{3
-  render
   @pR.full_refresh
   @pR.update = @pB.update = true
 end
@@ -3718,141 +3748,302 @@ end
 
 # SYSTEM SHORTCUTS {{{2
 def system_info # {{{3
-  text = "System Information\n".b.fg(156)
+  text = "SYSTEM INFORMATION".b.fg(156) + " - " + Time.now.strftime("%Y-%m-%d %H:%M:%S").fg(249) + "\n"
   text << "=" * 50 + "\n\n"
   
   begin
-    # Operating System Information
-    text << "Operating System:\n".fg(226)
+    # System Overview
+    text << "System Overview".fg(226).b + "\n"
+    text << "─" * 20 + "\n"
+    
+    # Hostname and uptime
+    hostname = `hostname 2>/dev/null`.chomp
+    uptime_raw = `uptime -p 2>/dev/null`.chomp.sub('up ', '')
+    boot_time = `uptime -s 2>/dev/null`.chomp
+    
+    text << sprintf("  %-15s %s\n", "Hostname:".fg(249), hostname.fg(156))
+    text << sprintf("  %-15s %s\n", "Uptime:".fg(249), uptime_raw.fg(156))
+    text << sprintf("  %-15s %s\n", "Boot time:".fg(249), boot_time.fg(156))
+    
+    # OS Info
     os_name = `awk -F '"' '/PRETTY/ {print $2}' /etc/os-release 2>/dev/null`.chomp
     kernel_version = `uname -r 2>/dev/null`.chomp
     architecture = `uname -m 2>/dev/null`.chomp
-    text << sprintf("  %-15s %s\n", "Distribution:", os_name.fg(156))
-    text << sprintf("  %-15s %s\n", "Kernel:", kernel_version.fg(156))
-    text << sprintf("  %-15s %s\n", "Architecture:", architecture.fg(156))
+    
+    text << sprintf("  %-15s %s\n", "OS:".fg(249), os_name.fg(156))
+    text << sprintf("  %-15s %s\n", "Kernel:".fg(249), kernel_version.fg(156))
+    text << sprintf("  %-15s %s\n", "Architecture:".fg(249), architecture.fg(156))
     text << "\n"
   rescue # rubocop:disable Lint/SuppressedException
   end
   
   begin
-    # Hardware Information  
-    text << "Hardware:\n".fg(226)
+    # Hardware Information
+    text << "Hardware".fg(226).b + "\n"
+    text << "─" * 20 + "\n"
+    
+    # CPU Info
     cpu_count = `nproc 2>/dev/null`.chomp
     cpuinfo = `lscpu 2>/dev/null`
-    cpu_model = cpuinfo[/^.*Model name:\s*(.*)/, 1] || "Unknown"
-    cpu_max = cpuinfo[/^.*CPU max MHz:\s*(.*)/, 1]&.to_i || 0
-    cpu_min = cpuinfo[/^.*CPU min MHz:\s*(.*)/, 1]&.to_i || 0
+    cpu_model = cpuinfo[/^.*Model name:\s*(.*)/, 1]&.strip || "Unknown"
+    cpu_model = cpu_model[0..45] + "..." if cpu_model.length > 48
     
-    text << sprintf("  %-15s %s cores\n", "CPU Count:", cpu_count.fg(156))
-    text << sprintf("  %-15s %s\n", "CPU Model:", cpu_model.fg(156))
-    if cpu_max > 0 && cpu_min > 0
-      text << sprintf("  %-15s %d-%d MHz\n", "CPU Speed:", cpu_min, cpu_max)
+    # Current CPU frequency
+    cpu_freq = `grep "cpu MHz" /proc/cpuinfo 2>/dev/null | head -1 | awk '{print $4}'`.chomp.to_f.round
+    
+    # Load average
+    loadavg = `cat /proc/loadavg 2>/dev/null`.chomp.split[0..2].join(' ')
+    
+    text << sprintf("  %-15s %s\n", "CPU Model:".fg(249), cpu_model.fg(156))
+    text << sprintf("  %-15s %s\n", "CPU Cores:".fg(249), "#{cpu_count} cores".fg(156))
+    text << sprintf("  %-15s %s\n", "Current Freq:".fg(249), "#{cpu_freq} MHz".fg(156)) if cpu_freq > 0
+    text << sprintf("  %-15s %s\n", "Load Average:".fg(249), loadavg.fg(156))
+    
+    # Temperature if available
+    if File.exist?("/sys/class/thermal/thermal_zone0/temp")
+      temp = (File.read("/sys/class/thermal/thermal_zone0/temp").to_i / 1000.0).round(1)
+      temp_color = temp > 80 ? 196 : temp > 60 ? 220 : 156
+      text << sprintf("  %-15s %s\n", "CPU Temp:".fg(249), "#{temp}°C".fg(temp_color))
+    end
+    
+    text << "\n"
+  rescue # rubocop:disable Lint/SuppressedException
+  end
+  
+  begin
+    # Memory Information with visual bar
+    text << "Memory".fg(226).b + "\n"
+    text << "─" * 20 + "\n"
+    
+    mem_info = `free -b 2>/dev/null | grep Mem:`
+    if mem_info && !mem_info.empty?
+      parts = mem_info.split
+      total = parts[1].to_i
+      used = parts[2].to_i
+      available = parts[6].to_i
+      
+      # Convert to human readable
+      total_h = (total / 1024.0 / 1024.0 / 1024.0).round(1)
+      used_h = (used / 1024.0 / 1024.0 / 1024.0).round(1)
+      available_h = (available / 1024.0 / 1024.0 / 1024.0).round(1)
+      percent = ((used.to_f / total) * 100).round
+      
+      # Create visual bar (40 chars wide)
+      bar_width = 40
+      filled = (percent * bar_width / 100.0).round
+      bar = "█" * filled + "░" * (bar_width - filled)
+      
+      # Color based on usage
+      bar_color = percent > 90 ? 196 : percent > 70 ? 220 : 156
+      
+      # Bar first
+      text << "  " + bar.fg(bar_color) + " " + "#{percent}%".fg(bar_color) + "\n"
+      text << sprintf("  %-15s %s\n", "Total:".fg(249), "#{total_h} GB".fg(156))
+      text << sprintf("  %-15s %s\n", "Used:".fg(249), "#{used_h} GB".fg(bar_color))
+      text << sprintf("  %-15s %s\n", "Available:".fg(249), "#{available_h} GB".fg(156))
+    end
+    
+    # Swap info
+    swap_info = `free -b 2>/dev/null | grep Swap:`
+    if swap_info && !swap_info.empty? && swap_info.split[1].to_i > 0
+      parts = swap_info.split
+      swap_total = (parts[1].to_i / 1024.0 / 1024.0 / 1024.0).round(1)
+      swap_used = (parts[2].to_i / 1024.0 / 1024.0 / 1024.0).round(1)
+      text << sprintf("  %-15s %s\n", "Swap:".fg(249), "#{swap_used}/#{swap_total} GB".fg(156))
+    end
+    
+    text << "\n"
+  rescue # rubocop:disable Lint/SuppressedException
+  end
+  
+  begin
+    # Storage Information with visual bars
+    text << "Storage".fg(226).b + "\n"
+    text << "─" * 20 + "\n"
+    
+    # Get disk usage for main filesystems only
+    disk_output = `df -BG 2>/dev/null | grep -E '^/dev/' | grep -vE '/snap/|/tmp\\.| /run|/dev/loop'`
+    if disk_output && !disk_output.empty?
+      disk_output.lines.each do |line|
+        parts = line.split
+        next if parts.length < 6
+        
+        filesystem = parts[0].sub('/dev/', '')
+        size = parts[1].sub('G', '').to_i
+        used = parts[2].sub('G', '').to_i
+        avail = parts[3].sub('G', '').to_i
+        percent = parts[4].sub('%', '').to_i
+        mount = parts[5]
+        
+        # Skip if too small
+        next if size < 1
+        
+        # Shorten mount point if needed
+        mount_display = mount.length > 15 ? "...#{mount[-12..]}" : mount
+        
+        # Mini bar (10 chars)
+        bar_width = 10
+        filled = (percent * bar_width / 100.0).round
+        bar = "█" * filled + "░" * (bar_width - filled)
+        
+        # Color based on usage
+        color = percent > 90 ? 196 : percent > 80 ? 220 : 156
+        
+        info = sprintf("  %-15s %3dG/%3dG %s %3d%%", 
+                      mount_display, used, size, bar, percent)
+        text << info.fg(color) + "\n"
+      end
     end
     text << "\n"
   rescue # rubocop:disable Lint/SuppressedException
   end
   
   begin
-    # Memory Information
-    text << "Memory Usage:\n".fg(226)
-    mem_output = `free -h 2>/dev/null`
-    if mem_output && !mem_output.empty?
-      mem_lines = mem_output.lines
-      mem_lines.each_with_index do |line, i|
-        if i == 0  # Header
-          text << "  " + line.strip.fg(240) + "\n"
-        else
-          text << "  " + line.strip.fg(156) + "\n"
-        end
-      end
+    # Network Information
+    text << "Network".fg(226).b + "\n"
+    text << "─" * 20 + "\n"
+    
+    # Get active network interfaces
+    interfaces = `ip -o link show 2>/dev/null | grep -E 'state UP|UNKNOWN' | awk '{print $2}' | sed 's/://'`.chomp.split("\n")
+    
+    interfaces.each do |iface|
+      next if iface.empty? || iface == "lo"
+      
+      # Get IP address
+      ip_addr = `ip -4 addr show #{iface} 2>/dev/null | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}'`.chomp
+      next if ip_addr.empty?
+      
+      # Get RX/TX stats
+      rx_bytes = File.read("/sys/class/net/#{iface}/statistics/rx_bytes").to_i rescue 0
+      tx_bytes = File.read("/sys/class/net/#{iface}/statistics/tx_bytes").to_i rescue 0
+      
+      rx_mb = (rx_bytes / 1024.0 / 1024.0).round(1)
+      tx_mb = (tx_bytes / 1024.0 / 1024.0).round(1)
+      
+      text << sprintf("  %-15s %s\n", "#{iface}:".fg(249), ip_addr.fg(156))
+      text << sprintf("  %-15s %s\n", "    Traffic:".fg(249), "↓#{rx_mb}MB ↑#{tx_mb}MB".fg(156))
     end
+    
+    # Public IP if available (with timeout)
+    begin
+      require 'timeout'
+      public_ip = Timeout.timeout(2) do
+        `curl -s ifconfig.me 2>/dev/null`.chomp
+      end
+      text << sprintf("  %-15s %s\n", "Public IP:".fg(249), public_ip.fg(156)) unless public_ip.empty?
+    rescue
+      # Skip public IP if timeout or error
+    end
+    
     text << "\n"
   rescue # rubocop:disable Lint/SuppressedException
   end
   
   begin
     # Environment Information
-    text << "Environment:\n".fg(226)
-    shell = `echo $SHELL 2>/dev/null`.sub(%r{.*/}, '').chomp
-    terminal = `echo $TERM 2>/dev/null`.chomp
-    packages = `dpkg-query -l 2>/dev/null | grep -c '^.i'`.chomp
-    packages = `pacman -Q 2>/dev/null | wc -l`.chomp if packages == '0'
-    packages = "Unknown" if packages == '0'
+    text << "Environment".fg(226).b + "\n"
+    text << "─" * 20 + "\n"
     
-    text << sprintf("  %-15s %s\n", "Shell:", shell.fg(156))
-    text << sprintf("  %-15s %s\n", "Terminal:", terminal.fg(156))
-    text << sprintf("  %-15s %s\n", "Packages:", packages.fg(156))
-    text << "\n"
-  rescue # rubocop:disable Lint/SuppressedException
-  end
-  
-  begin
-    # Disk Usage
-    text << "Disk Usage:\n".fg(226)
-    disk_output = `df -h 2>/dev/null | head -8`
-    if disk_output && !disk_output.empty?
-      disk_lines = disk_output.lines
-      disk_lines.each_with_index do |line, i|
-        if i == 0  # Header
-          text << "  " + line.strip.fg(240) + "\n"
-        else
-          # Highlight usage percentage
-          colored_line = line.gsub(/(\d+)%/) do |match|
-            percent = $1.to_i
-            color = percent > 90 ? 196 : percent > 80 ? 220 : 156
-            match.fg(color)
-          end
-          text << "  " + colored_line.strip.fg(249) + "\n"
-        end
-      end
-    end
-    text << "\n"
-  rescue # rubocop:disable Lint/SuppressedException
-  end
-  
-  begin
-    # Top Processes
-    text << "Top Processes (CPU & Memory):\n".fg(226)
-    ps_output = `ps -eo comm,pid,user,pcpu,pmem,stat --sort -pcpu,-pmem 2>/dev/null | head -8`
-    if ps_output && !ps_output.empty?
-      ps_lines = ps_output.lines
-      ps_lines.each_with_index do |line, i|
-        if i == 0  # Header
-          text << "  " + line.strip.fg(240) + "\n"
-        else
-          text << "  " + line.strip.fg(249) + "\n"
-        end
-      end
-    end
-    text << "\n"
-  rescue # rubocop:disable Lint/SuppressedException
-  end
-  
-  begin
-    # System Messages
-    text << "Recent System Messages:\n".fg(226)
-    dmesg_output = `dmesg 2>/dev/null | tail -5`
-    if dmesg_output && !dmesg_output.empty?
-      dmesg_output.lines.reverse.each do |line|
-        # Color code different message types
-        colored_line = case line
-                      when /error|fail|critical/i then line.fg(196)
-                      when /warn/i then line.fg(220) 
-                      when /info/i then line.fg(156)
-                      else line.fg(249)
-                      end
-        text << "  " + colored_line.strip + "\n"
-      end
+    # Shell and terminal
+    shell = ENV['SHELL']&.sub(%r{.*/}, '') || 'unknown'
+    terminal = ENV['TERM'] || 'unknown'
+    text << sprintf("  %-15s %s\n", "Shell:".fg(249), shell.fg(156))
+    text << sprintf("  %-15s %s\n", "Terminal:".fg(249), terminal.fg(156))
+    
+    # Package count
+    if system("which dpkg >/dev/null 2>&1")
+      packages = `dpkg-query -l 2>/dev/null | grep -c '^ii'`.chomp
+    elsif system("which rpm >/dev/null 2>&1") 
+      packages = `rpm -qa 2>/dev/null | wc -l`.chomp
+    elsif system("which pacman >/dev/null 2>&1")
+      packages = `pacman -Q 2>/dev/null | wc -l`.chomp
     else
-      text << "  " + "dmesg requires root access".fg(240) + "\n"
-      text << "  " + "Run: sudo sysctl kernel.dmesg_restrict=0".fg(240) + "\n"
+      packages = "unknown"
     end
+    text << sprintf("  %-15s %s\n", "Packages:".fg(249), packages.fg(156))
+    
+    # Desktop environment
+    desktop = ENV['XDG_CURRENT_DESKTOP'] || ENV['DESKTOP_SESSION'] || 'none'
+    text << sprintf("  %-15s %s\n", "Desktop:".fg(249), desktop.fg(156))
+    
+    # GTK Theme if available
+    if File.exist?("#{ENV['HOME']}/.config/gtk-3.0/settings.ini")
+      gtk_theme = `grep gtk-theme-name ~/.config/gtk-3.0/settings.ini 2>/dev/null | cut -d= -f2`.chomp
+      text << sprintf("  %-15s %s\n", "GTK Theme:".fg(249), gtk_theme.fg(156)) unless gtk_theme.empty?
+    end
+    
+    text << "\n"
   rescue # rubocop:disable Lint/SuppressedException
+  end
+  
+  begin
+    # Services & Processes
+    text << "Services & Processes".fg(226).b + "\n"
+    text << "─" * 20 + "\n"
+    
+    # Running services count
+    services_count = `systemctl list-units --type=service --state=running 2>/dev/null | grep -c '\.service'`.chomp
+    text << sprintf("  %-15s %s\n", "Services:".fg(249), "#{services_count} running".fg(156)) unless services_count == "0"
+    
+    # Failed services
+    failed_count = `systemctl list-units --type=service --state=failed 2>/dev/null | grep -c '\.service'`.chomp
+    if failed_count.to_i > 0
+      text << sprintf("  %-15s %s\n", "Failed:".fg(249), "#{failed_count} service#{failed_count.to_i > 1 ? 's' : ''}".fg(196))
+      # Get the actual failed services (need to parse the full output)
+      failed_output = `systemctl list-units --type=service --state=failed --no-legend 2>/dev/null`.chomp
+      unless failed_output.empty?
+        failed_output.lines.each do |line|
+          # Skip the bullet point and extract service name (second field)
+          parts = line.strip.split(/\s+/)
+          if parts.length >= 2
+            service_name = parts[1]
+            if service_name && service_name.include?('.service')
+              # Shorten long service names if needed
+              display_name = service_name.length > 40 ? service_name[0..37] + "..." : service_name
+              text << "    → #{display_name}".fg(196) + "\n"
+            end
+          end
+        end
+      end
+    end
+    
+    # Process count
+    proc_count = `ps aux | wc -l`.chomp.to_i - 1
+    text << sprintf("  %-15s %s\n", "Processes:".fg(249), proc_count.to_s.fg(156))
+    
+    # Users logged in
+    users = `who | awk '{print $1}' | sort -u | wc -l`.chomp
+    text << sprintf("  %-15s %s\n", "Users:".fg(249), "#{users} logged in".fg(156))
+    
+    text << "\n"
+  rescue # rubocop:disable Lint/SuppressedException
+  end
+  
+  # Footer with system load average
+  begin
+    text << "─" * 50 + "\n"
+    
+    # Get load average values
+    loadavg = File.read("/proc/loadavg").split[0..2].map(&:to_f) rescue [0, 0, 0]
+    cpu_count = `nproc 2>/dev/null`.chomp.to_i
+    cpu_count = 1 if cpu_count == 0
+    
+    # Format load values with color coding
+    load_values = loadavg.map do |load|
+      percent = (load / cpu_count * 100).round
+      color = percent > 100 ? 196 : percent > 80 ? 220 : 156
+      load.round(2).to_s.fg(color)
+    end
+    
+    text << "Load Average: " + load_values.join("  ") + " (1m 5m 15m)\n"
+    text << "Updated: #{Time.now.strftime('%H:%M:%S')}".fg(240) + " - Press 'ENTER' to return".fg(249)
+  rescue
+    # Skip footer if error
   end
   
   @pR.say(text)
-rescue
-  @pR.say('Unable to show system info'.fg(196))
+rescue => e
+  @pR.say("Unable to show system info\n#{e.message}".fg(196))
 end
 
 def make_directory # {{{3
@@ -4855,26 +5046,21 @@ def open_selected(html = nil) # OPEN SELECTED FILE {{{2
   end
   # Don't try to read large files or PDFs as text for validation
   if !@selected&.match(@pdffile) && File.size(@selected) < 1_000_000 && File.read(@selected).force_encoding('UTF-8').valid_encoding? # Pure text
-    # Flush any pending input before switching terminal modes
-    while IO.select([$stdin], nil, nil, 0)
-      begin
-        $stdin.read_nonblock(4096)
-      rescue IO::WaitReadable, EOFError
-        break
-      end
-    end
-    system("stty #{ORIG_STTY} < /dev/tty")
-    # Clear to top-left
+    # Save terminal state before launching editor
+    system("stty -g < /dev/tty > /tmp/rtfm_stty_$$")
+    # Clear and reset terminal for editor
     system('clear < /dev/tty > /dev/tty')
     Cursor.show
-    editor = ENV.fetch('EDITOR', 'vi')      # Launch $EDITOR on the real TTY
+    # Launch editor
+    editor = ENV.fetch('EDITOR', 'vi')
     system("#{editor} #{Shellwords.escape(@selected)}")
-    system('stty raw -echo isig < /dev/tty')
-    $stdin.raw!
-    $stdin.echo = false
-    Rcurses.init! # Reinitialize rcurses to fix input handling
+    # Restore terminal state
+    system("stty $(cat /tmp/rtfm_stty_$$) < /dev/tty")
+    system("rm -f /tmp/rtfm_stty_$$")
+    # Reinitialize rcurses
+    Rcurses.init!
     Cursor.hide
-    Rcurses.clear_screen # Redraw RTFM
+    Rcurses.clear_screen
     refresh
     render
     return
