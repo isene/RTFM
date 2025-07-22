@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '6.0.7' # Fixed preview update after deletion + enhanced System Info with visual indicators
+@version    = '6.0.8' # Fixed log file permission conflicts between users
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -86,7 +86,7 @@ autoload :OpenAI,     'ruby/openai'
 autoload :Tempfile,   'tempfile'
 
 # FIX TERMINAL MESSAGE BLEED-THROUGH {{{1
-LOG_PATH     = File.join(Dir.tmpdir, 'rtfm.log')
+LOG_PATH     = File.join(Dir.tmpdir, "rtfm_#{ENV['USER'] || Process.uid}.log")
 MAX_LOG_SIZE = 128 * 1024
 if File.exist?(LOG_PATH) && File.size(LOG_PATH) > MAX_LOG_SIZE
   # keep just the last MAX_LOG_SIZE bytes
@@ -4017,28 +4017,6 @@ def system_info # {{{3
     
     text << "\n"
   rescue # rubocop:disable Lint/SuppressedException
-  end
-  
-  # Footer with system load average
-  begin
-    text << "─" * 50 + "\n"
-    
-    # Get load average values
-    loadavg = File.read("/proc/loadavg").split[0..2].map(&:to_f) rescue [0, 0, 0]
-    cpu_count = `nproc 2>/dev/null`.chomp.to_i
-    cpu_count = 1 if cpu_count == 0
-    
-    # Format load values with color coding
-    load_values = loadavg.map do |load|
-      percent = (load / cpu_count * 100).round
-      color = percent > 100 ? 196 : percent > 80 ? 220 : 156
-      load.round(2).to_s.fg(color)
-    end
-    
-    text << "Load Average: " + load_values.join("  ") + " (1m 5m 15m)\n"
-    text << "Updated: #{Time.now.strftime('%H:%M:%S')}".fg(240) + " - Press 'ENTER' to return".fg(249)
-  rescue
-    # Skip footer if error
   end
   
   @pR.say(text)
