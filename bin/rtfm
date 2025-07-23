@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '6.0.8' # Fixed log file permission conflicts between users
+@version    = '6.0.9' # Fixed timeout issue for GUI applications launched via command mode
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -4118,7 +4118,13 @@ def command_mode # {{{3
     refresh
     render
   else
-    shellexec(cmd)
+    # Check if it's a GUI application that should run without timeout
+    gui_apps = ['evince', 'xdg-open', 'firefox', 'chrome', 'chromium', 'eog', 'nautilus', 'thunar', 'gedit', 'code', 'subl']
+    prog_base = File.basename(prog.to_s)
+    is_gui = gui_apps.include?(prog_base)
+    
+    # Use nil timeout (wait forever) for GUI apps, 10 seconds for others
+    shellexec(cmd, timeout: is_gui ? nil : 10)
     @pR.refresh
     @pR.update = false
   end
