@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '6.0.9' # Fixed timeout issue for GUI applications launched via command mode
+@version    = '6.0.10' # Fixed filename escaping for PDF preview and GUI applications with special characters
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -4045,8 +4045,19 @@ def command_mode # {{{3
   force = raw.start_with?('§')
   raw = raw[1..].strip if force
   # Expand @s / @t
-  sel = Shellwords.escape(@selected.to_s)
-  tg  = @tagged.map { |p| Shellwords.escape(p) }.join(' ')
+  # Check if this is a GUI application that needs unescaped filenames
+  gui_apps = %w[evince okular xdg-open firefox chromium nautilus thunar dolphin gwenview eog]
+  first_word = raw.split.first
+  
+  if gui_apps.include?(first_word)
+    # For GUI apps, quote the filename instead of escaping
+    sel = '"' + @selected.to_s.gsub('"', '\\"') + '"'
+    tg  = @tagged.map { |p| '"' + p.gsub('"', '\\"') + '"' }.join(' ')
+  else
+    # For command-line tools, use shell escaping
+    sel = Shellwords.escape(@selected.to_s)
+    tg  = @tagged.map { |p| Shellwords.escape(p) }.join(' ')
+  end
   cmd = raw.gsub('@s', sel).gsub('@t', tg)
   
   # Handle cd commands specially
@@ -5153,11 +5164,16 @@ def showcontent # SHOW CONTENTS IN THE RIGHT WINDOW {{{2
       entry = PREVIEW_HANDLERS.find { |re, _| re.match?(@selected) }
       pattern, tmpl = entry || [nil, nil]
       if tmpl   # Command-based preview
-        escaped = Shellwords.escape(@selected)
         if !@batuse && tmpl.match?(/\b#{@bat}\b/)
+          escaped = Shellwords.escape(@selected)
           showcommand("cat #{escaped}")
         else
-          cmd = tmpl.gsub('@s', escaped)
+          # For complex commands with pipes, we need to quote the filename
+          # within the shell command string since it's executed via bash -c
+          # First escape any single quotes in the filename
+          safe_filename = @selected.gsub("'", "'\"'\"'")
+          # Then wrap in single quotes for the shell command
+          cmd = tmpl.gsub('@s', "'#{safe_filename}'")
           showcommand(cmd)
         end
       elsif pattern # Nil template → image or video
