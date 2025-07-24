@@ -1,9 +1,9 @@
 Gem::Specification.new do |s|
   s.name        = 'rtfm-filemanager'
-  s.version     = '6.0.9'
+  s.version     = '6.0.10'
   s.licenses    = ['Unlicense']
   s.summary     = "RTFM - Ruby Terminal File Manager"
-  s.description = "RTFM v6.0.9: Fixed timeout issue for GUI applications launched via command mode (e.g., evince, xdg-open).\n A full featured terminal browser with syntax highlighted files, images shown in the terminal, videos thumbnailed, etc. Features include remote SSH/SFTP browsing, interactive SSH shell, comprehensive undo system, bookmarks, and much more. You can bookmark and jump around easily, delete, rename, copy, symlink and move files. RTFM is one of the most feature-packed terminal file managers."
+  s.description = "RTFM v6.0.10: Fixed filename escaping for PDF preview and GUI applications with special characters (spaces, parentheses, apostrophes).\n A full featured terminal browser with syntax highlighted files, images shown in the terminal, videos thumbnailed, etc. Features include remote SSH/SFTP browsing, interactive SSH shell, comprehensive undo system, bookmarks, and much more. You can bookmark and jump around easily, delete, rename, copy, symlink and move files. RTFM is one of the most feature-packed terminal file managers."
   s.authors     = ["Geir Isene"]
   s.email       = 'g@isene.com'
   s.files       = ["bin/rtfm", "README.md", "img/rtfm-kb.png", "img/logo.png"]
