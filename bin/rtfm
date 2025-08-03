@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '6.0.10' # Fixed filename escaping for PDF preview and GUI applications with special characters
+@version    = '6.0.11' # Added SVG file preview support with ImageMagick conversion
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -822,11 +822,11 @@ preview_specs = {
   'xls'                => "xls2csv @s 2>/dev/null",
   'ppt'                => "catppt @s 2>/dev/null",
   # images ⇒ nil => call showimage
-  'png, jpg, jpeg, bmp, gif, webp, tif, tiff' => nil,
+  'png, jpg, jpeg, bmp, gif, webp, tif, tiff, svg' => nil,
   # video ⇒ nil, but detected via pattern below
   'mpg, mpeg, avi, mov, mkv, mp4'             => nil
 }
-@imagefile ||= /\.(?:png|jpe?g|bmp|gif|webp|tiff?)$/i
+@imagefile ||= /\.(?:png|jpe?g|bmp|gif|webp|tiff?|svg)$/i
 @pdffile   ||= /\.pdf$/i
 # rubocop:enable Style/StringLiterals
 
@@ -5178,6 +5178,49 @@ def showcontent # SHOW CONTENTS IN THE RIGHT WINDOW {{{2
         end
       elsif pattern # Nil template → image or video
         case @selected
+        when /\.svg$/i
+          # Convert SVG to PNG for display
+          begin
+            file_size = File.size(@selected)
+            if file_size > 50_000_000  # 50MB limit for images
+              @pR.say("SVG too large for preview (#{(file_size / 1024.0 / 1024.0).round(1)}MB > 50MB limit)")
+            else
+              tn = '/tmp/rtfm_svg_preview.png'
+              # Try direct conversion first
+              if system("convert #{Shellwords.escape(@selected)} #{Shellwords.escape(tn)} 2>/dev/null")
+                showimage(tn)
+                @image = true
+              else
+                # If direct conversion fails, try fixing XML entities and retry
+                temp_svg = '/tmp/rtfm_svg_fixed.svg'
+                begin
+                  content = File.read(@selected, encoding: 'UTF-8')
+                  # Fix common XML entity issues (replace unescaped ampersands)
+                  # First escape all &, then restore valid entities
+                  fixed_content = content.gsub('&', '&amp;')
+                                         .gsub('&amp;amp;', '&amp;')
+                                         .gsub('&amp;lt;', '&lt;')
+                                         .gsub('&amp;gt;', '&gt;')
+                                         .gsub('&amp;quot;', '&quot;')
+                                         .gsub('&amp;apos;', '&apos;')
+                                         .gsub(/&amp;#(\d+);/, '&#\1;')
+                                         .gsub(/&amp;#x([0-9a-fA-F]+);/, '&#x\1;')
+                  File.write(temp_svg, fixed_content)
+                  
+                  if system("convert #{Shellwords.escape(temp_svg)} #{Shellwords.escape(tn)} 2>/dev/null")
+                    showimage(tn)
+                    @image = true
+                  else
+                    @pR.say("Error converting SVG to PNG for preview")
+                  end
+                ensure
+                  File.delete(temp_svg) if File.exist?(temp_svg)
+                end
+              end
+            end
+          rescue => e
+            @pR.say("Error processing SVG: #{e}")
+          end
         when /\.(?:png|jpe?g|bmp|gif|webp|tiff?)$/i
           # Allow larger image files up to 50MB
           begin
