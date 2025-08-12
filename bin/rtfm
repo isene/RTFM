@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '6.0.11' # Added SVG file preview support with ImageMagick conversion
+@version    = '6.0.12' # Fixed terminal state issue causing multiple keypresses in VIM
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -5043,6 +5043,8 @@ def open_selected(html = nil) # OPEN SELECTED FILE {{{2
   if !@selected&.match(@pdffile) && File.size(@selected) < 1_000_000 && File.read(@selected).force_encoding('UTF-8').valid_encoding? # Pure text
     # Save terminal state before launching editor
     system("stty -g < /dev/tty > /tmp/rtfm_stty_$$")
+    # Reset terminal to sane/cooked mode for editor
+    system('stty sane < /dev/tty')
     # Clear and reset terminal for editor
     system('clear < /dev/tty > /dev/tty')
     Cursor.show
