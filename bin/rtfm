@@ -5458,6 +5458,9 @@ def tagged_info # SHOW THE LIST OF TAGGED ITEMS IN @pR {{{2
 end
 
 # MAIN PROGRAM {{{1
+# Initialize rcurses (required for rcurses 6.0.0+)
+Rcurses.init!
+
 ## Get terminal size {{{2
 @h, @w = IO.console.winsize
 
