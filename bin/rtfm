@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '6.0.12' # Fixed terminal state issue causing multiple keypresses in VIM
+@version    = '7.0.1' # Re-enabled directory caching for major performance improvement
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -501,6 +501,9 @@ $stdin.set_encoding(Encoding::UTF_8)
 @metadata_cache = {}
 @metadata_cache_size = 0
 @max_metadata_entries = 100
+@command_cache = {}  # Cache for expensive shell commands
+@command_cache_size = 0
+@max_command_cache = 50
 
 # INITIALIZE VARIABLES {{{1
 ## These can be set by user in ~/.rtfm/conf
@@ -4213,8 +4216,17 @@ end
 
 # GENERIC FUNCTIONS {{{1
 def get_cached_dirlist(dir, ls_options) # {{{2
-  # Directory caching disabled for stability
-  return nil
+  # Generate cache key with directory mtime for automatic invalidation
+  begin
+    dir_mtime = File.mtime(dir).to_i
+    cache_key = "#{dir}:#{ls_options}:#{dir_mtime}"
+  rescue
+    return nil  # Can't cache if we can't get mtime
+  end
+  
+  # Return cached result if available and fresh
+  cached = @dir_cache[cache_key]
+  return cached if cached
   
   # Clean old cache entries if cache is getting too large
   if @dir_cache_size >= @max_cache_entries
@@ -4228,11 +4240,11 @@ def get_cached_dirlist(dir, ls_options) # {{{2
     colorls = command("ls --color #{Shellwords.escape(dir)} #{ls_options} #{@lslong}").split("\n")
     
     result = { purels: purels, colorls: colorls }
-    @dir_cache[cache_with_time] = result
+    @dir_cache[cache_key] = result
     @dir_cache_size += 1
     
     # Clean up old entries for this directory
-    @dir_cache.delete_if { |key, _| key.start_with?("#{dir}:") && key != cache_with_time }
+    @dir_cache.delete_if { |key, _| key.start_with?("#{dir}:") && key != cache_key }
     
     result
   rescue => e
