@@ -5178,6 +5178,22 @@ end
 # RIGHT PANE FUNCTIONS {{{1
 def showcommand(cmd) # Helper function for showcontent {{{2
   c = command(cmd)
+  
+  # If command failed or returned empty, try fallback to cat
+  if c == '' || c.nil?
+    # Extract the original filename from the command
+    # Handle various command patterns
+    if cmd =~ /pandoc\s+'([^']+)'/ || cmd =~ /pandoc\s+(\S+)/
+      # Markdown file - fallback to cat
+      filename = $1
+      c = command("cat #{Shellwords.escape(filename)}")
+    elsif cmd =~ /#{@bat}\s+[^']*'([^']+)'/ || cmd =~ /#{@bat}\s+[^']*(\S+)/
+      # Shell scripts and text files - fallback to cat  
+      filename = $1
+      c = command("cat #{Shellwords.escape(filename)}")
+    end
+  end
+  
   return if c == ''
 
   @pR.say(c)
