@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '7.0.1' # Re-enabled directory caching for major performance improvement
+@version    = '7.0.4' # Fixed platform-specific issues for macOS/BSD and improved first-run message
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -439,26 +439,35 @@ def display_welcome_message # {{{2
   Next time you run RTFM, you can launch it from your terminal with a one letter command: 'r'
   When launched this way, RTFM will also exit in the directory you are currently in.\n".b.fg(226)
 @firstrun += "
-  To benefit fully from all the features, you need to install some auxiliary software.
-  On Ubuntu Linux you would use 'apt install':\n".fg(230)
+  To benefit fully from all the features, you need to install some auxiliary software.\n".fg(230)
 @firstrun += "
-  Basic requirements is 'x11-utils' and 'xdotool':          apt install x11-utils xdotool
+  Required dependencies:
+  • x11-utils (X11 utilities for clipboard support)
+  • xdotool (for window management features)
 
-  Viewers (you may install more sepcialised viewers later:
-  Syntax highlighting of text uses 'bat':                   apt install bat
-  Viewing Markdown uses 'pandoc':                           apt install pandoc
-  Viewing PDFs uses 'pdftotext':                            apt install poppler-utils
-  Viewing LibreOffice docs uses 'odt2txt':                  apt install odt2txt
-  Viewing MS docx uses 'docx2txt':                          apt install docx2txt
-  Viewing MS pptx uses 'unzip':                             apt install unzip
-  Viewing MS xlsx uses 'ssconvert':                         apt install gnumeric
-  Viewing MS doc/xls/ppt uses 'catdoc, xls2csv and catppt': apt install catdoc
-  Viewing Images uses 'w3m and ImageMagick':                apt install w3m imagemagick
-  Viewing Video thumbnails uses 'ffmpegthumbnailer'         apt install ffmpegthumbnailer\n".fg(195)
+  Recommended viewers (install as needed):
+  • bat - Syntax highlighting of text files
+  • pandoc - Viewing Markdown documents
+  • pdftotext (from poppler-utils) - Viewing PDFs
+  • odt2txt - Viewing LibreOffice documents
+  • docx2txt - Viewing MS Word docx files
+  • unzip - Viewing MS PowerPoint pptx files
+  • ssconvert (from gnumeric) - Viewing MS Excel xlsx files
+  • catdoc, xls2csv, catppt - Viewing older MS Office formats
+  • w3m, ImageMagick - Viewing images
+  • ffmpegthumbnailer - Video thumbnails\n".fg(195)
 @firstrun += "
-  All of the above in one fell swoop:\n".fg(159)
+  Installation methods vary by platform:\n".fg(159)
 @firstrun += "
-  sudo apt install ruby-full git libncurses-dev x11-utils xdotool bat pandoc poppler-utils odt2txt docx2txt unzip gnumeric catdoc w3m imagemagick ffmpegthumbnailer".b.fg(87)
+  • Linux (Debian/Ubuntu): Use apt
+  • Linux (Fedora/RHEL): Use dnf/yum
+  • macOS: Use Homebrew (brew)
+  • BSD: Use pkg or ports
+
+  For Ubuntu/Debian users, install all dependencies with:
+  sudo apt install ruby-full git libncurses-dev x11-utils xdotool bat pandoc poppler-utils odt2txt docx2txt unzip gnumeric catdoc w3m imagemagick ffmpegthumbnailer
+
+  Note: Package names may vary between platforms. The 'libncurses-dev' package is Linux-specific.".b.fg(87)
 @firstrun += "\n\n
   You need to install the basic requirements and you should install the viewers before you...
   ... hit any key to start RTFM. Hit ? inside RTFM to show the full help text. Enjoy :-)\n".fg(214)
@@ -531,7 +540,10 @@ $stdin.set_encoding(Encoding::UTF_8)
 @rubycolor   = 52      # Default color for Ruby pane at bottom
 @aicolor     = 58      # Default color for AI pane at bottom
 @sshcolor    = 54      # Default color for SSH pane at bottom (purple-ish)
-@lsbase      = '--group-directories-first' # Basic ls setup
+
+# Platform detection for ls command options
+@is_macos_bsd = RUBY_PLATFORM =~ /darwin|bsd/i
+@lsbase      = @is_macos_bsd ? '' : '--group-directories-first' # Basic ls setup (GNU-specific option)
 @lsuser      = ''      # Set this variable in ~/.rtfm/conf to any 'ls' switch you want to customize directory listings
 @batuse      = true    # Use batcat for syntax highlighting
 @runmailcap  = false   # Set to 'true' in ~/.rtfm/conf if you want to use run-mailcap instead of xdg-open
@@ -1458,7 +1470,7 @@ def toggle_all # {{{3
 end
 
 def toggle_long # {{{3
-  @lslong = @lslong.empty? ? '-lh --time-style=long-iso' : ''
+  @lslong = @lslong.empty? ? (@is_macos_bsd ? '-lhT' : '-lh --time-style=long-iso') : ''
   @pR.update = @pB.update = true
 end
 
@@ -4242,7 +4254,8 @@ def get_cached_dirlist(dir, ls_options) # {{{2
   # Generate new directory listing
   begin
     purels  = command("ls #{Shellwords.escape(dir)} #{ls_options}").pure.split("\n")
-    colorls = command("ls --color #{Shellwords.escape(dir)} #{ls_options} #{@lslong}").split("\n")
+    color_opt = @is_macos_bsd ? '-G' : '--color'
+    colorls = command("ls #{color_opt} #{Shellwords.escape(dir)} #{ls_options} #{@lslong}").split("\n")
     
     result = { purels: purels, colorls: colorls }
     @dir_cache[cache_key] = result
@@ -4412,7 +4425,8 @@ def dirlist(left: true, directory: nil) # LIST DIRECTORIES {{{2
   else
     # No cache available, generate fresh directory listing
     begin
-      color_output = command("ls #{Shellwords.escape(dir)} --color=always #{ls_options}")
+      color_opt = @is_macos_bsd ? '-G' : '--color=always'
+      color_output = command("ls #{Shellwords.escape(dir)} #{color_opt} #{ls_options}")
       pure_output = command("ls #{Shellwords.escape(dir)} #{ls_options}")
       purels = pure_output.pure.split("\n")
       colorls = color_output.split("\n")
@@ -4450,7 +4464,8 @@ def dirlist(left: true, directory: nil) # LIST DIRECTORIES {{{2
       @selected = Dir.pwd + '/' + purels[@index]
       sfile = @selected.dup
       sfile += '/' if File.directory?(@selected)
-      slsl_cmd = "ls -ldHlh --time-style=long-iso #{Shellwords.escape(sfile)}"
+      time_opt = @is_macos_bsd ? '-T' : '--time-style=long-iso'
+      slsl_cmd = "ls -ldHlh #{time_opt} #{Shellwords.escape(sfile)}"
       slsl = command(slsl_cmd)
       a = slsl.split
       @fileattr = a.size >= 7 ? "#{a[2]}:#{a[3]} #{a[0]}  #{a[4]}  #{a[5]} #{a[6]}" : ''
