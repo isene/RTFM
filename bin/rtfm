@@ -3228,6 +3228,9 @@ def delete_items # {{{3
       end
       @tagged.clear
       
+      # Store the old preview text to detect if it needs updating
+      old_preview_text = @pR.text
+      
       # Refresh the file list to reflect deletions
       @pL.update = true
       render  # This will update @files and @selected
@@ -3238,9 +3241,11 @@ def delete_items # {{{3
         @pR.text = ""
         @pR.refresh
       else
-        # Files exist - update preview for new selection
+        # Files exist - force update preview for new selection
+        # Clear the preview text to ensure it gets regenerated
+        @pR.text = ""
         @pR.update = true
-        render  # Update the preview pane
+        render  # Update the preview pane with the new selection
       end
       
       @pB.say("#{action} #{paths.size} items#{@trash ? " to #{TRASH_DIR}" : ''}".fg(204))
@@ -5066,6 +5071,11 @@ def open_selected(html = nil) # OPEN SELECTED FILE {{{2
     # Restore terminal state
     system("stty $(cat /tmp/rtfm_stty_$$) < /dev/tty")
     system("rm -f /tmp/rtfm_stty_$$")
+    # Flush any pending input and reset stdin
+    $stdin.iflush if $stdin.respond_to?(:iflush)
+    system('stty raw -echo isig < /dev/tty')
+    $stdin.raw!
+    $stdin.echo = false
     # Reinitialize rcurses
     Rcurses.init!
     Cursor.hide
