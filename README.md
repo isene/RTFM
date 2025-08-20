@@ -523,8 +523,15 @@ previewed by default in RTFM. The `preview.rb` explains how you add thesea:
 #   # plain text, Ruby, Python, shell
 #   txt, rb, py, sh = bat -n --color=always @s
 #
+#   # Alternative syntax highlighters (e.g., on macOS without bat)
+#   # txt, rb, py, sh = highlight -O ansi --force --line-numbers @s
+#
 #   # markdown via pandoc
 #   md = pandoc @s -t plain
+#
+#   # Alternative markdown viewers (e.g., lowdown, termmark)
+#   # md = lowdown -Tterm @s
+#   # md = termmark @s
 #
 #   # PDFs
 #   pdf = pdftotext -f 1 -l 4 @s -
