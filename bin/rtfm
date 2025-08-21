@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '7.0.8' # Fixed ALL SVG metadata processing to prevent hangs
+@version    = '7.0.9' # Fixed image preview for filenames with spaces and special characters
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -57,7 +57,7 @@ def check_image_redraw # {{{2
     img_processes = `pgrep w3mimgdisplay 2>/dev/null`.chomp
     if img_processes.empty? && File.exist?(@current_image_path)
       # Redraw the image
-      showimage(Shellwords.escape(@current_image_path))
+      showimage(@current_image_path)
     end
   rescue
     # Silently fail - we don't want focus checking to break anything
@@ -5303,7 +5303,7 @@ def showcontent # SHOW CONTENTS IN THE RIGHT WINDOW {{{2
             if file_size > 50_000_000  # 50MB limit for images
               @pR.say("Image too large for preview (#{(file_size / 1024.0 / 1024.0).round(1)}MB > 50MB limit)")
             else
-              showimage(Shellwords.escape(@selected))
+              showimage(@selected)
               @image = true
             end
           rescue => e
@@ -5431,8 +5431,12 @@ def showimage(image) # SHOW THE SELECTED IMAGE IN THE RIGHT WINDOW {{{2
       `echo "6;#{img_x};#{img_y};#{img_max_w};#{img_max_h};\n4;\n3;" | #{@imgdisplay} 2>/dev/null`
       @current_image_path = nil  # Clear tracking when image is cleared
     else
-      # Use the already-escaped image for shell commands
-      dimensions = `identify -format "%wx%h" #{image} 2>/dev/null`
+      # Ensure we have the absolute path
+      img_path = File.absolute_path(image)
+      
+      # Properly escape image path for shell commands
+      escaped_image = Shellwords.escape(img_path)
+      dimensions = `identify -format "%wx%h" #{escaped_image} 2>/dev/null`
       img_w, img_h = dimensions.split('x').map(&:to_i)
 
       # Fix: Use simultaneous scaling to prevent overflow
@@ -5445,10 +5449,11 @@ def showimage(image) # SHOW THE SELECTED IMAGE IN THE RIGHT WINDOW {{{2
         img_h = (img_h * scale).to_i
       end
 
-      # Fix: Unescape the filename for w3mimgdisplay protocol, then quote it
-      unescaped = image.gsub(/\\(.)/, '\1')  # Remove shell escaping
-      `echo "0;1;#{img_x};#{img_y};#{img_w};#{img_h};;;;;\"#{unescaped}\"\n4;\n3;" | #{@imgdisplay} 2>/dev/null`
-      @current_image_path = unescaped  # Track currently displayed image
+      # Use the absolute path without extra quotes in the w3mimgdisplay protocol
+      `echo '0;1;#{img_x};#{img_y};#{img_w};#{img_h};;;;;#{img_path}
+4;
+3;' | #{@imgdisplay} 2>/dev/null`
+      @current_image_path = img_path  # Track currently displayed image
     end
   rescue
     @pR.text = 'Error showing image'
