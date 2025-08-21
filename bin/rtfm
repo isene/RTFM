@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '7.0.6' # Fixed undo for trash restore and preview processing when disabled
+@version    = '7.0.8' # Fixed ALL SVG metadata processing to prevent hangs
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -3199,7 +3199,7 @@ def delete_items # {{{3
   if @trash
     warning_text << "Items will be moved to:\n".fg(249)
     warning_text << "  ~/.rtfm/trash/\n".fg(240)
-    warning_text << "\nYou can restore them with " + "C-z".fg(156) + "\n".fg(249)
+    warning_text << "\nYou can restore them with " + "U".fg(156) + " (undo)\n".fg(249)
   else
     warning_text << "⚠️  WARNING: PERMANENT DELETION!\n".fg(196).b
     warning_text << "Files will be permanently removed\n".fg(196)
@@ -4306,7 +4306,10 @@ def get_cached_file_metadata(file_path) # {{{2
   metadata = nil
   begin
     if file_path.match(@imagefile) && cmd?('identify')
-      metadata = `identify -format " [%wx%h %m %[colorspace] %[bit-depth]-bit]" #{Shellwords.escape(file_path)} 2>/dev/null`.strip
+      # Skip SVG files as identify can be very slow on them
+      unless file_path =~ /\.svg$/i
+        metadata = `identify -format " [%wx%h %m %[colorspace] %[bit-depth]-bit]" #{Shellwords.escape(file_path)} 2>/dev/null`.strip
+      end
     elsif file_path.match(@pdffile)
       info = `pdfinfo #{Shellwords.escape(file_path)} 2>/dev/null`
       pages = info[/^Pages:\s+(\d+)/, 1]
@@ -4658,9 +4661,12 @@ def render # RENDER ALL PANES {{{2
       if cached_meta
         text += cached_meta
       elsif @selected&.match(@imagefile) && cmd?('identify')
-        # Fallback for non-cached image metadata
-        meta = `identify -format " [%wx%h %m %[colorspace] %[bit-depth]-bit]" #{Shellwords.escape(@selected)} 2>/dev/null`
-        text += meta
+        # Skip SVG files as identify can be very slow on them
+        unless @selected =~ /\.svg$/i
+          # Fallback for non-cached image metadata
+          meta = `identify -format " [%wx%h %m %[colorspace] %[bit-depth]-bit]" #{Shellwords.escape(@selected)} 2>/dev/null`
+          text += meta
+        end
       elsif @selected&.match(@pdffile)
         # Fallback for non-cached PDF metadata
         info  = `pdfinfo #{Shellwords.escape(@selected)} 2>/dev/null`
