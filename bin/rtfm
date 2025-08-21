@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '7.0.4' # Fixed platform-specific issues for macOS/BSD and improved first-run message
+@version    = '7.0.6' # Fixed undo for trash restore and preview processing when disabled
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -1634,13 +1634,15 @@ def undo_delete(operation) # {{{3
   if operation[:trash]
     # Restore from trash
     operation[:paths].each do |path_info|
-      source = File.join(TRASH_DIR, File.basename(path_info[:path]))
+      # Use the unique trash name if available (new format), otherwise fallback to basename (old format)
+      trash_name = path_info[:trash_name] || File.basename(path_info[:path])
+      source = File.join(TRASH_DIR, trash_name)
       dest = path_info[:path]
       
       if File.exist?(source)
         FileUtils.mv(source, dest)
       else
-        raise "Cannot restore #{path_info[:path]}: not found in trash"
+        raise "Cannot restore #{path_info[:path]}: not found in trash (looked for #{trash_name})"
       end
     end
   else
@@ -3220,18 +3222,27 @@ def delete_items # {{{3
     else
       # Record undo information before deletion
       if @trash
+        # Generate unique trash names to avoid overwriting
+        timestamp = Time.now.strftime('%Y%m%d_%H%M%S')
+        trash_mappings = paths.map do |p|
+          basename = File.basename(p)
+          # Add timestamp and a random suffix to ensure uniqueness
+          trash_name = "#{timestamp}_#{basename}_#{rand(1000..9999)}"
+          trash_path = File.join(TRASH_DIR, trash_name)
+          { path: p, trash_name: trash_name, trash_path: trash_path }
+        end
+        
         undo_info = {
           type: 'delete',
           trash: true,
-          paths: paths.map { |p| { path: p } },
+          paths: trash_mappings.map { |m| { path: m[:path], trash_name: m[:trash_name] } },
           timestamp: Time.now
         }
-      end
-      
-      esc = paths.map { |p| Shellwords.escape(p) }.join(' ')
-      if @trash
-        esc_trash = Shellwords.escape(TRASH_DIR)
-        command("mv -f #{esc} #{esc_trash}")
+        
+        # Move each file with its unique trash name
+        trash_mappings.each do |mapping|
+          command("mv -f #{Shellwords.escape(mapping[:path])} #{Shellwords.escape(mapping[:trash_path])}")
+        end
         # Only add to undo history if operation succeeded and we can undo it
         add_undo_operation(undo_info)
       else
@@ -5200,6 +5211,9 @@ def showcommand(cmd) # Helper function for showcontent {{{2
 end
 
 def showcontent # SHOW CONTENTS IN THE RIGHT WINDOW {{{2
+  # Only process content if preview is enabled
+  return unless @preview
+  
   if @pR.update
     showimage('clear') if @image
     @image = false
