@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '7.0.9' # Fixed image preview for filenames with spaces and special characters
+@version    = '7.0.10' # Fixed terminal state issue for interactive programs like HyperList
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -5049,6 +5049,8 @@ def open_selected(html = nil) # OPEN SELECTED FILE {{{2
     # Use exactly the same logic as command_mode with § prefix (force interactive)
     # Restore shell tty so Ctrl-C/D work
     system("stty #{ORIG_STTY} < /dev/tty")
+    # Reset terminal to sane/cooked mode for interactive programs
+    system('stty sane < /dev/tty')
     # Clear to top-left
     system('clear < /dev/tty > /dev/tty')
     Cursor.show
