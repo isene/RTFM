@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '7.0.10' # Fixed terminal state issue for interactive programs like HyperList
+@version    = '7.0.11' # Fixed ESC behavior and GIF preview dimensions
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -1554,6 +1554,9 @@ end
 
 def tag_pattern # {{{3
   pat = @pB.ask('Tag pattern (ruby regex): ', '')
+  # Reset bottom pane after input
+  @pB.clear; @pB.update = true
+  return if pat.nil? || pat.strip.empty?
   re  = Regexp.new(pat)
   matches = @files.grep(re).map { |t| File.join(Dir.pwd, t) }
   matches.each do |f|
@@ -3166,6 +3169,10 @@ def rename_item # {{{3
     new_idx   = @files.index(new_basename)
     @index    = new_idx if new_idx
     render
+  else
+    # Reset the bottom pane when rename is cancelled
+    @pB.clear
+    @pB.update = true
   end
 end
 
@@ -3297,6 +3304,9 @@ def change_ownership # {{{3
   gnm = Etc.getgrgid(File.stat(@selected).gid).name
   unm = Etc.getpwuid(File.stat(@selected).uid).name
   ans = @pB.ask('Change ownership (user:group): ', "#{unm}:#{gnm}")
+  # Reset bottom pane after input
+  @pB.clear; @pB.update = true
+  return if ans.nil? || ans.strip.empty?
   user, group = ans.split(':')
   uid = Etc.getpwnam(user).uid
   gid = Etc.getgrnam(group).gid
@@ -3313,6 +3323,9 @@ def change_permissions # {{{3
   # strip leading “-” off e.g. "-rwxr-xr-x" → "rwxr-xr-x"
   default = @fileattr.split[1][1..]
   ans = @pB.ask('Permissions: ', default)
+  # Reset bottom pane after input
+  @pB.clear; @pB.update = true
+  return if ans.nil? || ans.strip.empty?
   mode = if ans =~ /^\d{3}$/          # "755"
            ans.to_i(8)
          elsif ans.length == 3           # "rwx" → "rwxrwxrwx"
@@ -3350,12 +3363,20 @@ end
 
 # FILTER AND SEARCH {{{2
 def filter_types # {{{3
-  @lsfiles = @pB.ask('Filetype(s) to show: ', @lsfiles)
+  result = @pB.ask('Filetype(s) to show: ', @lsfiles)
+  # Reset bottom pane after input
+  @pB.clear; @pB.update = true
+  return if result.nil?
+  @lsfiles = result
   @pR.update = @pB.update = true
 end
 
 def filter_regex # {{{3
-  @lsmatch = @pB.ask('Files match RegEx: ', @lsmatch)
+  result = @pB.ask('Files match RegEx: ', @lsmatch)
+  # Reset bottom pane after input
+  @pB.clear; @pB.update = true
+  return if result.nil?
+  @lsmatch = result
   @pB.say(nil)
   @pR.update = @pB.update = true
 end
@@ -3367,6 +3388,8 @@ end
 
 def search_text # {{{3
   @searched = @pSearch.ask('/ ', '')
+  # Reset bottom pane after search input
+  @pB.clear; @pB.update = true
   l = command("ls #{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}").split
   m = l.each_index.select { |n| l[n] =~ /#{@searched}/ }
   @index = m.first unless m.empty?
@@ -3396,11 +3419,16 @@ end
 
 def grep_current # {{{3
   cmd = @pCmd.ask(': ', 'grep -s MATCH *')
-  shellexec(cmd)
+  # Reset bottom pane after command input
+  @pB.clear; @pB.update = true
+  shellexec(cmd) unless cmd.nil? || cmd.strip.empty?
 end
 
 def locate # {{{3
   cmd = @pCmd.ask(': ', 'locate ')
+  # Reset bottom pane after command input
+  @pB.clear; @pB.update = true
+  return if cmd.nil? || cmd.strip.empty?
   cmd += " | #{@bat} -n --color=always"
   shellexec(cmd)
   @locate = true
@@ -3409,7 +3437,11 @@ end
 def jump_locate # {{{3
   @pB.update = true; return unless @locate
 
-  nr = @pB.ask('# ', '').to_i
+  input = @pB.ask('# ', '')
+  # Reset bottom pane after input
+  @pB.clear; @pB.update = true
+  return if input.nil? || input.strip.empty?
+  nr = input.to_i
   line = @pR.text.lines[nr - 1]
   unless line
     @pB.say('Error: No such file or directory.'); @pB.update = false; return
@@ -3453,16 +3485,24 @@ def unzip_items # {{{3
   first = @tagged.first
   tar   = Shellwords.escape(first)
   cmd   = @pCmd.ask('Command: ', "tar xfz #{tar}")
-  shellexec(cmd)
+  # Reset bottom pane after command input
+  @pB.clear; @pB.update = true
+  shellexec(cmd) unless cmd.nil? || cmd.strip.empty?
   render
 end
 
 def zip_items # {{{3
   arc = @pCmd.ask('Archive name: ', '')
+  # Reset bottom pane after first input
+  @pB.clear; @pB.update = true
+  return if arc.nil? || arc.strip.empty?
   # escape archive base and all paths
   arc_esc    = Shellwords.escape(arc)
   tagged_esc = @tagged.map { |p| Shellwords.escape(p) }.join(' ')
   cmd        = @pCmd.ask('Command: ', "tar cfz #{arc_esc}.gz #{tagged_esc}")
+  # Reset bottom pane after second input
+  @pB.clear; @pB.update = true
+  return if cmd.nil? || cmd.strip.empty?
   shellexec(cmd + ' 2>/dev/null')
   render
 end
@@ -4057,7 +4097,9 @@ end
 
 def make_directory # {{{3
   cmd = @pCmd.ask(': ', 'mkdir ')
-  shellexec(cmd + ' -p')
+  # Reset bottom pane after command input
+  @pB.clear; @pB.update = true
+  shellexec(cmd + ' -p') unless cmd.nil? || cmd.strip.empty?
 end
 
 def navi_invoke # {{{3
@@ -5438,7 +5480,8 @@ def showimage(image) # SHOW THE SELECTED IMAGE IN THE RIGHT WINDOW {{{2
       
       # Properly escape image path for shell commands
       escaped_image = Shellwords.escape(img_path)
-      dimensions = `identify -format "%wx%h" #{escaped_image} 2>/dev/null`
+      # For animated GIFs, get dimensions of first frame only using [0]
+      dimensions = `identify -format "%wx%h" #{escaped_image}[0] 2>/dev/null`
       img_w, img_h = dimensions.split('x').map(&:to_i)
 
       # Fix: Use simultaneous scaling to prevent overflow
