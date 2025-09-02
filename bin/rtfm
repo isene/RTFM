@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '7.0.11' # Fixed ESC behavior and GIF preview dimensions
+@version    = '7.0.12' # Fixed escape code residue in bottom pane during rapid key presses
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -4758,7 +4758,11 @@ def render # RENDER ALL PANES {{{2
     info = " Showing only file types '#{@lsfiles}'".fg(129).u if @lsfiles =~ /,/
     info += " and only files matching '#{@lsmatch}'".fg(129).u if @lsfiles != '' && @lsmatch != ''
     @pB.text = info
-    @pB.refresh unless @pB.text == bottomtext
+    # Ensure screen output is complete before continuing
+    if @pB.text != bottomtext
+      @pB.refresh
+      STDOUT.flush
+    end
   end
 end
 
