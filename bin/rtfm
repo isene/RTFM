@@ -494,6 +494,9 @@ end
 @last_focus_check = Time.now
 @focus_check_interval = 0.5  # Check focus every 500ms
 
+# Track when external programs are running to prevent SIGWINCH interference
+@external_program_running = false
+
 @bat = cmd?('bat') ? 'bat' : 'batcat'
 
 ## Set encoding for $stdin to utf-8 {{{2
@@ -2604,6 +2607,8 @@ def open_remote_shell # {{{3
     ssh_cmd = "ssh #{ssh_opts} #{ssh_target} -t 'cd #{Shellwords.escape(@remote_path)} 2>/dev/null || cd ~; exec bash -l'"
     
     # Use RTFM's interactive program pattern
+    # Set flag to prevent SIGWINCH from refreshing during SSH session
+    @external_program_running = true
     system("stty #{ORIG_STTY} < /dev/tty")
     system('clear < /dev/tty > /dev/tty')
     Cursor.show
@@ -2625,6 +2630,9 @@ def open_remote_shell # {{{3
     rescue Interrupt
       Process.kill('TERM', pid) rescue nil
       retry
+    ensure
+      # Clear flag when SSH session exits
+      @external_program_running = false
     end
     
     # Restore RTFM's terminal state
@@ -4177,6 +4185,8 @@ def command_mode # {{{3
     end
   end
   if force || whitelist || magic # Decide interactive vs non-interactive
+    # Set flag to prevent SIGWINCH from refreshing during interactive command
+    @external_program_running = true
     # Restore shell tty so Ctrl-C/D work
     system("stty #{ORIG_STTY} < /dev/tty")
     # Clear to top-left
@@ -4192,6 +4202,9 @@ def command_mode # {{{3
     rescue Interrupt
       Process.kill('TERM', pid2) rescue nil
       retry
+    ensure
+      # Clear flag when command exits
+      @external_program_running = false
     end
     # Restore raw/no-echo for RTFM
     system('stty raw -echo isig < /dev/tty')
@@ -5093,6 +5106,8 @@ def open_selected(html = nil) # OPEN SELECTED FILE {{{2
   if !html && (prog = get_interactive_program(@selected))
     cmd = "#{prog} #{Shellwords.escape(@selected)}"
     # Use exactly the same logic as command_mode with § prefix (force interactive)
+    # Set flag to prevent SIGWINCH from refreshing during external program
+    @external_program_running = true
     # Restore shell tty so Ctrl-C/D work
     system("stty #{ORIG_STTY} < /dev/tty")
     # Reset terminal to sane/cooked mode for interactive programs
@@ -5110,6 +5125,9 @@ def open_selected(html = nil) # OPEN SELECTED FILE {{{2
     rescue Interrupt
       Process.kill('TERM', pid) rescue nil
       retry
+    ensure
+      # Clear flag when program exits
+      @external_program_running = false
     end
     # Restore raw/no-echo for RTFM
     system('stty raw -echo isig < /dev/tty')
@@ -5138,6 +5156,8 @@ def open_selected(html = nil) # OPEN SELECTED FILE {{{2
   end
   # Don't try to read large files or PDFs as text for validation
   if !@selected&.match(@pdffile) && File.size(@selected) < 1_000_000 && File.read(@selected).force_encoding('UTF-8').valid_encoding? # Pure text
+    # Set flag to prevent SIGWINCH from refreshing during editor
+    @external_program_running = true
     # Save terminal state before launching editor
     system("stty -g < /dev/tty > /tmp/rtfm_stty_$$")
     # Reset terminal to sane/cooked mode for editor
@@ -5148,6 +5168,8 @@ def open_selected(html = nil) # OPEN SELECTED FILE {{{2
     # Launch editor
     editor = ENV.fetch('EDITOR', 'vi')
     system("#{editor} #{Shellwords.escape(@selected)}")
+    # Clear flag when editor exits
+    @external_program_running = false
     # Restore terminal state
     system("stty $(cat /tmp/rtfm_stty_$$) < /dev/tty")
     system("rm -f /tmp/rtfm_stty_$$")
@@ -5647,10 +5669,15 @@ setborder
 
 ## Catch change in terminal resize, redraw {{{2
 Signal.trap('WINCH') do 
-  @h, @w = IO.console.winsize
-  @pT.update = @pL.update = @pR.update = @pB.update = true
-  refresh
-  render
+  # Don't refresh/render if an external interactive program is running
+  # This prevents RTFM from painting over programs like HyperList when
+  # switching terminals in window managers like i3-wm
+  unless @external_program_running
+    @h, @w = IO.console.winsize
+    @pT.update = @pL.update = @pR.update = @pB.update = true
+    refresh
+    render
+  end
 end
 
 
