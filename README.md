@@ -574,6 +574,29 @@ def git_update
   @pB.full_refresh
 end
 ```
+If you're launching external terminal programs (like editors or TUI applications) from your custom keys, 
+make sure to set `@external_program_running = true` before launching and `false` after it returns. 
+This prevents RTFM from redrawing over your program when switching terminals:
+```ruby
+def custom_handler
+  if @selected&.end_with?('.ext')
+    @external_program_running = true  # Prevent SIGWINCH interference
+    system('stty sane < /dev/tty')
+    system('clear < /dev/tty > /dev/tty')
+    Cursor.show
+    system("my_program #{Shellwords.escape(@selected)}")
+    @external_program_running = false  # Re-enable SIGWINCH handling
+    # Restore terminal for RTFM
+    system('stty raw -echo isig < /dev/tty')
+    $stdin.raw!
+    $stdin.echo = false
+    Cursor.hide
+    Rcurses.clear_screen
+    refresh
+    render
+  end
+end
+```
 ***With this, you can mold RTFM to fit your needs better.***
 
 When writing plugins, there are a few variables you should know:
@@ -589,6 +612,7 @@ Variable  | Description
 @pAI      | Pane for interacting with (Open)AI
 @pRuby    | Ruby debug/command pane
 @selected | The selected item in the Left pane
+@external_program_running | Set to true when launching terminal programs to prevent SIGWINCH from redrawing RTFM
 
 Here are three importan hook-ins to use with your plugins:
 
