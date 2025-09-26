@@ -1560,6 +1560,10 @@ def tag_pattern # {{{3
   # Reset bottom pane after input
   @pB.clear; @pB.update = true
   return if pat.nil? || pat.strip.empty?
+  # Handle special case: * means match all files in current directory
+  if pat == '*'
+    pat = '.*'  # Convert * to .* to match all files
+  end
   re  = Regexp.new(pat)
   matches = @files.grep(re).map { |t| File.join(Dir.pwd, t) }
   matches.each do |f|
