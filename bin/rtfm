@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '7.0.12' # Fixed escape code residue in bottom pane during rapid key presses
+@version    = '7.0.14' # Fixed regex error when using '*' to mark all files with C-T
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
