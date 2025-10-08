@@ -2,16 +2,15 @@
  
 ![Ruby](https://img.shields.io/badge/language-Ruby-red) [![Gem Version](https://badge.fury.io/rb/rtfm-filemanager.svg)](https://badge.fury.io/rb/rtfm-filemanager) ![Unlicense](https://img.shields.io/badge/license-Unlicense-green) ![Stay Amazing](https://img.shields.io/badge/Stay-Amazing-important)
 
-## Version 6.0
+## Version 7.1
 
-Version 6.0 introduces comprehensive remote directory browsing capabilities and enhanced user experience improvements:
+Version 7.1 adds comprehensive compressed archive viewing capabilities:
 
-- **Remote SSH/SFTP browsing** with seamless navigation and file operations
-- **SSH shell integration** for interactive remote sessions  
-- **Enhanced help system** with color-coded sections and aligned formatting
-- **SSH connection comments** for better organization (user@host # comment)
-- **Comprehensive undo system** for file operations with safety checks
-- **Performance optimizations** and code cleanup for improved stability
+- **Archive preview** for .zip, .tar, .gz, .tgz, .bz2, .tbz, .tbz2, .xz, .txz, .rar, .7z files
+- **Smart fallback** for compressed archives vs standalone compressed files
+- **Seamless integration** with existing preview system
+
+Version 6.0 introduced comprehensive remote directory browsing capabilities and enhanced user experience improvements including remote SSH/SFTP browsing, SSH shell integration, enhanced help system, and comprehensive undo system.
 
 Version 5 was a complete rewrite using [rcurses](https://github.com/isene/rcurses) as the underlying library, providing stability, higher quality code and extensive features including optional trash bin, advanced OpenAI integrations, plugin architectures for keybindings, user defined features and file viewers.
 
@@ -168,11 +167,14 @@ MS xlsx                     | `ssconvert`                      | `apt install gn
 MS doc/xls/ppt              | `catdoc`, `xls2csv` and `catppt` | `apt install catdoc`
 Images                      | `w3m` and `ImageMagick`          | `apt install w3m imagemagick`
 Video (thumbnails)          | `ffmpegthumbnailer`              | `apt install ffmpegthumbnailer`
+Compressed archives         | `unzip`, `tar`, `gzip`, `bzip2`, `xz` | `apt install unzip tar gzip bzip2 xz-utils`
+RAR archives                | `unrar`                          | `apt install unrar`
+7-Zip archives              | `7z`                             | `apt install p7zip-full`
 
 Install rtfm from scratch with all of the above on Ubuntu:
 ```
 sudo apt update
-sudo apt install ruby-full git libncurses-dev x11-utils xdotool bat pandoc poppler-utils odt2txt docx2txt unzip gnumeric catdoc w3m imagemagick ffmpegthumbnailer
+sudo apt install ruby-full git libncurses-dev x11-utils xdotool bat pandoc poppler-utils odt2txt docx2txt unzip gnumeric catdoc w3m imagemagick ffmpegthumbnailer tar gzip bzip2 xz-utils unrar p7zip-full
 sudo gem install rcurses
 git clone https://github.com/isene/RTFM
 cd RTFM
@@ -181,7 +183,7 @@ sudo cp rtfm /usr/bin/
 Or with a simpler gem install:
 ```
 sudo apt update
-sudo apt install ruby-full git libncurses-dev x11-utils xdotool bat pandoc poppler-utils odt2txt docx2txt unzip gnumeric catdoc w3m imagemagick ffmpegthumbnailer
+sudo apt install ruby-full git libncurses-dev x11-utils xdotool bat pandoc poppler-utils odt2txt docx2txt unzip gnumeric catdoc w3m imagemagick ffmpegthumbnailer tar gzip bzip2 xz-utils unrar p7zip-full
 gem install rtfm-filemanager
 ```
 

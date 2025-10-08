@@ -839,6 +839,14 @@ preview_specs = {
   'doc'                => "catdoc @s 2>/dev/null",
   'xls'                => "xls2csv @s 2>/dev/null",
   'ppt'                => "catppt @s 2>/dev/null",
+  # compressed archives
+  'zip'                => "unzip -l @s",
+  'tar'                => "tar -tvf @s",
+  'gz, tgz'            => "tar -tzvf @s 2>/dev/null || gunzip -l @s 2>/dev/null",
+  'bz2, tbz, tbz2'     => "tar -tjvf @s 2>/dev/null || bzip2 -l @s 2>/dev/null",
+  'xz, txz'            => "tar -tJvf @s 2>/dev/null || xz -l @s 2>/dev/null",
+  'rar'                => "unrar l @s 2>/dev/null",
+  '7z'                 => "7z l @s 2>/dev/null",
   # images ⇒ nil => call showimage
   'png, jpg, jpeg, bmp, gif, webp, tif, tiff, svg' => nil,
   # video ⇒ nil, but detected via pattern below
