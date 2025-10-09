@@ -1482,7 +1482,8 @@ end
 
 def toggle_long # {{{3
   @lslong = @lslong.empty? ? (@is_macos_bsd ? '-lhT' : '-lh --time-style=long-iso') : ''
-  @pR.update = @pB.update = true
+  @pB.say(@lslong.empty? ? ' Long info: Off' : ' Long info: On')
+  @pL.update = @pR.update = true
 end
 
 def toggle_order # {{{3
@@ -4310,30 +4311,34 @@ def ruby_debug # {{{3
 end
 
 # GENERIC FUNCTIONS {{{1
-def get_cached_dirlist(dir, ls_options) # {{{2
+def get_cached_dirlist(dir, ls_options, ls_options_with_long = nil) # {{{2
+  # Use ls_options_with_long for display, or fall back to ls_options
+  ls_options_with_long ||= ls_options
+
   # Generate cache key with directory mtime for automatic invalidation
+  # Include ls_options_with_long in cache key so toggling @lslong invalidates cache
   begin
     dir_mtime = File.mtime(dir).to_i
-    cache_key = "#{dir}:#{ls_options}:#{dir_mtime}"
+    cache_key = "#{dir}:#{ls_options_with_long}:#{dir_mtime}"
   rescue
     return nil  # Can't cache if we can't get mtime
   end
-  
+
   # Return cached result if available and fresh
   cached = @dir_cache[cache_key]
   return cached if cached
-  
+
   # Clean old cache entries if cache is getting too large
   if @dir_cache_size >= @max_cache_entries
     @dir_cache.clear
     @dir_cache_size = 0
   end
-  
+
   # Generate new directory listing
   begin
     purels  = command("ls #{Shellwords.escape(dir)} #{ls_options}").pure.split("\n")
     color_opt = @is_macos_bsd ? '-G' : '--color'
-    colorls = command("ls #{color_opt} #{Shellwords.escape(dir)} #{ls_options} #{@lslong}").split("\n")
+    colorls = command("ls #{color_opt} #{Shellwords.escape(dir)} #{ls_options_with_long}").split("\n")
     
     result = { purels: purels, colorls: colorls }
     @dir_cache[cache_key] = result
@@ -4498,7 +4503,8 @@ def dirlist(left: true, directory: nil) # LIST DIRECTORIES {{{2
   end
   # Use cached directory listing
   ls_options = "#{@lsbase} #{@lsall} #{@lsorder} #{@lsinvert} #{@lsuser}"
-  cached = get_cached_dirlist(dir, ls_options)
+  ls_options_with_long = "#{ls_options} #{@lslong}".strip
+  cached = get_cached_dirlist(dir, ls_options, ls_options_with_long)
   
   if cached
     purels = cached[:purels]
