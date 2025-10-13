@@ -5369,7 +5369,7 @@ def showcontent # SHOW CONTENTS IN THE RIGHT WINDOW {{{2
                                          .gsub(/&amp;#(\d+);/, '&#\1;')
                                          .gsub(/&amp;#x([0-9a-fA-F]+);/, '&#x\1;')
                   File.write(temp_svg, fixed_content)
-                  
+
                   if system("convert #{Shellwords.escape(temp_svg)} #{Shellwords.escape(tn)} 2>/dev/null")
                     showimage(tn)
                     @image = true
@@ -5404,9 +5404,19 @@ def showcontent # SHOW CONTENTS IN THE RIGHT WINDOW {{{2
           showimage(tn)
           @image = true
         else
-          @pR.say("No preview available for #{@selected}")
+          # Check if file is text using the `file` command
+          file_type = `file --mime-type -b #{Shellwords.escape(@selected)} 2>/dev/null`.strip
+          if file_type.start_with?('text/') || file_type == 'application/x-empty'
+            # It's a text file - fall through to text preview below
+          else
+            @pR.say("No preview available for #{@selected}")
+            return  # Exit early to avoid text preview attempt
+          end
         end
-      else # Fallback: treat as text if UTF‑8
+      end
+
+      # Fallback: treat as text if no handler matched
+      unless tmpl || pattern
         # Don't try to preview PDFs as text - they contain binary data
         if @selected&.match(@pdffile)
           @pR.say("No preview available for #{@selected}")
