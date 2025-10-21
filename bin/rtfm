@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '7.0.14' # Fixed regex error when using '*' to mark all files with C-T
+@version    = '7.1.3' # Fixed permission change color update and broken symlink deletion
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -3243,8 +3243,9 @@ def delete_items # {{{3
   prompt_text = @trash ? "Move to trash? (y/n)" : "⚠️  PERMANENTLY DELETE? (y/n)"
   @pB.say(" #{prompt_text}".fg(action_color))
   if getchr == 'y'
-    # collect & escape every path with existence verification
-    paths = (@tagged + [@selected]).uniq.select { |p| File.exist?(p) }
+    # Collect paths - include broken symlinks since they can be moved/deleted
+    # File.exist? returns false for broken symlinks, but File.symlink? still works
+    paths = (@tagged + [@selected]).uniq.select { |p| File.exist?(p) || File.symlink?(p) }
     if paths.empty?
       @pB.say("No valid items to #{action.downcase}".fg(196))
     else
@@ -3341,7 +3342,7 @@ def change_ownership # {{{3
 end
 
 def change_permissions # {{{3
-  # strip leading “-” off e.g. "-rwxr-xr-x" → "rwxr-xr-x"
+  # strip leading "-" off e.g. "-rwxr-xr-x" → "rwxr-xr-x"
   default = @fileattr.split[1][1..]
   ans = @pB.ask('Permissions: ', default)
   # Reset bottom pane after input
@@ -3378,6 +3379,9 @@ def change_permissions # {{{3
       File.chmod(mode, @selected)
       @tagged.each { |t| File.chmod(mode, t) rescue nil }
       @pB.say("Permissions changed to: #{mode.to_s(8)}")
+      # Invalidate cache for current directory to show updated colors
+      @dir_cache.delete_if { |key, _| key.start_with?("#{Dir.pwd}:") }
+      @pL.update = true
     end
   end
 end
