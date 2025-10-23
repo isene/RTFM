@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '7.1.3' # Fixed permission change color update and broken symlink deletion
+@version    = '7.1.4' # Fixed terminal resizing issues in window managers
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -1124,6 +1124,17 @@ def show_version # {{{3
 end
 
 def refresh_all # {{{3
+  # Re-read terminal size to handle window resizing
+  begin
+    new_h, new_w = IO.console.winsize
+    # Validate terminal size (minimum 10x20 to be usable)
+    if new_h && new_w && new_h >= 10 && new_w >= 20
+      @h, @w = new_h, new_w
+    end
+  rescue
+    # Keep current size if we can't read new size
+  end
+
   # Clear remote directory cache if in remote mode
   if @remote_mode
     @remote_files_cache = []
@@ -5700,15 +5711,24 @@ end
 setborder
 
 ## Catch change in terminal resize, redraw {{{2
-Signal.trap('WINCH') do 
+Signal.trap('WINCH') do
   # Don't refresh/render if an external interactive program is running
   # This prevents RTFM from painting over programs like HyperList when
   # switching terminals in window managers like i3-wm
   unless @external_program_running
-    @h, @w = IO.console.winsize
-    @pT.update = @pL.update = @pR.update = @pB.update = true
-    refresh
-    render
+    begin
+      new_h, new_w = IO.console.winsize
+      # Validate terminal size (minimum 10x20 to be usable)
+      if new_h && new_w && new_h >= 10 && new_w >= 20
+        @h, @w = new_h, new_w
+        @pT.update = @pL.update = @pR.update = @pB.update = true
+        refresh
+        render
+      end
+    rescue => e
+      # Silently ignore resize errors to prevent crashes
+      # User can manually refresh with 'r' key if needed
+    end
   end
 end
 
