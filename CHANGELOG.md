@@ -5,6 +5,14 @@ All notable changes to RTFM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.1.4] - 2025-10-21
+
+### Fixed
+- Terminal resizing now works properly in window managers like i3-wm
+- Added error handling to WINCH signal handler to prevent crashes on resize
+- Manual refresh ('r' key) now re-reads and applies new terminal size
+- Terminal size validation prevents invalid dimensions from being applied
+
 ## [7.1.3] - 2025-10-21
 
 ### Fixed
