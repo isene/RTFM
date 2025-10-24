@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '7.1.4' # Fixed terminal resizing issues in window managers
+@version    = '7.2.0' # BREAKING: Batch operations now work on tagged OR selected, not both
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -1646,6 +1646,10 @@ def undo_last_operation # {{{3
       undo_link(operation)
     when 'bulk_rename'
       undo_bulk_rename(operation)
+    when 'permissions'
+      undo_permissions(operation)
+    when 'ownership'
+      undo_ownership(operation)
     else
       @pB.say("Unknown operation type: #{operation[:type]}".fg(196))
       return
@@ -1738,11 +1742,43 @@ def undo_bulk_rename(operation) # {{{3
   operation[:renames].reverse.each do |rename_info|
     old_path = rename_info[:old_path]
     new_path = rename_info[:new_path]
-    
+
     if File.exist?(new_path)
       FileUtils.mv(new_path, old_path)
     else
       raise "Cannot undo bulk rename: #{new_path} not found"
+    end
+  end
+end
+
+def undo_permissions(operation) # {{{3
+  # Restore old permissions
+  operation[:items].each do |item_info|
+    path = item_info[:path]
+    old_mode = item_info[:mode]
+
+    if File.exist?(path)
+      File.chmod(old_mode, path)
+    else
+      raise "Cannot undo permissions: #{path} not found"
+    end
+  end
+  # Invalidate cache to show updated colors
+  @dir_cache.delete_if { |key, _| key.start_with?("#{Dir.pwd}:") }
+  @pL.update = true
+end
+
+def undo_ownership(operation) # {{{3
+  # Restore old ownership
+  operation[:items].each do |item_info|
+    path = item_info[:path]
+    old_uid = item_info[:uid]
+    old_gid = item_info[:gid]
+
+    if File.exist?(path)
+      File.chown(old_uid, old_gid, path)
+    else
+      raise "Cannot undo ownership: #{path} not found"
     end
   end
 end
@@ -1981,23 +2017,21 @@ end
 
 # BULK RENAME {{{2
 def bulk_rename # {{{3
-  if @tagged.empty?
-    @pB.say("No files tagged for bulk rename. Tag files first with 't'".fg(196))
-    return
-  end
-  
+  # Use tagged items if any exist, otherwise use selected item
+  items = @tagged.empty? ? [@selected] : @tagged
+
   @pB.say("Bulk rename pattern: ".fg(156))
   @pR.say(build_pattern_help)
   @pR.update = false
-  
+
   pattern = @pCmd.ask('Pattern: ', '')
   return if pattern.nil? || pattern.strip.empty?
-  
+
   # Parse and preview renames
   rename_operations = []
   errors = []
-  
-  @tagged.each do |file|
+
+  items.each do |file|
     next unless File.exist?(file)
     
     old_name = File.basename(file)
@@ -3254,9 +3288,11 @@ def delete_items # {{{3
   prompt_text = @trash ? "Move to trash? (y/n)" : "⚠️  PERMANENTLY DELETE? (y/n)"
   @pB.say(" #{prompt_text}".fg(action_color))
   if getchr == 'y'
+    # Use tagged items if any exist, otherwise use selected item
+    items = @tagged.empty? ? [@selected] : @tagged
     # Collect paths - include broken symlinks since they can be moved/deleted
     # File.exist? returns false for broken symlinks, but File.symlink? still works
-    paths = (@tagged + [@selected]).uniq.select { |p| File.exist?(p) || File.symlink?(p) }
+    paths = items.select { |p| File.exist?(p) || File.symlink?(p) }
     if paths.empty?
       @pB.say("No valid items to #{action.downcase}".fg(196))
     else
@@ -3290,14 +3326,20 @@ def delete_items # {{{3
         # Cannot undo permanent deletion, so don't add to undo history
       end
       @tagged.clear
-      
-      # Store the old preview text to detect if it needs updating
-      old_preview_text = @pR.text
-      
+
+      # Store the currently selected item to restore selection after refresh
+      previously_selected = @selected ? File.basename(@selected) : nil
+
       # Refresh the file list to reflect deletions
       @pL.update = true
       render  # This will update @files and @selected
-      
+
+      # Try to restore the previous selection if it still exists
+      if previously_selected && @files
+        restored_index = @files.index(previously_selected)
+        @index = restored_index if restored_index
+      end
+
       # After render, check if we still have files
       if @files.empty?
         # No files left in directory - clear the preview
@@ -3334,8 +3376,11 @@ end
 
 def change_ownership # {{{3
   require 'etc'
-  gnm = Etc.getgrgid(File.stat(@selected).gid).name
-  unm = Etc.getpwuid(File.stat(@selected).uid).name
+  # Use tagged items if any exist, otherwise use selected item
+  items = @tagged.empty? ? [@selected] : @tagged
+  first_item = items.first
+  gnm = Etc.getgrgid(File.stat(first_item).gid).name
+  unm = Etc.getpwuid(File.stat(first_item).uid).name
   ans = @pB.ask('Change ownership (user:group): ', "#{unm}:#{gnm}")
   # Reset bottom pane after input
   @pB.clear; @pB.update = true
@@ -3343,16 +3388,37 @@ def change_ownership # {{{3
   user, group = ans.split(':')
   uid = Etc.getpwnam(user).uid
   gid = Etc.getgrnam(group).gid
-  File.chown(uid, gid, @selected)
-  @tagged.each { |t| File.chown(uid, gid, t) rescue nil }
   if user == unm && group == gnm
     @pB.say('No change in ownership')
   else
+    # Record old ownership for undo
+    old_ownership = items.map do |item|
+      stat = File.stat(item)
+      {
+        path: item,
+        uid: stat.uid,
+        gid: stat.gid,
+        user: Etc.getpwuid(stat.uid).name,
+        group: Etc.getgrgid(stat.gid).name
+      }
+    end
+
+    # Change ownership
+    items.each { |item| File.chown(uid, gid, item) rescue nil }
     @pB.say("Ownership changed to #{user}:#{group}")
+
+    # Add to undo history
+    add_undo_operation({
+      type: 'ownership',
+      items: old_ownership,
+      timestamp: Time.now
+    })
   end
 end
 
 def change_permissions # {{{3
+  # Use tagged items if any exist, otherwise use selected item
+  items = @tagged.empty? ? [@selected] : @tagged
   # strip leading "-" off e.g. "-rwxr-xr-x" → "rwxr-xr-x"
   default = @fileattr.split[1][1..]
   ans = @pB.ask('Permissions: ', default)
@@ -3361,6 +3427,25 @@ def change_permissions # {{{3
   return if ans.nil? || ans.strip.empty?
   mode = if ans =~ /^\d{3}$/          # "755"
            ans.to_i(8)
+         elsif ans =~ /^[+-][rwx]+$/   # "+x", "-w", "+rw", etc.
+           # Modify current permissions
+           current = File.stat(items.first).mode & 0o777
+           operation = ans[0]
+           chars = ans[1..-1].chars
+           # Calculate permission bits to add/remove
+           bits = chars.map do |c|
+             case c
+             when 'r' then 0o444  # r for all (user, group, other)
+             when 'w' then 0o222  # w for all
+             when 'x' then 0o111  # x for all
+             else 0
+             end
+           end.sum
+           if operation == '+'
+             current | bits  # Add permissions
+           else
+             current & ~bits # Remove permissions
+           end
          elsif ans.length == 3           # "rwx" → "rwxrwxrwx"
            # compute the single octal digit
            digit = ans.chars.map do |c|
@@ -3383,13 +3468,24 @@ def change_permissions # {{{3
   if mode.nil?
     @pB.say('Invalid mode')
   else
-    current = File.stat(@selected).mode & 0o777
-    if mode == current
+    current = File.stat(items.first).mode & 0o777
+    if mode == current && items.size == 1
       @pB.say("No change needed (already #{mode.to_s(8)})")
     else
-      File.chmod(mode, @selected)
-      @tagged.each { |t| File.chmod(mode, t) rescue nil }
+      # Record old permissions for undo
+      old_permissions = items.map { |item| { path: item, mode: File.stat(item).mode & 0o777 } }
+
+      # Change permissions
+      items.each { |item| File.chmod(mode, item) rescue nil }
       @pB.say("Permissions changed to: #{mode.to_s(8)}")
+
+      # Add to undo history
+      add_undo_operation({
+        type: 'permissions',
+        items: old_permissions,
+        timestamp: Time.now
+      })
+
       # Invalidate cache for current directory to show updated colors
       @dir_cache.delete_if { |key, _| key.start_with?("#{Dir.pwd}:") }
       @pL.update = true
@@ -4986,19 +5082,20 @@ def command(cmd, timeout: 5, return_both: false) # {{{2
 end
 
 def copy_move_link(type) # COPY OR MOVE TAGGED ITEMS {{{2
-  @tagged.uniq!
-  
+  # Use tagged items if any exist, otherwise use selected item
+  items = @tagged.empty? ? [@selected] : @tagged.uniq
+
   # Determine destination directory based on mode
   dest_dir = if @dual_pane
                @active_pane == :left ? @pwd_left : @pwd_right
              else
                Dir.pwd
              end
-  
+
   # Track operations for undo
   operations = []
-  
-  @tagged.each do |item|
+
+  items.each do |item|
     dest = File.join(dest_dir, File.basename(item))
     dest += '1' if File.exist?(dest)
     while File.exist?(dest)
@@ -5050,7 +5147,12 @@ def copy_move_link(type) # COPY OR MOVE TAGGED ITEMS {{{2
   end
   
   @tagged = []
-  
+
+  # Store the currently selected item to restore selection after refresh (for move operations)
+  if type == 'move'
+    previously_selected = @selected ? File.basename(@selected) : nil
+  end
+
   # Set update flags for proper refresh - let render system handle the actual refresh
   if @dual_pane
     # Update the destination pane
@@ -5062,8 +5164,14 @@ def copy_move_link(type) # COPY OR MOVE TAGGED ITEMS {{{2
     # Also update the preview pane
     @pPreview.update = true if @pPreview
   end
-  
+
   render
+
+  # Restore selection after move operations
+  if type == 'move' && previously_selected && @files
+    restored_index = @files.index(previously_selected)
+    @index = restored_index if restored_index
+  end
 end
 
 def mark_latest # UPDATE MARKS LIST {{{2
@@ -5173,7 +5281,8 @@ def open_selected(html = nil) # OPEN SELECTED FILE {{{2
     return
   end
   tmpfile = File.join(Dir.tmpdir, 'rtfm_err.log')
-  paths   = (@tagged + [@selected]).uniq
+  # Use tagged items if any exist, otherwise use selected item
+  paths   = @tagged.empty? ? [@selected] : @tagged
   if html # html mode - open in HTML-browser
     esc = paths.map { |p| Shellwords.escape(p) }.join(' ')
     shell("xdg-open #{esc} &", err: tmpfile)

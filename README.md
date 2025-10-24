@@ -1,6 +1,21 @@
 # RTFM - Ruby Terminal File Manager
- 
+
 ![Ruby](https://img.shields.io/badge/language-Ruby-red) [![Gem Version](https://badge.fury.io/rb/rtfm-filemanager.svg)](https://badge.fury.io/rb/rtfm-filemanager) ![Unlicense](https://img.shields.io/badge/license-Unlicense-green) ![Stay Amazing](https://img.shields.io/badge/Stay-Amazing-important)
+
+## Version 7.2
+
+**BREAKING CHANGE** - Batch Operation Behavior:
+
+Version 7.2 introduces a **breaking change** to how batch operations work with tagged items:
+
+- **Previous behavior**: Operations affected tagged items + selected item (always)
+- **New behavior**: Operations affect tagged items OR selected item (not both)
+  - When items ARE tagged → operate ONLY on tagged items
+  - When NO items are tagged → operate on selected item only
+
+This provides consistent, predictable behavior across all operations including: delete, copy, move, symlink, bulk rename, change permissions, change ownership, and open.
+
+**Migration**: If you want the selected item included in a batch operation, explicitly tag it first with 't'.
 
 ## Version 7.1
 
