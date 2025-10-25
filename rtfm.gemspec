@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name        = 'rtfm-filemanager'
-  s.version     = '7.2.0'
+  s.version     = '7.2.1'
   s.licenses    = ['Unlicense']
   s.summary     = "RTFM - Ruby Terminal File Manager"
   s.description = "RTFM v7.2.0: BREAKING CHANGE - Batch operations now work ONLY on tagged items when items are tagged (not tagged + selected). If no items are tagged, operations work on the selected item only.\n A full featured terminal browser with syntax highlighted files, images shown in the terminal, videos thumbnailed, etc. Features include remote SSH/SFTP browsing, interactive SSH shell, comprehensive undo system, bookmarks, and much more. You can bookmark and jump around easily, delete, rename, copy, symlink and move files. RTFM is one of the most feature-packed terminal file managers."

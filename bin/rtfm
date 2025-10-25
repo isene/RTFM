@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '7.2.0' # BREAKING: Batch operations now work on tagged OR selected, not both
+@version    = '7.2.1' # Performance: Direct print for window title (no spawn)
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -5875,7 +5875,7 @@ loop do
     command(@navi)
     @navi = ''
   end
-  system("printf \"\033]0;RTFM: #{Dir.pwd}\007\"") # Update window title
+  print "\033]0;RTFM: #{Dir.pwd}\007"  # Update window title (no spawn)
 rescue StandardError => e
   errormsg('⚠ Internal Error', e)
 end
