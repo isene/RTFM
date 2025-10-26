@@ -5,6 +5,23 @@ All notable changes to RTFM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.3.0] - 2025-10-26
+
+### Added
+- Modern image display using termpix gem with multi-protocol support
+- Sixel protocol support for mlterm and compatible terminals
+- Protocol detection shown in version display (press 'v')
+
+### Changed
+- Refactored image display to use termpix gem instead of direct w3m calls
+- Cleaner, more maintainable image handling code
+- Better terminal compatibility across different emulators
+
+### Improved
+- Image display now supports multiple protocols (Sixel, w3m)
+- Reduced code complexity in showimage function (~50 lines to ~20)
+- Better separation of concerns (image protocols in dedicated gem)
+
 ## [7.2.1] - 2025-10-25
 
 ### Performance

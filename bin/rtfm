@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '7.2.1' # Performance: Direct print for window title (no spawn)
+@version    = '7.3.0' # Modern image display using termpix gem
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -43,22 +43,24 @@ def check_image_redraw # {{{2
   now = Time.now
   return if now - @last_focus_check < @focus_check_interval
   @last_focus_check = now
-  
+
   # Only check if we have an image currently displayed
   return unless @image && @current_image_path
-  
+
   begin
-    # Check if terminal has focus and if image needs redrawing
-    active_window = `xdotool getactivewindow 2>/dev/null`.chomp
-    return if active_window.empty?
-    
-    # Simple heuristic: if we can't find any w3mimgdisplay processes,
-    # the image overlay was probably cleared and needs redrawing
-    img_processes = `pgrep w3mimgdisplay 2>/dev/null`.chomp
-    if img_processes.empty? && File.exist?(@current_image_path)
-      # Redraw the image
-      showimage(@current_image_path)
+    # For w3m/ueberzug protocols, check if image overlay was cleared
+    if [:w3m, :ueberzug].include?(@termpix.protocol)
+      active_window = `xdotool getactivewindow 2>/dev/null`.chomp
+      return if active_window.empty?
+
+      # Check if image display process still exists
+      process_name = @termpix.protocol == :w3m ? 'w3mimgdisplay' : 'ueberzug'
+      img_processes = `pgrep #{process_name} 2>/dev/null`.chomp
+      if img_processes.empty? && File.exist?(@current_image_path)
+        showimage(@current_image_path)
+      end
     end
+    # Kitty and Sixel protocols don't need redraw checks - images persist
   rescue
     # Silently fail - we don't want focus checking to break anything
   end
@@ -77,6 +79,7 @@ rescue StandardError => e
 end
 require 'tmpdir'
 require 'set'  # For symlink loop detection
+require 'termpix'  # Terminal image display
 # Lazy-load to speed up startup
 autoload :Shellwords, 'shellwords'
 autoload :Timeout,    'timeout'
@@ -481,13 +484,9 @@ def cmd?(cmd) # Helper function
   system("which #{cmd} > /dev/null 2>&1")
 end
 
-if cmd?('/usr/lib/w3m/w3mimgdisplay')
-  @imgdisplay = '/usr/lib/w3m/w3mimgdisplay'
-  @showimage = true
-else
-  @showimage = false
-end
-@showimage = false unless cmd?('xwininfo') && cmd?('xdotool')
+# Initialize termpix for image display
+@termpix = Termpix::Display.new
+@showimage = @termpix.supported?
 
 # Image auto-redraw variables
 @current_image_path = nil  # Path of currently displayed image
@@ -1120,7 +1119,10 @@ def help_info # {{{3
 end
 
 def show_version # {{{3
-  @pB.say(" RTFM version = #{@version} (latest RubyGems version is #{Gem.latest_version_for('rtfm-filemanager').version} - https://github.com/isene/RTFM)".b)
+  protocol_info = @termpix ? " [Image protocol: #{@termpix.protocol || 'none'}]" : ""
+  version_text = " RTFM version = #{@version}#{protocol_info} (latest RubyGems version is #{Gem.latest_version_for('rtfm-filemanager').version} - https://github.com/isene/RTFM)"
+  @pB.say(version_text.b)
+  @pB.update = false  # Prevent terminal clearing on next render
 end
 
 def refresh_all # {{{3
@@ -5636,50 +5638,27 @@ def showimage(image) # SHOW THE SELECTED IMAGE IN THE RIGHT WINDOW {{{2
   return unless @showimage
 
   begin
-    terminfo    = `xwininfo -id $(xdotool getactivewindow 2>/dev/null) 2>/dev/null`
-    term_w      = terminfo.match(/Width: (\d+)/)[1].to_i
-    term_h      = terminfo.match(/Height: (\d+)/)[1].to_i
-    char_w      = term_w / @w
-    char_h      = term_h / @h
-    img_x       = char_w * @pR.x
-    img_y       = char_h * 2
-    img_max_w   = char_w * (@pR.w - 2)
-    img_max_h   = char_h * (@pR.h - 1)
     if image == 'clear'
-      `clear`
-      img_x     -= char_w
-      img_max_w += char_w + 2
-      img_max_h += 2
-      `echo "6;#{img_x};#{img_y};#{img_max_w};#{img_max_h};\n4;\n3;" | #{@imgdisplay} 2>/dev/null`
-      @current_image_path = nil  # Clear tracking when image is cleared
+      @termpix.clear(
+        x: @pR.x,
+        y: @pR.y,
+        width: @pR.w,
+        height: @pR.h,
+        term_width: @w,
+        term_height: @h)
+      @current_image_path = nil
     else
-      # Ensure we have the absolute path
+      # Display image using termpix
       img_path = File.absolute_path(image)
-      
-      # Properly escape image path for shell commands
-      escaped_image = Shellwords.escape(img_path)
-      # For animated GIFs, get dimensions of first frame only using [0]
-      dimensions = `identify -format "%wx%h" #{escaped_image}[0] 2>/dev/null`
-      img_w, img_h = dimensions.split('x').map(&:to_i)
-
-      # Fix: Use simultaneous scaling to prevent overflow
-      if img_w > img_max_w || img_h > img_max_h
-        scale_w = img_max_w.to_f / img_w
-        scale_h = img_max_h.to_f / img_h
-        scale = [scale_w, scale_h].min
-
-        img_w = (img_w * scale).to_i
-        img_h = (img_h * scale).to_i
-      end
-
-      # Use the absolute path without extra quotes in the w3mimgdisplay protocol
-      `echo '0;1;#{img_x};#{img_y};#{img_w};#{img_h};;;;;#{img_path}
-4;
-3;' | #{@imgdisplay} 2>/dev/null`
-      @current_image_path = img_path  # Track currently displayed image
+      @termpix.show(img_path,
+        x: @pR.x,
+        y: @pR.y,
+        max_width: @pR.w - 2,
+        max_height: @pR.h - 1)
+      @current_image_path = img_path
     end
-  rescue
-    @pR.text = 'Error showing image'
+  rescue => e
+    @pR.text = "Error showing image: #{e.message}"
   end
 end
 
