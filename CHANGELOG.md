@@ -5,6 +5,20 @@ All notable changes to RTFM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.3.2] - 2025-10-27
+
+### Added
+- C-Y now copies image files to clipboard when viewing images (can paste into GIMP, etc.)
+- MIME type detection for image clipboard copy (PNG, JPEG, GIF, BMP, WebP)
+
+### Fixed
+- Images now persist during operations (copy path, change permissions, etc.)
+- Image display no longer cleared unnecessarily during key operations
+
+### Improved
+- Removed aggressive image clearing in key handler
+- Images only clear when content actually changes
+
 ## [7.3.1] - 2025-10-27
 
 ### Fixed

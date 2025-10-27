@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '7.3.1' # Fixed image positioning and EXIF orientation
+@version    = '7.3.2' # Image persistence and C-Y copies images
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -290,7 +290,7 @@ CONFIG_FILE   = File.join(RTFM_HOME, 'conf')
   CLIPBOARD COPY
     y       = Copy path of selected item to primary selection (for pasting with middle mouse button)
     Y       = Copy path of selected item to clipboard
-    Ctrl-y  = Copy content of right pane to clipboard
+    Ctrl-y  = Copy content of right pane to clipboard (images: copies image file, text: copies text)
               Turn off batcat syntax highlighting with 'b' for a clean copy of content
 
   SYSTEM SHORTCUTS
@@ -1049,8 +1049,8 @@ def getkey # {{{3
   
   return unless chr
 
-  showimage('clear') if @image
-  @image = false
+  # Don't clear image here - let render system handle it when @pR.update is true
+  # This preserves images during operations that don't change the selected item
   if handler = KEYMAP[chr]  # rubocop:disable Lint/AssignmentInCondition
     m = method(handler)
     m.arity == 1 ? m.call(chr) : m.call
@@ -3945,10 +3945,32 @@ def get_selected_full_path # {{{3
 end
 
 def copy_right # {{{3
-  clip = 'xclip -selection clipboard'
-  @pB.say(' Right pane copied to clipboard')
-  # We drop the trailing & in the string itself…
-  shell("echo -n #{Shellwords.escape(@pR.text.pure)} | #{clip} > /dev/null 2>&1", background: true)
+  if @image && @selected && @selected.match(@imagefile)
+    # Copy the image file to clipboard
+    escaped_path = Shellwords.escape(@selected)
+    # Detect image type from extension
+    ext = File.extname(@selected).downcase
+    mime_type = case ext
+                when '.png' then 'image/png'
+                when '.jpg', '.jpeg' then 'image/jpeg'
+                when '.gif' then 'image/gif'
+                when '.bmp' then 'image/bmp'
+                when '.webp' then 'image/webp'
+                else 'image/png'
+                end
+
+    # Use cat to pipe file contents to xclip
+    if system("cat #{escaped_path} | xclip -selection clipboard -target #{mime_type} 2>/dev/null")
+      @pB.say(' Image copied to clipboard')
+    else
+      @pB.say(' Failed to copy image - xclip may not be installed')
+    end
+  else
+    # Copy right pane text content
+    clip = 'xclip -selection clipboard'
+    @pB.say(' Right pane text copied to clipboard')
+    shell("echo -n #{Shellwords.escape(@pR.text.pure)} | #{clip} > /dev/null 2>&1", background: true)
+  end
 end
 
 # SYSTEM SHORTCUTS {{{2
