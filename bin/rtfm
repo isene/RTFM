@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '7.3.2' # Image persistence and C-Y copies images
+@version    = '7.3.3' # Performance optimization and UTF-16 support
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -1043,10 +1043,12 @@ end
 # MAIN GETKEY FOR USER INPUT {{{2
 def getkey # {{{3
   chr = getchr(1)
-  
-  # Check for image redraw on focus regain (even if no key was pressed)
-  check_image_redraw if @showimage
-  
+
+  # Only check image redraw when idle (no keypress) to avoid delays during active use
+  if chr.nil? && @showimage
+    check_image_redraw
+  end
+
   return unless chr
 
   # Don't clear image here - let render system handle it when @pR.update is true
@@ -1065,6 +1067,7 @@ end
 
 # BASIC KEYS {{{2
 def show_help # {{{3
+  clear_image
   help_info
 end
 
@@ -1146,6 +1149,7 @@ def refresh_all # {{{3
 end
 
 def show_config
+  clear_image
   @pR.say('Configuration'.u.fg(254) + ":\n\n" + @conf.fg(249))
 end
 
@@ -2242,6 +2246,7 @@ end
 
 # FILE COMPARISON {{{2
 def compare_files # {{{3
+  clear_image
   if @tagged.length == 0
     @pB.say("No files tagged for comparison. Tag 2 files with 't'".fg(196))
     return
@@ -3265,12 +3270,15 @@ def delete_items # {{{3
   
   tagged_info
   
+  # Clear image before showing warning text
+  clear_image
+
   # Add deletion warning to the right pane
   warning_text = "\n" + "=" * 50 + "\n"
   action = @trash ? 'Move to Trash' : 'PERMANENT DELETE'
   action_color = @trash ? 220 : 196
   warning_text << action.fg(action_color).b + "\n\n"
-  
+
   if @trash
     warning_text << "Items will be moved to:\n".fg(249)
     warning_text << "  ~/.rtfm/trash/\n".fg(240)
@@ -3280,9 +3288,9 @@ def delete_items # {{{3
     warning_text << "Files will be permanently removed\n".fg(196)
     warning_text << "This action CANNOT be undone!\n".fg(196).b
   end
-  
+
   warning_text << "\n" + "Press " + "y".fg(156).b + " to confirm, any other key to cancel".fg(249)
-  
+
   @pR.text << warning_text
   @pR.refresh
   
@@ -3643,8 +3651,9 @@ end
 
 # GIT/HASH/OPENAI {{{2
 def git_status # {{{3
+  clear_image
   @pR.clear
-  
+
   # Check if we're in a git repository
   unless Dir.exist?('.git') || system('git rev-parse --git-dir > /dev/null 2>&1')
     @pR.say("Not a Git Repository".b.fg(196) + "\n\n" + "This directory is not under Git version control.".fg(240))
@@ -3975,6 +3984,7 @@ end
 
 # SYSTEM SHORTCUTS {{{2
 def system_info # {{{3
+  clear_image
   text = "SYSTEM INFORMATION".b.fg(156) + " - " + Time.now.strftime("%Y-%m-%d %H:%M:%S").fg(249) + "\n"
   text << "=" * 50 + "\n\n"
   
@@ -4812,7 +4822,9 @@ def render # RENDER ALL PANES {{{2
 
   # RIGHT pane (or Preview pane in dual-pane mode) {{{3
   if @pR.update && @preview
-    showimage('clear') if @image; @image = false
+    # Actually clear the image overlay when rendering new content
+    showimage('clear') if @image
+    @image = false
     righttext = @pR.text
     
     # In dual-pane mode, construct full path from active pane
@@ -5320,8 +5332,25 @@ def open_selected(html = nil) # OPEN SELECTED FILE {{{2
     end
     return
   end
-  # Don't try to read large files or PDFs as text for validation
-  if !@selected&.match(@pdffile) && File.size(@selected) < 1_000_000 && File.read(@selected).force_encoding('UTF-8').valid_encoding? # Pure text
+  # Check if file is text (UTF-8, UTF-16, or other text encodings)
+  is_text_file = false
+  if !@selected&.match(@pdffile) && File.size(@selected) < 1_000_000
+    sample = File.read(@selected, 1024) rescue nil
+    if sample
+      # Try UTF-8 first
+      if sample.force_encoding('UTF-8').valid_encoding?
+        is_text_file = true
+      # Try UTF-16LE
+      elsif sample.force_encoding('UTF-16LE').valid_encoding?
+        is_text_file = true
+      # Try UTF-16BE
+      elsif sample.force_encoding('UTF-16BE').valid_encoding?
+        is_text_file = true
+      end
+    end
+  end
+
+  if is_text_file
     # Set flag to prevent SIGWINCH from refreshing during editor
     @external_program_running = true
     # Save terminal state before launching editor
@@ -5655,6 +5684,16 @@ def showcontent # SHOW CONTENTS IN THE RIGHT WINDOW {{{2
   @pR.update = false
 end
 
+def clear_image(skip_actual_clear: false) # HELPER TO CLEAR CURRENT IMAGE {{{2
+  return unless @image
+  # For operations that immediately render text over image, skip the slow clear
+  # The text pane will cover the image overlay anyway
+  unless skip_actual_clear
+    showimage('clear')
+  end
+  @image = false
+end
+
 def showimage(image) # SHOW THE SELECTED IMAGE IN THE RIGHT WINDOW {{{2
   # Pass 'clear' to clear the window for previous image
   return unless @showimage
@@ -5717,9 +5756,10 @@ def marks_info # SHOW MARKS IN RIGHT WINDOW {{{2
 end
 
 def tagged_info # SHOW THE LIST OF TAGGED ITEMS IN @pR {{{2
+  clear_image
   info = "Tagged Items".b.fg(204) + "\n"
   info << "=" * 50 + "\n\n"
-  
+
   # Summary information
   size_mb = (@tagsize.to_f / 1_000_000).round(2)
   info << "Summary:\n".fg(226)

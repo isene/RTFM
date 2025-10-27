@@ -1,9 +1,9 @@
 Gem::Specification.new do |s|
   s.name        = 'rtfm-filemanager'
-  s.version     = '7.3.2'
+  s.version     = '7.3.3'
   s.licenses    = ['Unlicense']
   s.summary     = "RTFM - Ruby Terminal File Manager"
-  s.description = "RTFM v7.3.2: Image persistence during operations and C-Y copies images to clipboard.\n A full featured terminal browser with syntax highlighted files, images shown in the terminal, videos thumbnailed, etc. Features include remote SSH/SFTP browsing, interactive SSH shell, comprehensive undo system, bookmarks, and much more. You can bookmark and jump around easily, delete, rename, copy, symlink and move files. RTFM is one of the most feature-packed terminal file managers."
+  s.description = "RTFM v7.3.3: Performance optimization for image operations and UTF-16 file support.\n A full featured terminal browser with syntax highlighted files, images shown in the terminal, videos thumbnailed, etc. Features include remote SSH/SFTP browsing, interactive SSH shell, comprehensive undo system, bookmarks, and much more. You can bookmark and jump around easily, delete, rename, copy, symlink and move files. RTFM is one of the most feature-packed terminal file managers."
   s.authors     = ["Geir Isene"]
   s.email       = 'g@isene.com'
   s.files       = ["bin/rtfm", "README.md", "img/rtfm-kb.png", "img/logo.png"]

@@ -5,6 +5,21 @@ All notable changes to RTFM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.3.3] - 2025-10-27
+
+### Performance
+- Image redraw checking now only runs when idle (no keypress)
+- Eliminates delay during active use with large images displayed
+- UP/DOWN/? and other keys now instant even with large images
+
+### Added
+- UTF-16 file support (both LE and BE) for opening in $EDITOR
+- Files with UTF-16 encoding now properly detected as text
+
+### Fixed
+- Added clear_image helper function to reduce code duplication
+- Image clearing for help, delete, config, git, system info, compare, tagged operations
+
 ## [7.3.2] - 2025-10-27
 
 ### Added
