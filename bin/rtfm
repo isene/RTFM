@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '7.3.0' # Modern image display using termpix gem
+@version    = '7.3.1' # Fixed image positioning and EXIF orientation
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -5641,18 +5641,18 @@ def showimage(image) # SHOW THE SELECTED IMAGE IN THE RIGHT WINDOW {{{2
     if image == 'clear'
       @termpix.clear(
         x: @pR.x,
-        y: @pR.y,
-        width: @pR.w,
-        height: @pR.h,
+        y: 2,
+        width: @pR.w - 1,
+        height: @pR.h - 1,
         term_width: @w,
         term_height: @h)
       @current_image_path = nil
     else
-      # Display image using termpix
+      # Display image using termpix (use original absolute row 2)
       img_path = File.absolute_path(image)
       @termpix.show(img_path,
         x: @pR.x,
-        y: @pR.y,
+        y: 2,
         max_width: @pR.w - 2,
         max_height: @pR.h - 1)
       @current_image_path = img_path
