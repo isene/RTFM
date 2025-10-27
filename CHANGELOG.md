@@ -5,6 +5,16 @@ All notable changes to RTFM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.3.1] - 2025-10-27
+
+### Fixed
+- Image positioning now uses correct absolute row positioning (row 2)
+- Images with EXIF orientation metadata display correctly (via termpix 0.2.0)
+- Pane borders no longer cleared when displaying images
+
+### Changed
+- Updated termpix dependency to ~> 0.2 for EXIF auto-orient support
+
 ## [7.3.0] - 2025-10-26
 
 ### Added
