@@ -3332,6 +3332,8 @@ def delete_items # {{{3
         # Only add to undo history if operation succeeded and we can undo it
         add_undo_operation(undo_info)
       else
+        # Permanent deletion
+        esc = paths.map { |p| Shellwords.escape(p) }.join(' ')
         command("rm -rf #{esc}")
         # Cannot undo permanent deletion, so don't add to undo history
       end
