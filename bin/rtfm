@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '7.3.4' # Critical bugfix for permanent delete
+@version    = '7.3.5' # Image clearing for directory navigation
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -1241,10 +1241,11 @@ def move_up # {{{3
 end
 
 def move_left # {{{3
+  clear_image
   if @remote_mode
     # Remote mode - go to parent directory
     return if @remote_path == '/' || @remote_path == '~'
-    
+
     old_path = @remote_path
     @remote_path = File.dirname(@remote_path)
     @remote_files_cache = []  # Clear cache when changing directories
@@ -1275,11 +1276,12 @@ def move_right # {{{3
   if @remote_mode
     # Remote mode - enter directory or perform action on file
     return unless @files && @files[@index] && @remote_files_cache[@index]
-    
+
     selected_file = @remote_files_cache[@index]
-    
+
     if selected_file[:type] == 'directory'
       # Enter directory
+      clear_image
       @remote_path = File.join(@remote_path, selected_file[:name])
       @remote_files_cache = []  # Clear cache when changing directories
       @index = 0  # Reset selection
@@ -1290,7 +1292,7 @@ def move_right # {{{3
       show_remote_file_info(selected_file)
     end
   else
-    # Local mode
+    # Local mode - open_selected will handle directory changes
     @directory[Dir.pwd] = @index
     mark_latest
     open_selected
@@ -1377,6 +1379,7 @@ def show_marks # {{{3
 end
 
 def jump_to_mark # {{{3
+  clear_image
   marks_info
   m = getchr
   if m =~ /[\w']/ && @marks[m]
@@ -1390,6 +1393,7 @@ def jump_to_mark # {{{3
 end
 
 def go_home # {{{3
+  clear_image
   if @dual_pane
     # In dual-pane mode, navigate the active pane to home directory
     home_dir = Dir.home
@@ -1434,6 +1438,7 @@ def go_home # {{{3
 end
 
 def follow_symlink # {{{3
+  clear_image
   @directory[Dir.pwd] = @index; mark_latest
   if File.symlink?(@selected)
     begin
@@ -5272,6 +5277,7 @@ end
 def open_selected(html = nil) # OPEN SELECTED FILE {{{2
   require 'tmpdir' unless Dir.respond_to?(:tmpdir)
   if File.directory?(@selected) # Dir? just cd into it
+    clear_image
     mark_latest
     Dir.chdir(@selected) rescue nil
     track_directory_access(@selected)

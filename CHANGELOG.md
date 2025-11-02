@@ -5,6 +5,12 @@ All notable changes to RTFM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.3.5] - 2025-10-27
+
+### Fixed
+- Images now properly clear when navigating to different directories
+- Added image clearing to: jump_to_mark ('), move_left/up (h/LEFT), go_home (~), follow_symlink (>), and directory entry
+
 ## [7.3.4] - 2025-10-27
 
 ### Fixed
