@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '7.3.5' # Image clearing for directory navigation
+@version    = '7.3.6' # Preview toggle clears images and performance
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -1198,12 +1198,22 @@ def toggle_border # {{{3
 end
 
 def toggle_preview # {{{3
+  # Clear image BEFORE toggling if we're about to turn preview off
+  if @preview && @image
+    showimage('clear')
+    @image = false
+  end
   @preview = !@preview
   @pB.say("Preview = #{@preview ? 'On' : 'Off'}")
   @pR.clear unless @preview
 end
 
 def toggle_image # {{{3
+  # Clear image BEFORE toggling if we're about to turn it off
+  if @showimage && @image
+    showimage('clear')
+    @image = false
+  end
   @showimage = !@showimage
   @pB.say("Image preview = #{@showimage ? 'On' : 'Off'}")
   getch
@@ -4887,14 +4897,15 @@ def render # RENDER ALL PANES {{{2
       cached_meta = get_cached_file_metadata(@selected)
       if cached_meta
         text += cached_meta
-      elsif @selected&.match(@imagefile) && cmd?('identify')
+      elsif @preview && @selected&.match(@imagefile) && cmd?('identify')
+        # Only get image metadata if preview is ON (avoid lag with preview OFF)
         # Skip SVG files as identify can be very slow on them
         unless @selected =~ /\.svg$/i
           # Fallback for non-cached image metadata
           meta = `identify -format " [%wx%h %m %[colorspace] %[bit-depth]-bit]" #{Shellwords.escape(@selected)} 2>/dev/null`
           text += meta
         end
-      elsif @selected&.match(@pdffile)
+      elsif @preview && @selected&.match(@pdffile)
         # Fallback for non-cached PDF metadata
         info  = `pdfinfo #{Shellwords.escape(@selected)} 2>/dev/null`
         pages = info[/^Pages:\s+(\d+)/, 1]
@@ -5694,6 +5705,7 @@ end
 
 def clear_image(skip_actual_clear: false) # HELPER TO CLEAR CURRENT IMAGE {{{2
   return unless @image
+  return unless @preview  # Don't clear if preview is off - nothing to clear
   # For operations that immediately render text over image, skip the slow clear
   # The text pane will cover the image overlay anyway
   unless skip_actual_clear
@@ -5705,6 +5717,7 @@ end
 def showimage(image) # SHOW THE SELECTED IMAGE IN THE RIGHT WINDOW {{{2
   # Pass 'clear' to clear the window for previous image
   return unless @showimage
+  return unless @preview  # Don't show images if preview is off
 
   begin
     if image == 'clear'
