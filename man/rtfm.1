@@ -1,0 +1,361 @@
+.TH RTFM 1 "2025-11-03" "7.3.6" "Ruby Terminal File Manager"
+.SH NAME
+rtfm \- Ruby Terminal File Manager with advanced features
+.SH SYNOPSIS
+.B rtfm
+.RI [ directory ]
+.SH DESCRIPTION
+.B RTFM
+is a feature-rich terminal file manager written in pure Ruby. It provides syntax-highlighted file previews, inline image display, remote SSH/SFTP browsing, comprehensive undo system, OpenAI integration, and much more.
+
+RTFM parses LS_COLORS for consistent terminal color theming and supports multiple image display protocols (Sixel, w3m) via the termpix gem.
+.SH KEY FEATURES
+.TP
+.B File Operations
+Copy, move, rename, symlink, delete with comprehensive undo support. Optional trash bin for safe deletion with restore capability.
+.TP
+.B Remote Browsing
+SSH/SFTP directory browsing with interactive shell sessions, file download/upload, and seamless navigation.
+.TP
+.B Image Display
+Inline terminal image display using w3m or Sixel protocols. Supports EXIF orientation for correct display of phone photos.
+.TP
+.B Advanced Features
+Git status, cryptographic hashing, bulk rename with patterns, file comparison, OpenAI integration for file descriptions and chat.
+.SH KEYBOARD REFERENCE
+.SS Basic Keys
+.TP
+.B ?
+Show help text
+.TP
+.B q
+Quit and save configuration
+.TP
+.B Q
+Quit without saving
+.TP
+.B r
+Refresh display (useful after terminal resize)
+.TP
+.B R
+Reload configuration from ~/.rtfm/conf
+.SS Motion
+.TP
+.BR j ", " DOWN
+Move down one item
+.TP
+.BR k ", " UP
+Move up one item
+.TP
+.BR h ", " LEFT
+Go to parent directory
+.TP
+.BR l ", " RIGHT ", " ENTER
+Enter directory or open file
+.TP
+.B HOME
+Jump to first item
+.TP
+.B END
+Jump to last item
+.TP
+.B PgDown
+Page down
+.TP
+.B PgUp
+Page up
+.SS Marks and Jumping
+.TP
+.B m
+Set mark (press letter a-z after)
+.TP
+.B '
+Jump to mark (press letter after)
+.TP
+.B ~
+Jump to home directory
+.TP
+.B >
+Follow symlink to target directory
+.TP
+.B Ctrl-r
+Show recently accessed files and directories
+.TP
+.B Ctrl-e
+Toggle remote SSH/SFTP mode
+.SS Tagging
+.TP
+.B t
+Tag/untag current item
+.TP
+.B Ctrl-t
+Tag items matching pattern
+.TP
+.B T
+Show tagged items
+.TP
+.B u
+Untag all items
+.SS File Operations
+.TP
+.B p
+Copy tagged items here
+.TP
+.B P
+Move tagged items here
+.TP
+.B s
+Create symlinks to tagged items
+.TP
+.B c
+Rename selected item
+.TP
+.B E
+Bulk rename tagged files with patterns
+.TP
+.B d
+Delete items (moves to trash if enabled)
+.TP
+.B D
+Empty trash directory
+.TP
+.B Ctrl-d
+Toggle trash on/off
+.TP
+.B U
+Undo last operation
+.SS Permissions
+.TP
+.B Ctrl-o
+Change ownership (user:group)
+.TP
+.B Ctrl-p
+Change permissions (755, rwxr-xr-x, +x, -w, etc.)
+.SS Search and Filter
+.TP
+.B f
+Filter by file extension
+.TP
+.B F
+Filter by regex pattern
+.TP
+.B /
+Search and highlight matches
+.TP
+.B n
+Next search match
+.TP
+.B N
+Previous search match
+.TP
+.B g
+Grep files for content
+.TP
+.B L
+Locate files
+.TP
+.B Ctrl-l
+Fuzzy file search (requires fzf)
+.SS Display Options
+.TP
+.B w
+Change pane width ratio
+.TP
+.B B
+Cycle border styles
+.TP
+.B \-
+Toggle preview on/off
+.TP
+.B _
+Toggle image preview on/off
+.TP
+.B b
+Toggle syntax highlighting
+.TP
+.B a
+Show/hide hidden files
+.TP
+.B A
+Toggle long file info (ls -l)
+.TP
+.B o
+Change sort order
+.TP
+.B i
+Invert sort order
+.SS Clipboard
+.TP
+.B y
+Copy path to primary selection (middle-click paste)
+.TP
+.B Y
+Copy path to clipboard
+.TP
+.B Ctrl-y
+Copy image to clipboard (when viewing image) or copy right pane text
+.SS Git/Hash/AI
+.TP
+.B G
+Show git status
+.TP
+.B H
+Cryptographic hash of directory tree
+.TP
+.B I
+Get OpenAI description of file
+.TP
+.B Ctrl-a
+Start OpenAI chat session
+.SS System
+.TP
+.B S
+Show comprehensive system information
+.TP
+.B X
+Compare two tagged files
+.TP
+.B e
+Show detailed file properties
+.SH CONFIGURATION
+Configuration is stored in
+.IR ~/.rtfm/conf .
+
+Use
+.B W
+to write current settings or
+.B C
+to view configuration.
+
+.SS Configurable Variables
+.TP
+.B @marks
+Persistent directory bookmarks
+.TP
+.B @trash
+Enable/disable trash directory (true/false)
+.TP
+.B @preview
+Enable/disable file preview (true/false)
+.TP
+.B @showimage
+Enable/disable image display (true/false)
+.TP
+.B @lslong
+Show long file info (true/false)
+.TP
+.B @lsall
+Show hidden files (true/false)
+.TP
+.B @width
+Pane width ratio (2-7)
+.TP
+.B @border
+Border style (0-3)
+.TP
+.B @ai
+OpenAI API key for AI features
+.SH PLUGINS
+RTFM supports custom plugins in
+.IR ~/.rtfm/plugins/ :
+
+.TP
+.B preview.rb
+Custom preview handlers for file types
+.TP
+.B keys.rb
+Custom key bindings and commands
+.SH REMOTE MODE
+Access remote directories via SSH/SFTP with
+.BR Ctrl-e .
+
+.SS Remote Operations
+.TP
+.B d
+Download selected file
+.TP
+.B u
+Upload local tagged files
+.TP
+.B s
+Open SSH shell session
+.TP
+.B LEFT/h
+Navigate to parent directory
+.TP
+.B RIGHT/ENTER
+Show file info or enter directory
+.SH DEPENDENCIES
+.SS Required
+.TP
+Ruby 2.7+
+.TP
+rcurses gem (~> 6.0)
+.TP
+termpix gem (~> 0.2)
+.SS Optional
+.TP
+.B ImageMagick
+For image preview (identify, convert commands)
+.TP
+.B w3m-img
+For w3m image protocol support
+.TP
+.B xdotool
+For image redraw on workspace switching
+.TP
+.B bat/batcat
+Syntax highlighting in previews
+.TP
+.B fzf
+Fuzzy file finding
+.TP
+.B pandoc
+Document conversion for previews
+.TP
+.B ffmpegthumbnailer
+Video thumbnail generation
+.TP
+.B ruby-openai
+OpenAI integration
+.SH FILES
+.TP
+.I ~/.rtfm/conf
+Main configuration file
+.TP
+.I ~/.rtfm/trash/
+Trash directory for deleted items
+.TP
+.I ~/.rtfm/plugins/preview.rb
+Custom preview handlers
+.TP
+.I ~/.rtfm/plugins/keys.rb
+Custom key bindings
+.SH EXAMPLES
+.TP
+Start RTFM in current directory:
+.B rtfm
+.TP
+Start in specific directory:
+.B rtfm ~/Documents
+.TP
+Use 'r' alias to cd into last directory on exit:
+Add to ~/.bashrc:
+.br
+.B alias r='cd "$(rtfm --last-dir)"'
+.SH COMPARISON WITH RANGER
+RTFM offers more features than ranger including SSH/SFTP browsing, comprehensive undo, trash system, OpenAI integration, and permission/ownership management with undo. Written in pure Ruby vs ranger's Python. Smaller codebase (6K vs 22K lines) but more feature-dense.
+.SH BUGS
+Report bugs at: https://github.com/isene/RTFM/issues
+.SH AUTHOR
+Written by Geir Isene <g@isene.com>
+.SH SEE ALSO
+.BR ls (1),
+.BR ranger (1),
+.BR mc (1)
+.PP
+Project homepage: https://isene.com/
+.br
+GitHub: https://github.com/isene/RTFM
+.br
+Termpix gem: https://github.com/isene/termpix
