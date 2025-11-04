@@ -5,7 +5,28 @@ All notable changes to RTFM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [7.3.6] - 2025-10-27
+## [7.4.0] - 2025-11-03
+
+### Documentation
+- **Man page added** - Professional Unix-style documentation (man rtfm)
+- **Restructured README** - Better organization, TOC, quick start guide
+- **Comprehensive guides** created in docs/ directory:
+  - Getting Started guide
+  - Configuration reference
+  - Remote browsing guide
+  - Keyboard reference
+  - Plugin development guide
+  - Troubleshooting guide
+  - FAQ
+- **Example configuration** - Well-commented rtfm.conf template
+- **CONTRIBUTING.md** - Guidelines for contributors
+- **Documentation badge** added to README
+
+### Changed
+- All documentation files now distributed with gem
+- gemspec includes man page, docs/, and examples/
+
+## [7.3.6] - 2025-11-03
 
 ### Fixed
 - Preview toggle ('-') now properly clears displayed images
