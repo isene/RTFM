@@ -390,22 +390,19 @@ RTFM includes built-in AI features powered by OpenAI's API for intelligent file 
 
 ### Setup
 
-1. **Install the ruby-openai gem:**
-   ```bash
-   gem install ruby-openai
-   ```
-
-2. **Get an API key:**
+1. **Get an API key:**
    - Sign up at https://platform.openai.com/
    - Generate an API key from your account settings
 
-3. **Configure RTFM:**
+2. **Configure RTFM:**
    Add your API key to `~/.rtfm/conf`:
    ```ruby
    @ai = "sk-your-actual-api-key-here"
    @aimodel = "gpt-4o-mini"  # Optional: default model
    @aicolor = 17             # Optional: chat pane background color
    ```
+
+The `ruby-openai` gem is already included as a dependency when you install RTFM.
 
 ### Features
 
