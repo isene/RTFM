@@ -4477,13 +4477,15 @@ def get_cached_dirlist(dir, ls_options, ls_options_with_long = nil) # {{{2
   # Use ls_options_with_long for display, or fall back to ls_options
   ls_options_with_long ||= ls_options
 
-  # Generate cache key with directory mtime for automatic invalidation
+  # Generate cache key with directory mtime AND file count for automatic invalidation
+  # File count catches additions/deletions that may not update mtime immediately
   # Include ls_options_with_long in cache key so toggling @lslong invalidates cache
   begin
     dir_mtime = File.mtime(dir).to_i
-    cache_key = "#{dir}:#{ls_options_with_long}:#{dir_mtime}"
+    file_count = Dir.entries(dir).size
+    cache_key = "#{dir}:#{ls_options_with_long}:#{dir_mtime}:#{file_count}"
   rescue
-    return nil  # Can't cache if we can't get mtime
+    return nil  # Can't cache if we can't get mtime or file count
   end
 
   # Return cached result if available and fresh

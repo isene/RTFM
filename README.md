@@ -36,6 +36,7 @@ After first run, use `r` command to launch RTFM and exit into your current direc
 - [Keyboard Reference](#keyboard-reference)
 - [Remote SSH/SFTP Browsing](#remote-sshsftp-browsing)
 - [Configuration](#configuration)
+- [OpenAI Integration](#openai-integration)
 - [Plugins](#plugins)
 - [Image Display](#image-display)
 - [RTFM vs Ranger](#rtfm-vs-ranger)
@@ -380,6 +381,76 @@ Configuration stored in `~/.rtfm/conf`
 # OpenAI chat
 @aicolor = 17
 ```
+
+---
+
+## OpenAI Integration
+
+RTFM includes built-in AI features powered by OpenAI's API for intelligent file analysis and interactive assistance.
+
+### Setup
+
+1. **Install the ruby-openai gem:**
+   ```bash
+   gem install ruby-openai
+   ```
+
+2. **Get an API key:**
+   - Sign up at https://platform.openai.com/
+   - Generate an API key from your account settings
+
+3. **Configure RTFM:**
+   Add your API key to `~/.rtfm/conf`:
+   ```ruby
+   @ai = "sk-your-actual-api-key-here"
+   @aimodel = "gpt-4o-mini"  # Optional: default model
+   @aicolor = 17             # Optional: chat pane background color
+   ```
+
+### Features
+
+#### File Description (Press `I`)
+
+Get an intelligent summary of any file or directory:
+- **Files:** Purpose, code review (for source files), library documentation lookup
+- **Directories:** Overview of structure and contents
+- **Git-aware:** Includes recent changes if in a git repository
+- **Smart analysis:** Automatically includes preview content for context
+
+Example uses:
+- Understand unfamiliar codebases quickly
+- Get code review suggestions (bugs, style, improvements)
+- Learn what libraries/APIs are being used
+- See git diff explanations in plain language
+
+#### Interactive Chat (Press `Ctrl-a`)
+
+Start a conversational AI assistant specialized in:
+- File and directory questions
+- Shell command help and suggestions
+- Terminal workflow assistance
+- Programming and scripting guidance
+
+The chat maintains context throughout your RTFM session, so follow-up questions work naturally.
+
+### Configuration Options
+
+```ruby
+# Model selection (in ~/.rtfm/conf)
+@aimodel = "gpt-4o-mini"      # Fast, cost-effective (default)
+@aimodel = "gpt-4o"           # More capable, higher cost
+@aimodel = "gpt-4-turbo"      # Alternative high-end model
+
+# Chat interface color
+@aicolor = 17                 # Dark blue background (default)
+```
+
+### Cost & Privacy
+
+- API calls cost money (typically $0.001-0.01 per request with gpt-4o-mini)
+- File contents are sent to OpenAI when using `I` key
+- No data is sent unless you explicitly press `I` or `Ctrl-a`
+- Chat history persists only during your RTFM session
 
 ---
 
