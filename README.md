@@ -29,6 +29,27 @@ After first run, use `r` command to launch RTFM and exit into your current direc
 
 ---
 
+## Screenshots
+
+<details>
+<summary>Click to view screenshots</summary>
+
+### OpenAI File Analysis
+![AI analyzing a PDF file](img/screenshot-ai-file.png)
+
+### Interactive AI Chat
+![AI chat mode with specialized assistance](img/screenshot-ai-chat.png)
+
+### Syntax Highlighting
+![Ruby code with syntax highlighting](img/screenshot-syntax.png)
+
+### System Information
+![System stats display (press S)](img/screenshot-system.png)
+
+</details>
+
+---
+
 ## Table of Contents
 
 - [Key Features](#key-features)
