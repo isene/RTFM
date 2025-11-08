@@ -21,6 +21,14 @@ sudo apt install ruby-full x11-utils xdotool bat pandoc poppler-utils \
 gem install rtfm-filemanager
 ```
 
+#### ArchLinux/derivatives
+```bash
+sudo pacman -Syu ruby xdotool bat pandoc poppler odt2txt docx2txt unzip \
+  gnumeric catdoc w3m imagemagick ffmpegthumbnailer tar gzip bzip2 xz unrar 7zip
+
+gem install rtfm-filemanager
+```
+
 ### macOS
 
 ```bash

@@ -40,10 +40,13 @@ ruby --version
 # Update Ruby (Ubuntu)
 sudo apt install ruby-full
 
+# Update Ruby (ArchLinux)
+sudo pacman -Syu ruby
+
 # Update Ruby (macOS)
 brew install ruby
 
-# Or use rbenv/rvm for version management
+# Or use rbenv/rvm/asdf for version management
 ```
 
 ## Display Issues

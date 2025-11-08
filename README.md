@@ -115,6 +115,17 @@ sudo apt install ruby-full x11-utils xdotool bat pandoc poppler-utils \
 gem install rtfm-filemanager
 ```
 
+#### ArchLinux/derivatives
+```bash
+sudo pacman -Syu ruby bat pandoc poppler odt2txt docx2txt unzip gnumeric catdoc w3m imagemagick ffmpegthumbnailer
+gem install rtfm-filemanager
+```
+
+The catppt tool is not currently available. If you have an AUR helper installed, such as yay, you can install xls2csv:
+```
+yay -Syu perl-xls2csv
+```
+
 #### macOS:
 ```bash
 brew install ruby imagemagick w3m bat pandoc poppler
