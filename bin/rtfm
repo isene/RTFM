@@ -464,11 +464,15 @@ def display_welcome_message # {{{2
 @firstrun += "
   • Linux (Debian/Ubuntu): Use apt
   • Linux (Fedora/RHEL): Use dnf/yum
+  • Linux (ArchLinux): Use pacman
   • macOS: Use Homebrew (brew)
   • BSD: Use pkg or ports
 
   For Ubuntu/Debian users, install all dependencies with:
   sudo apt install ruby-full git libncurses-dev x11-utils xdotool bat pandoc poppler-utils odt2txt docx2txt unzip gnumeric catdoc w3m imagemagick ffmpegthumbnailer
+  
+  For users of ArchLinux and derivatives, install all dependencies available outside of AUR with:
+  sudo pacman -Syu ruby git ncurses xdotool bat pandoc poppler odt2txt docx2txt unzip gnumeric catdoc w3m imagemagick ffmpegthumbnailer
 
   Note: Package names may vary between platforms. The 'libncurses-dev' package is Linux-specific.".b.fg(87)
 @firstrun += "\n\n

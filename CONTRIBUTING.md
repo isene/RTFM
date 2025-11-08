@@ -113,10 +113,18 @@ cd RTFM
 
 ### Install Dependencies
 
+For Debian/Ubuntu:
 ```bash
 gem install rcurses termpix bootsnap
 # Optional for all features:
 sudo apt install imagemagick w3m-img xdotool bat pandoc
+```
+
+For ArchLinux and derivatives:
+```bash
+gem install rcurses termpix bootsnap
+# Optional for all features:
+sudo pacman -Syu bat pandoc w3m imagemagick xdotool
 ```
 
 ### Run from Source
