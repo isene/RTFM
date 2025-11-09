@@ -24,7 +24,7 @@ gem install rtfm-filemanager
 #### ArchLinux/derivatives
 ```bash
 sudo pacman -Syu ruby xdotool bat pandoc poppler odt2txt docx2txt unzip \
-  gnumeric catdoc w3m imagemagick ffmpegthumbnailer tar gzip bzip2 xz unrar 7zip
+  gnumeric catdoc w3m imagemagick ffmpegthumbnailer tar gzip bzip2 xz unrar p7zip libreoffice-fresh
 
 gem install rtfm-filemanager
 ```
