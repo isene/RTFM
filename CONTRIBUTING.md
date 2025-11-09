@@ -124,7 +124,7 @@ For ArchLinux and derivatives:
 ```bash
 gem install rcurses termpix bootsnap
 # Optional for all features:
-sudo pacman -Syu bat pandoc w3m imagemagick xdotool
+sudo pacman -Syu bat pandoc w3m imagemagick xdotool p7zip libreoffice-fresh
 ```
 
 ### Run from Source

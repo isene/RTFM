@@ -117,11 +117,11 @@ gem install rtfm-filemanager
 
 #### ArchLinux/derivatives
 ```bash
-sudo pacman -Syu ruby bat pandoc poppler odt2txt docx2txt unzip gnumeric catdoc w3m imagemagick ffmpegthumbnailer
+sudo pacman -Syu ruby bat pandoc poppler odt2txt docx2txt unzip gnumeric catdoc w3m imagemagick ffmpegthumbnailer p7zip libreoffice-fresh
 gem install rtfm-filemanager
 ```
 
-The catppt tool is not currently available. If you have an AUR helper installed, such as yay, you can install xls2csv:
+Note: catppt is not available in official repos, but RTFM will fall back to using LibreOffice's soffice for .ppt files. For xls2csv, use an AUR helper:
 ```
 yay -Syu perl-xls2csv
 ```

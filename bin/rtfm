@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '7.4.1' # Fixed cache invalidation and added OpenAI documentation
+@version    = '7.4.2' # LibreOffice soffice fallback for legacy MS Office formats + ArchLinux support
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -456,7 +456,7 @@ def display_welcome_message # {{{2
   • docx2txt - Viewing MS Word docx files
   • unzip - Viewing MS PowerPoint pptx files
   • ssconvert (from gnumeric) - Viewing MS Excel xlsx files
-  • catdoc, xls2csv, catppt - Viewing older MS Office formats
+  • catdoc/xls2csv/catppt (with soffice fallback) - Viewing older MS Office formats
   • w3m, ImageMagick - Viewing images
   • ffmpegthumbnailer - Video thumbnails\n".fg(195)
 @firstrun += "
@@ -839,9 +839,9 @@ preview_specs = {
   'docx'               => "docx2txt @s -",
   'xlsx'               => "ssconvert -O 'separator=   ' -T Gnumeric_stf:stf_assistant @s fd://1",
   'pptx'               => "unzip -qc @s | ruby -e '$stdin.each_line{ |i| i.force_encoding(\"ISO-8859-1\").scan(/<a:t>(.+?)<\\/a:t>/).each{ |j| puts j } }'",
-  'doc'                => "catdoc @s 2>/dev/null",
-  'xls'                => "xls2csv @s 2>/dev/null",
-  'ppt'                => "catppt @s 2>/dev/null",
+  'doc'                => "catdoc @s 2>/dev/null || soffice --headless --cat @s 2>/dev/null",
+  'xls'                => "xls2csv @s 2>/dev/null || soffice --headless --cat @s 2>/dev/null",
+  'ppt'                => "catppt @s 2>/dev/null || soffice --headless --cat @s 2>/dev/null",
   # compressed archives
   'zip'                => "unzip -l @s",
   'tar'                => "tar -tvf @s",
