@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '7.4.2' # LibreOffice soffice fallback for legacy MS Office formats + ArchLinux support
+@version    = '7.4.3' # Fix docx preview corrupting left pane display by filtering carriage returns
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -836,7 +836,7 @@ preview_specs = {
   'md'                 => "pandoc @s -t plain",
   'pdf'                => "pdftotext -f 1 -l 4 @s - | tr -d '\\r'",  # Filter carriage returns
   'odt, odp, odg, odc' => "odt2txt @s",
-  'docx'               => "docx2txt @s -",
+  'docx'               => "docx2txt @s - | tr -d '\\r'",  # Filter carriage returns
   'xlsx'               => "ssconvert -O 'separator=   ' -T Gnumeric_stf:stf_assistant @s fd://1",
   'pptx'               => "unzip -qc @s | ruby -e '$stdin.each_line{ |i| i.force_encoding(\"ISO-8859-1\").scan(/<a:t>(.+?)<\\/a:t>/).each{ |j| puts j } }'",
   'doc'                => "catdoc @s 2>/dev/null || soffice --headless --cat @s 2>/dev/null",

@@ -5,6 +5,15 @@ All notable changes to RTFM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.4.3] - 2025-12-09
+
+### Fixed
+- **Display corruption with .docx files** - Fixed left pane display corruption when viewing .docx files
+  - Carriage returns (`\r`) from docx2txt output were moving cursor to beginning of line
+  - This caused the right pane content to overwrite the left pane's first item prefix
+  - Added `tr -d '\r'` filter to docx handler, matching existing PDF handler behavior
+  - Left pane file list now displays correctly when previewing Word documents
+
 ## [7.4.1] - 2025-11-04
 
 ### Fixed
