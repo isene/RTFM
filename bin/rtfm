@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '7.4.3' # Fix docx preview corrupting left pane display by filtering carriage returns
+@version    = '7.4.4' # Fix 'z' command to use current file when nothing tagged and detect archive type
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -3645,9 +3645,27 @@ end
 
 # ARCHIVES {{{2
 def unzip_items # {{{3
-  first = @tagged.first
-  tar   = Shellwords.escape(first)
-  cmd   = @pCmd.ask('Command: ', "tar xfz #{tar}")
+  first = @tagged.empty? ? @selected : @tagged.first
+  return unless first
+  escaped = Shellwords.escape(first)
+  # Detect archive type and suggest appropriate command
+  default_cmd = case first.downcase
+                when /\.zip$/
+                  "unzip #{escaped}"
+                when /\.rar$/
+                  "unrar x #{escaped}"
+                when /\.7z$/
+                  "7z x #{escaped}"
+                when /\.tar\.bz2$|\.tbz2?$/
+                  "tar xfj #{escaped}"
+                when /\.tar\.xz$|\.txz$/
+                  "tar xfJ #{escaped}"
+                when /\.tar\.zst$/
+                  "tar --zstd -xf #{escaped}"
+                else
+                  "tar xfz #{escaped}"
+                end
+  cmd = @pCmd.ask('Command: ', default_cmd)
   # Reset bottom pane after command input
   @pB.clear; @pB.update = true
   shellexec(cmd) unless cmd.nil? || cmd.strip.empty?
