@@ -5,6 +5,20 @@ All notable changes to RTFM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.4.4] - 2026-01-09
+
+### Fixed
+- **Extract command ('z') improvements** - Fixed two issues with archive extraction:
+  - Now uses current file when nothing is tagged (was empty command before)
+  - Auto-detects archive type and suggests correct command:
+    - `.zip` → `unzip`
+    - `.rar` → `unrar x`
+    - `.7z` → `7z x`
+    - `.tar.bz2`/`.tbz2` → `tar xfj`
+    - `.tar.xz`/`.txz` → `tar xfJ`
+    - `.tar.zst` → `tar --zstd -xf`
+    - Others → `tar xfz`
+
 ## [7.4.3] - 2025-12-09
 
 ### Fixed
