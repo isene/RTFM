@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '7.5.0' # Native Kitty graphics protocol - no more flash in kitty terminal
+@version    = '7.5.1' # WezTerm support, removed bold from top pane
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -4970,7 +4970,7 @@ def render # RENDER ALL PANES {{{2
       text += " " * padding + tab_indicator
     end
     
-    @pT.text = text.b
+    @pT.text = text
     
     @pT.bg   = @topmatch.find { |name, _| name.empty? || Dir.pwd.include?(name) }&.last
     @pT.refresh unless @pT.text == toptext
