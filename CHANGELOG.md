@@ -5,6 +5,22 @@ All notable changes to RTFM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.5.0] - 2026-01-16
+
+### Added
+- **Native Kitty graphics protocol** - Images now display perfectly in kitty terminal
+  - No more flash during image-to-image navigation
+  - Requires termpix 0.3.0+
+  - Automatic protocol detection (kitty, sixel, or w3m)
+  - Proper aspect ratio preservation
+
+### Changed
+- Updated image positioning for kitty protocol compatibility
+- Optimized image clearing logic - skips unnecessary clears for atomic-replace protocols
+
+### Fixed
+- Fixed `getch` → `getchr` typo in toggle_image function
+
 ## [7.4.4] - 2026-01-09
 
 ### Fixed

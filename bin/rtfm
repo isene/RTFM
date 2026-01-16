@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '7.4.4' # Fix 'z' command to use current file when nothing tagged and detect archive type
+@version    = '7.5.0' # Native Kitty graphics protocol - no more flash in kitty terminal
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -1220,7 +1220,7 @@ def toggle_image # {{{3
   end
   @showimage = !@showimage
   @pB.say("Image preview = #{@showimage ? 'On' : 'Off'}")
-  getch
+  getchr
 end
 
 def toggle_syntax # {{{3
@@ -4863,8 +4863,10 @@ def render # RENDER ALL PANES {{{2
 
   # RIGHT pane (or Preview pane in dual-pane mode) {{{3
   if @pR.update && @preview
-    # Actually clear the image overlay when rendering new content
-    showimage('clear') if @image
+    # Track if we had an image (for kitty deferred clear)
+    had_image_render = @image
+    # Clear image overlay unless protocol supports atomic replace (kitty)
+    showimage('clear') if @image && @termpix.protocol != :kitty
     @image = false
     righttext = @pR.text
     
@@ -4903,6 +4905,11 @@ def render # RENDER ALL PANES {{{2
       end
     end
     
+    # Deferred clear for kitty: if we had an image but now don't, clear it
+    if had_image_render && !@image && @termpix.protocol == :kitty
+      showimage('clear')
+    end
+
     @pR.full_refresh unless @pR.text == righttext || @image
   end
 
@@ -5527,9 +5534,14 @@ end
 def showcontent # SHOW CONTENTS IN THE RIGHT WINDOW {{{2
   # Only process content if preview is enabled
   return unless @preview
-  
+
+  # Track if we had an image (for deferred clear with kitty)
+  had_image = @image
+
   if @pR.update
-    showimage('clear') if @image
+    # Clear image unless protocol supports atomic replace (kitty)
+    # Kitty will clear later only if new content is not an image
+    showimage('clear') if @image && @termpix.protocol != :kitty
     @image = false
     @pR.clear
   end
@@ -5724,6 +5736,13 @@ def showcontent # SHOW CONTENTS IN THE RIGHT WINDOW {{{2
   rescue StandardError => e
     errormsg("⚠ Error while previewing #{@selected}", e)
   end
+
+  # Deferred clear for kitty: if we had an image but now don't, clear it
+  # This happens after content is determined, so image→image has no flash
+  if had_image && !@image && @termpix.protocol == :kitty
+    showimage('clear')
+  end
+
   @pR.update = false
 end
 
@@ -5754,11 +5773,13 @@ def showimage(image) # SHOW THE SELECTED IMAGE IN THE RIGHT WINDOW {{{2
         term_height: @h)
       @current_image_path = nil
     else
-      # Display image using termpix (use original absolute row 2)
+      # Display image using termpix
       img_path = File.absolute_path(image)
+      # Kitty needs y+1 to account for border (uses character positions directly)
+      img_y = @termpix.protocol == :kitty ? 3 : 2
       @termpix.show(img_path,
         x: @pR.x,
-        y: 2,
+        y: img_y,
         max_width: @pR.w - 2,
         max_height: @pR.h - 1)
       @current_image_path = img_path

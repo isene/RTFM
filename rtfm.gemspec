@@ -1,9 +1,9 @@
 Gem::Specification.new do |s|
   s.name        = 'rtfm-filemanager'
-  s.version     = '7.4.4'
+  s.version     = '7.5.0'
   s.licenses    = ['Unlicense']
   s.summary     = "RTFM - Ruby Terminal File Manager"
-  s.description = "RTFM v7.4.4: Fixed 'z' (extract) command to use current file when nothing tagged and auto-detect archive type (zip, rar, 7z, tar.bz2, tar.xz, tar.zst).\n A full featured terminal browser with syntax highlighted files, images shown in the terminal, videos thumbnailed, etc. Features include remote SSH/SFTP browsing, interactive SSH shell, comprehensive undo system, bookmarks, and much more. You can bookmark and jump around easily, delete, rename, copy, symlink and move files. RTFM is one of the most feature-packed terminal file managers."
+  s.description = "RTFM v7.5.0: Native Kitty graphics protocol - images now display perfectly in kitty terminal with no flash. A full featured terminal browser with syntax highlighted files, images shown in the terminal, videos thumbnailed, etc. Features include remote SSH/SFTP browsing, interactive SSH shell, comprehensive undo system, bookmarks, and much more. You can bookmark and jump around easily, delete, rename, copy, symlink and move files. RTFM is one of the most feature-packed terminal file managers."
   s.authors     = ["Geir Isene"]
   s.email       = 'g@isene.com'
   s.files       = [
@@ -23,7 +23,7 @@ Gem::Specification.new do |s|
     "examples/rtfm.conf"
   ]
   s.add_runtime_dependency 'rcurses', '~> 6.0'
-  s.add_runtime_dependency 'termpix', '~> 0.2'
+  s.add_runtime_dependency 'termpix', '~> 0.3'
   s.add_runtime_dependency 'bootsnap', '~> 1.18'
   s.add_runtime_dependency 'ruby-openai', '~> 7.4'
   s.executables << 'rtfm'

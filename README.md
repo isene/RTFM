@@ -556,7 +556,7 @@ RTFM uses the [termpix](https://github.com/isene/termpix) gem for modern multi-p
 | urxvt | w3m | ✓ Perfect |
 | xterm | Sixel | ✓ Perfect |
 | mlterm | Sixel | ✓ Perfect |
-| kitty | w3m | ✓ Works (brief flash) |
+| kitty | Kitty | ✓ Perfect |
 | foot | Sixel | ✓ Perfect |
 
 ### Features
@@ -569,7 +569,7 @@ RTFM uses the [termpix](https://github.com/isene/termpix) gem for modern multi-p
 
 ### Terminal Compatibility
 
-Best image experience with: urxvt, xterm, mlterm, Eterm
+Best image experience with: kitty, urxvt, xterm, mlterm, foot
 
 ---
 
