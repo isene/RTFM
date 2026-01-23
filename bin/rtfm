@@ -5383,8 +5383,10 @@ def open_selected(html = nil) # OPEN SELECTED FILE {{{2
     return
   end
   # Check if file is text (UTF-8, UTF-16, or other text encodings)
+  # Exclude binary formats: PDF, Office files (which are ZIP archives)
   is_text_file = false
-  if !@selected&.match(@pdffile) && File.size(@selected) < 1_000_000
+  binary_formats = /\.(pdf|docx?|xlsx?|pptx?|odt|ods|odp|zip|tar|gz|bz2|xz|7z|rar|jar|war|ear|apk|epub)$/i
+  if !@selected&.match(binary_formats) && File.size(@selected) < 1_000_000
     sample = File.read(@selected, 1024) rescue nil
     if sample
       # Try UTF-8 first
