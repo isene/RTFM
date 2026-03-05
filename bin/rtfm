@@ -5976,6 +5976,13 @@ loop do
   rescue
     Dir.chdir
   end
+  # If selected file was removed externally, force pane refresh
+  if @selected && !File.exist?(@selected)
+    @dir_cache.delete_if { |key, _| key.start_with?("#{Dir.pwd}:") }
+    @index = [@index, (@files.size - 2)].min
+    @index = 0 if @index.negative?
+    @pL.update = @pR.update = @pT.update = true
+  end
   # restore index if we cd'd
   if Dir.pwd != @dir_old
     @index = @directory[Dir.pwd] || 0
