@@ -5,10 +5,14 @@ All notable changes to RTFM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [7.5.2] - 2026-03-05
+## [7.5.3] - 2026-03-05
 
 ### Fixed
 - **Stale display on external file removal** - When another program deletes the currently selected file, RTFM now detects this and refreshes all panes within ~1 second
+
+## [7.5.2] - 2026-01-23
+
+### Fixed
 - **Office files opening in editor** - Fixed .pptx, .docx, .xlsx and other Office formats incorrectly opening in vim/editor instead of xdg-open
   - These files are ZIP archives that could pass the UTF-8 text detection
   - Now explicitly excludes Office formats and other binary files from text detection
