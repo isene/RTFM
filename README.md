@@ -324,12 +324,26 @@ user@server.com:/path # Production server
 |-----|--------|
 | `←` / `h` | Parent directory |
 | `→` / `ENTER` | Enter dir / show file info |
-| `d` | Download file |
+| `D` | Download file |
 | `u` | Upload tagged files |
 | `s` | Open SSH shell |
 | `Ctrl-e` | Exit remote mode |
 
 **Visual indicator:** Red background when in remote mode
+
+### Archive Browsing
+
+Press `Enter` on any archive file (.zip, .tar.gz, .tar.bz2, .tar.xz, .rar, .7z) to browse its contents as a virtual directory.
+
+| Key | Action |
+|-----|--------|
+| `d` | Delete entry from archive |
+| `D` | Extract entry to origin directory |
+| `p` | Add pre-tagged local files into archive |
+| `t` | Tag/untag for bulk operations |
+| `LEFT` | Parent directory / exit archive |
+
+**Visual indicator:** Yellow-green background when in archive mode
 
 ---
 
