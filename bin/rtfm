@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '7.5.3' # Fix stale display on external file removal
+@version    = '8.0' # Archive browsing, async file ops, scrollable diff viewer
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -236,7 +236,7 @@ CONFIG_FILE   = File.join(RTFM_HOME, 'conf')
     P       = PUT (move) tagged items here
     c       = Change/rename selected (adds command to bottom window)
     E       = Bulk rename tagged files using patterns (regex, templates, case conversion)
-    X       = Compare two tagged files (text diff or binary comparison)
+    X       = Compare two tagged files (scrollable diff with j/k, s=side-by-side, q=close)
     s       = Create symlink to tagged items here
     d       = Delete selected item and tagged items. Confirm with 'y'. 
               Moves items to trash directory (~/.rtfm/trash/) if @trash = true
@@ -267,6 +267,10 @@ CONFIG_FILE   = File.join(RTFM_HOME, 'conf')
               (fuzzy file finder must be installed https://github.com/junegunn/fzf)
 
   ARCHIVES
+    ENTER   = Browse inside archive (zip, tar, gz, bz2, xz, rar, 7z) - virtual browsing
+              Press LEFT at archive root to exit back to normal browsing
+    x       = Open archive with external program (bypass archive browsing)
+              Inside an archive: d=extract, D=delete, p=add files, t=tag, P=move out
     z       = Extract tagged zipped archive to current directory
     Z       = Create zipped archive from tagged files/directories
 
@@ -587,6 +591,12 @@ $stdin.set_encoding(Encoding::UTF_8)
 @max_undo_levels = 20   # Maximum number of undo levels to keep
 @undo_enabled = true    # Enable/disable undo system
 
+## Async file operations
+@file_op_thread = nil            # Current background operation thread
+@file_op_progress = nil          # Progress message for bottom pane display
+@file_op_complete = false        # Flag when operation finishes
+@file_op_result = nil            # Result message when operation finishes
+
 ## Recently accessed files/directories
 @recent_files = []      # Last 50 accessed files
 @recent_dirs = []       # Last 20 accessed directories  
@@ -600,6 +610,15 @@ $stdin.set_encoding(Encoding::UTF_8)
 @remote_mode = false      # Whether currently browsing remotely
 @remote_path = '~'        # Current remote directory path
 @remote_files_cache = []  # Cache of current remote directory files with full info
+
+## Archive browsing variables
+@archive_mode = false           # Whether currently browsing inside an archive
+@archive_path = nil             # Full path to the archive file on disk
+@archive_current_dir = ''       # Current virtual directory within the archive
+@archive_entries = []           # Parsed entries: [{name:, type:, size:, full_path:}]
+@archive_files_cache = []       # Filtered entries for current virtual directory
+@archive_origin_dir = nil       # Directory we were in before entering archive mode
+@archive_origin_tagged = []     # Tagged files from before entering archive mode
 
 # TAB MANAGEMENT FUNCTIONS {{{1
 def create_tab(directory = Dir.pwd, name = nil) # {{{2
@@ -857,6 +876,7 @@ preview_specs = {
 }
 @imagefile ||= /\.(?:png|jpe?g|bmp|gif|webp|tiff?|svg)$/i
 @pdffile   ||= /\.pdf$/i
+ARCHIVE_RE = /\.(zip|tar|tar\.gz|tgz|tar\.bz2|tbz2?|tar\.xz|txz|tar\.zst|rar|7z)$/i
 # rubocop:enable Style/StringLiterals
 
 # USER PLUGINS {{{1
@@ -1149,6 +1169,12 @@ def refresh_all # {{{3
     @remote_files_cache = []
     @pL.update = true
   end
+  # Refresh archive listing if in archive mode
+  if @archive_mode && @archive_path
+    @archive_files_cache = []
+    @archive_entries = parse_archive_listing(@archive_path)
+    @pL.update = true
+  end
   refresh
 end
 
@@ -1235,8 +1261,8 @@ end
 def move_down # {{{3
   @index = @index >= @max_index ? @min_index : @index + 1
   @pL.update = true
-  # In remote mode, only update bottom pane (for file attributes)
-  if @remote_mode
+  # In remote/archive mode, only update bottom pane (for file attributes)
+  if @remote_mode || @archive_mode
     @pB.update = true
   else
     @pR.update = @pB.update = true
@@ -1246,8 +1272,8 @@ end
 def move_up # {{{3
   @index = @index <= @min_index ? @max_index : @index - 1
   @pL.update = true
-  # In remote mode, only update bottom pane (for file attributes)
-  if @remote_mode
+  # In remote/archive mode, only update bottom pane (for file attributes)
+  if @remote_mode || @archive_mode
     @pB.update = true
   else
     @pR.update = @pB.update = true
@@ -1256,7 +1282,18 @@ end
 
 def move_left # {{{3
   clear_image
-  if @remote_mode
+  if @archive_mode
+    if @archive_current_dir == '' || @archive_current_dir == '/'
+      exit_archive_mode
+    else
+      @archive_current_dir = File.dirname(@archive_current_dir)
+      @archive_current_dir = '' if @archive_current_dir == '.'
+      @archive_files_cache = []
+      @index = 0
+      @pL.update = @pR.update = @pB.update = true
+    end
+    return
+  elsif @remote_mode
     # Remote mode - go to parent directory
     return if @remote_path == '/' || @remote_path == '~'
 
@@ -1287,7 +1324,20 @@ end
 # dirlist_simple function removed - was only for dual-pane navigation
 
 def move_right # {{{3
-  if @remote_mode
+  if @archive_mode
+    return unless @files && @files[@index] && @archive_files_cache[@index]
+    selected_entry = @archive_files_cache[@index]
+    if selected_entry[:type] == 'directory'
+      clear_image
+      @archive_current_dir = selected_entry[:full_path]
+      @archive_files_cache = []
+      @index = 0
+      @pL.update = @pR.update = @pB.update = true
+    else
+      show_archive_file_info(selected_entry)
+    end
+    return
+  elsif @remote_mode
     # Remote mode - enter directory or perform action on file
     return unless @files && @files[@index] && @remote_files_cache[@index]
 
@@ -1326,8 +1376,7 @@ def page_down # {{{3
   @index += @pL.h - 2
   @index = @max_index if @index > @max_index
   @pL.update = true
-  # In remote mode, only update bottom pane (for file attributes)
-  if @remote_mode
+  if @remote_mode || @archive_mode
     @pB.update = true
   else
     @pR.update = @pB.update = true
@@ -1338,8 +1387,7 @@ def page_up # {{{3
   @index -= @pL.h - 2
   @index = @min_index if @index < @min_index
   @pL.update = true
-  # In remote mode, only update bottom pane (for file attributes)
-  if @remote_mode
+  if @remote_mode || @archive_mode
     @pB.update = true
   else
     @pR.update = @pB.update = true
@@ -1349,8 +1397,7 @@ end
 def go_last # {{{3
   @index = @max_index
   @pL.update = true
-  # In remote mode, only update bottom pane (for file attributes)
-  if @remote_mode
+  if @remote_mode || @archive_mode
     @pB.update = true
   else
     @pR.update = @pB.update = true
@@ -1360,8 +1407,7 @@ end
 def go_first # {{{3
   @index = @min_index
   @pL.update = true
-  # In remote mode, only update bottom pane (for file attributes)
-  if @remote_mode
+  if @remote_mode || @archive_mode
     @pB.update = true
   else
     @pR.update = @pB.update = true
@@ -1584,6 +1630,18 @@ def tag_current # {{{3
       
       @pPreview.update = true if @pPreview
     end
+  elsif @archive_mode
+    # Archive mode: tag using archive_path:entry_path format
+    entry = @archive_files_cache[@index]
+    return unless entry
+    item = "#{@archive_path}:#{entry[:full_path]}"
+    if @tagged.include?(item)
+      @tagged.delete(item); @tagsize -= entry[:size] rescue 0
+    else
+      @tagged.push(item); @tagsize += entry[:size] rescue 0
+    end
+    @index = [@index + 1, (@files.size - 1)].min
+    @pL.update = true
   else
     # Original single-pane logic
     item = @selected
@@ -1595,7 +1653,7 @@ def tag_current # {{{3
     @index = [@index + 1, (@files.size - 1)].min
     @pL.update = true
   end
-  
+
   @pB.say(" Tagged #{@tagged.size} files (#{(@tagsize.to_f / 1_000_000).round(2)}MB)".fg(204))
   @pB.update = false; @pR.update = true
 end
@@ -2292,48 +2350,47 @@ end
 def show_file_comparison(file1, file2) # {{{3
   basename1 = File.basename(file1)
   basename2 = File.basename(file2)
-  
-  text = "File Comparison\n".b.fg(156)
-  text << "=" * 50 + "\n\n"
-  text << sprintf("%-25s vs %s\n", basename1.fg(156), basename2.fg(156))
-  text << "=" * 50 + "\n\n"
-  
+
+  header = "File Comparison\n".b.fg(156)
+  header << "=" * 50 + "\n\n"
+  header << sprintf("%-25s vs %s\n", basename1.fg(156), basename2.fg(156))
+  header << "=" * 50 + "\n\n"
+
   # Basic file info comparison
   stat1 = File.stat(file1)
   stat2 = File.stat(file2)
-  
-  text << "File Information:\n".fg(226)
-  text << sprintf("  %-20s %-25s %s\n", "Size:", format_size_simple(stat1.size), format_size_simple(stat2.size))
-  text << sprintf("  %-20s %-25s %s\n", "Modified:", stat1.mtime.strftime("%Y-%m-%d %H:%M"), stat2.mtime.strftime("%Y-%m-%d %H:%M"))
-  text << sprintf("  %-20s %-25s %s\n", "Type:", File.ftype(file1), File.ftype(file2))
-  
+
+  header << "File Information:\n".fg(226)
+  header << sprintf("  %-20s %-25s %s\n", "Size:", format_size_simple(stat1.size), format_size_simple(stat2.size))
+  header << sprintf("  %-20s %-25s %s\n", "Modified:", stat1.mtime.strftime("%Y-%m-%d %H:%M"), stat2.mtime.strftime("%Y-%m-%d %H:%M"))
+  header << sprintf("  %-20s %-25s %s\n", "Type:", File.ftype(file1), File.ftype(file2))
+
   # Check if files are identical
   if stat1.size == stat2.size && files_identical?(file1, file2)
-    text << "\n"
-    text << "Files are identical! ✓".fg(156).b
-    @pR.say(text)
+    header << "\n"
+    header << "Files are identical!\n".fg(156).b
+    header << "\nPress any key to close...".fg(240)
+    @pR.say(header)
     @pR.update = false
     getchr
     @pR.update = true
     return
   end
-  
-  text << "\n"
-  
+
+  header << "\n"
+
   # Determine comparison type
   if binary_file?(file1) || binary_file?(file2)
-    text << show_binary_comparison(file1, file2, stat1, stat2)
+    text = header + show_binary_comparison(file1, file2, stat1, stat2)
+    text << "\nPress any key to close...".fg(240)
+    @pR.say(text)
+    @pR.update = false
+    getchr
+    @pR.update = true
   else
-    text << show_text_comparison(file1, file2)
+    # Scrollable text diff viewer
+    scroll_diff_viewer(header, file1, file2)
   end
-  
-  text << "\n"
-  text << "Press any key to close...".fg(240)
-  
-  @pR.say(text)
-  @pR.update = false
-  getchr
-  @pR.update = true
 end
 
 def show_binary_comparison(file1, file2, stat1, stat2) # {{{3
@@ -2383,16 +2440,14 @@ def show_binary_comparison(file1, file2, stat1, stat2) # {{{3
 end
 
 def show_text_comparison(file1, file2) # {{{3
-  text = "Text File Comparison:\n".fg(226)
-  
   begin
     lines1 = File.readlines(file1, chomp: true)
     lines2 = File.readlines(file2, chomp: true)
   rescue StandardError => e
     return "Error reading files: #{e.message}\n".fg(196)
   end
-  
-  # Line count comparison
+
+  text = "Text File Comparison:\n".fg(226)
   if lines1.length == lines2.length
     text << "  Same line count: #{lines1.length}\n".fg(156)
   else
@@ -2400,31 +2455,131 @@ def show_text_comparison(file1, file2) # {{{3
     sign = diff > 0 ? "+" : ""
     text << "  Line count: #{lines1.length} vs #{lines2.length} (#{sign}#{diff})\n".fg(diff > 0 ? 196 : 156)
   end
-  
-  # Generate and show diff
+
   diff_lines = generate_unified_diff(lines1, lines2, File.basename(file1), File.basename(file2))
-  
+
   if diff_lines.empty?
-    text << "  Content: Identical ✓\n".fg(156)
+    text << "  Content: Identical\n".fg(156)
   else
     text << "\n  Differences (unified diff):\n".fg(226)
-    
-    # Show first 15 lines of diff
-    diff_lines.first(15).each do |line|
+    diff_lines.each do |line|
       color = case line[0]
-              when '+' then 156  # Green for additions
-              when '-' then 196  # Red for deletions  
-              when '@' then 226  # Yellow for headers
-              else 240           # Gray for context
+              when '+' then 156
+              when '-' then 196
+              when '@' then 226
+              else 240
               end
       text << "    #{line}\n".fg(color)
     end
-    
-    if diff_lines.length > 15
-      text << "    ... and #{diff_lines.length - 15} more lines\n".fg(240)
+  end
+  text
+end
+
+def scroll_diff_viewer(header, file1, file2) # {{{3
+  begin
+    lines1 = File.readlines(file1, chomp: true)
+    lines2 = File.readlines(file2, chomp: true)
+  rescue StandardError => e
+    @pR.say(header + "Error reading files: #{e.message}\n".fg(196))
+    @pR.update = false
+    getchr
+    @pR.update = true
+    return
+  end
+
+  diff_lines = generate_unified_diff(lines1, lines2, File.basename(file1), File.basename(file2))
+
+  if diff_lines.empty?
+    @pR.say(header + "  Content: Identical\n".fg(156) + "\nPress any key to close...".fg(240))
+    @pR.update = false
+    getchr
+    @pR.update = true
+    return
+  end
+
+  # Count header lines (approximate)
+  header_lines = header.count("\n") + 2
+  offset = 0
+  side_by_side = false
+
+  loop do
+    page_height = @pR.h - header_lines - 3
+    page_height = [page_height, 5].max
+
+    text = header.dup
+
+    if side_by_side
+      text << render_side_by_side(lines1, lines2, File.basename(file1), File.basename(file2), offset, page_height)
+      total = [lines1.size, lines2.size].max
+    else
+      text << "\n  Differences (unified diff):\n".fg(226)
+      visible = diff_lines[offset, page_height] || []
+      visible.each do |line|
+        color = case line[0]
+                when '+' then 156
+                when '-' then 196
+                when '@' then 226
+                else 240
+                end
+        text << "    #{line}\n".fg(color)
+      end
+      total = diff_lines.size
+    end
+
+    max_offset = [total - page_height, 0].max
+    shown_end = [offset + page_height, total].min
+    mode_label = side_by_side ? "side-by-side" : "unified"
+    text << "\n  j/k=scroll PgUp/PgDn=page s=#{side_by_side ? 'unified' : 'side-by-side'} q=close (#{offset + 1}-#{shown_end}/#{total}) [#{mode_label}]".fg(240)
+
+    @pR.say(text)
+    @pR.update = false
+
+    chr = getchr
+    case chr
+    when 'j', 'DOWN'
+      offset = [offset + 1, max_offset].min
+    when 'k', 'UP'
+      offset = [offset - 1, 0].max
+    when 'PgDOWN', 'TAB', 'S-RIGHT'
+      offset = [offset + page_height, max_offset].min
+    when 'PgUP', 'S-TAB', 'S-LEFT'
+      offset = [offset - page_height, 0].max
+    when 'S', 's'
+      side_by_side = !side_by_side
+      offset = 0
+    when 'q', 'ESC', 'LEFT', 'h'
+      break
+    when 'HOME', 'g'
+      offset = 0
+    when 'END', 'G'
+      offset = max_offset
+    else
+      break if chr.nil?
     end
   end
-  
+
+  @pR.update = true
+end
+
+def render_side_by_side(lines1, lines2, name1, name2, offset, page_height) # {{{3
+  half_width = (@pR.w - 7) / 2
+  half_width = [half_width, 10].max
+  text = "\n"
+  text << sprintf("  %-#{half_width}s | %s\n", name1[0, half_width], name2[0, half_width]).fg(226)
+  text << "  " + "-" * half_width + "-+-" + "-" * half_width + "\n"
+
+  max_lines = [lines1.size, lines2.size].max
+  end_line = [offset + page_height, max_lines].min
+
+  (offset...end_line).each do |i|
+    l1 = (lines1[i] || '')[0, half_width]
+    l2 = (lines2[i] || '')[0, half_width]
+    same = lines1[i] == lines2[i]
+    color = same ? 240 : (lines1[i].nil? ? 156 : (lines2[i].nil? ? 196 : 226))
+
+    text << sprintf("  %-#{half_width}s | %s\n", l1, l2).fg(color)
+  end
+
   text
 end
 
@@ -2470,7 +2625,7 @@ def generate_unified_diff(lines1, lines2, name1, name2) # {{{3
       
       i1, i2 = temp_i1, temp_i2
       
-      break if diff_lines.length > 50 # Prevent huge diffs
+      break if diff_lines.length > 5000 # Safety limit for very large diffs
     end
   end
   
@@ -2585,6 +2740,503 @@ def exit_remote_mode # {{{3
   @remote_files_cache = []  # Clear cache when exiting remote mode
   @index = 0  # Reset selection
   @pB.say("Returned to local browsing".fg(156))
+  dirlist
+  render
+end
+
+# ARCHIVE BROWSING {{{2
+def parse_archive_listing(archive_path) # {{{3
+  escaped = Shellwords.escape(archive_path)
+  entries = []
+  begin
+    raw = case archive_path.downcase
+          when /\.zip$/
+            command("unzip -l #{escaped} 2>/dev/null")
+          when /\.rar$/
+            command("unrar l #{escaped} 2>/dev/null")
+          when /\.7z$/
+            command("7z l #{escaped} 2>/dev/null")
+          when /\.tar\.bz2$|\.tbz2?$/
+            command("tar -tjvf #{escaped} 2>/dev/null")
+          when /\.tar\.xz$|\.txz$/
+            command("tar -tJvf #{escaped} 2>/dev/null")
+          when /\.tar\.zst$/
+            command("tar --zstd -tvf #{escaped} 2>/dev/null")
+          when /\.tar$|\.tar\.gz$|\.tgz$|\.gz$/
+            command("tar -tzvf #{escaped} 2>/dev/null")
+          else
+            command("tar -tzvf #{escaped} 2>/dev/null")
+          end
+
+    case archive_path.downcase
+    when /\.zip$/
+      parse_zip_listing(raw, entries)
+    when /\.rar$/
+      parse_rar_listing(raw, entries)
+    when /\.7z$/
+      parse_7z_listing(raw, entries)
+    else
+      parse_tar_listing(raw, entries)
+    end
+  rescue => e
+    @pB.say("Error reading archive: #{e.message}".fg(196))
+  end
+  entries
+end
+
+def parse_tar_listing(raw, entries) # {{{3
+  raw.each_line do |line|
+    parts = line.strip.split(/\s+/, 6)
+    next if parts.size < 6
+    perms = parts[0]
+    size = parts[2].to_i
+    raw_path = parts[5]
+    next if raw_path.nil? || raw_path.empty? || raw_path == './' || raw_path == '.'
+    path = raw_path.sub(%r{^\./}, '')  # Remove leading ./ for display
+    next if path.empty?
+    is_dir = perms.start_with?('d') || path.end_with?('/')
+    path = path.chomp('/')
+    # Store raw_path (with ./ if present) for tar extract/delete operations
+    entries << { name: File.basename(path), type: is_dir ? 'directory' : 'file',
+                 size: size, full_path: path, permissions: perms,
+                 raw_path: raw_path.chomp('/') }
+  end
+end
+
+def parse_zip_listing(raw, entries) # {{{3
+  in_files = false
+  raw.each_line do |line|
+    if line =~ /^\s*-+\s+-+/
+      in_files = !in_files
+      next
+    end
+    next unless in_files
+    # Format: Length Date Time Name
+    if line =~ /^\s*(\d+)\s+\S+\s+\S+\s+(.+)$/
+      size = $1.to_i
+      path = $2.strip
+      next if path.empty? || path == '.' || path == './'
+      is_dir = path.end_with?('/')
+      path = path.chomp('/')
+      next if path.empty?
+      entries << { name: File.basename(path), type: is_dir ? 'directory' : 'file',
+                   size: size, full_path: path, permissions: '' }
+    end
+  end
+end
+
+def parse_rar_listing(raw, entries) # {{{3
+  in_files = false
+  raw.each_line do |line|
+    if line =~ /^\s*-+/
+      in_files = !in_files
+      next
+    end
+    next unless in_files
+    parts = line.strip.split(/\s+/)
+    next if parts.size < 5
+    # unrar l format: Attributes Size Packed Ratio Date Time Name
+    perms = parts[0]
+    size = parts[1].to_i
+    path = parts[6..].join(' ')
+    next if path.nil? || path.empty?
+    is_dir = perms.include?('D') || perms.include?('d') || path.end_with?('/')
+    path = path.chomp('/')
+    next if path.empty?
+    entries << { name: File.basename(path), type: is_dir ? 'directory' : 'file',
+                 size: size, full_path: path, permissions: perms }
+  end
+end
+
+def parse_7z_listing(raw, entries) # {{{3
+  in_files = false
+  raw.each_line do |line|
+    if line =~ /^-{4,}/
+      in_files = !in_files
+      next
+    end
+    next unless in_files
+    # 7z l format: Date Time Attr Size Compressed Name
+    parts = line.strip.split(/\s+/, 6)
+    next if parts.size < 6
+    attr = parts[2]
+    size = parts[3].to_i
+    path = parts[5]
+    next if path.nil? || path.empty?
+    is_dir = attr.include?('D')
+    path = path.chomp('/')
+    next if path.empty?
+    entries << { name: File.basename(path), type: is_dir ? 'directory' : 'file',
+                 size: size, full_path: path, permissions: attr }
+  end
+end
+
+def archive_entries_for_dir(virtual_dir) # {{{3
+  # Collect implicit directories from paths
+  all_dirs = Set.new
+  @archive_entries.each do |entry|
+    path = entry[:full_path]
+    # Add all parent directories
+    parts = path.split('/')
+    (1...parts.size).each do |i|
+      all_dirs << parts[0, i].join('/')
+    end
+  end
+
+  prefix = virtual_dir.empty? ? '' : "#{virtual_dir}/"
+  depth = virtual_dir.empty? ? 0 : virtual_dir.count('/') + 1
+  seen = Set.new
+  result = []
+
+  # Add direct children from entries
+  @archive_entries.each do |entry|
+    path = entry[:full_path]
+    next unless virtual_dir.empty? ? true : path.start_with?(prefix)
+
+    parts = path.split('/')
+    next if parts.size <= depth  # Skip the directory itself
+
+    child_name = parts[depth]
+    next if seen.include?(child_name)
+    seen << child_name
+
+    child_path = parts[0..depth].join('/')
+    if parts.size == depth + 1
+      # Direct child file or directory
+      result << entry.merge(name: child_name)
+    else
+      # Implicit subdirectory
+      result << { name: child_name, type: 'directory', size: 0,
+                  full_path: child_path, permissions: 'drwxr-xr-x' }
+    end
+  end
+
+  # Sort: directories first, then alphabetically
+  result.sort_by { |e| [e[:type] == 'directory' ? 0 : 1, e[:name].downcase] }
+end
+
+def enter_archive_mode(archive_path) # {{{3
+  @archive_origin_dir = Dir.pwd
+  @archive_origin_tagged = @tagged.dup
+  @archive_mode = true
+  @archive_path = archive_path
+  @archive_current_dir = ''
+  @index = 0
+  @tagged = []
+  @archive_entries = parse_archive_listing(archive_path)
+  @archive_files_cache = []
+  if @archive_entries.empty?
+    @pB.say("Archive is empty or unreadable: #{File.basename(archive_path)}".fg(196))
+    @archive_mode = false
+    @archive_path = nil
+    @tagged = @archive_origin_tagged
+    return
+  end
+  @pB.say(" ARCHIVE: #{File.basename(archive_path)} (#{@archive_entries.size} entries, LEFT to exit)".fg(226))
+  @pL.update = @pR.update = @pT.update = @pB.update = true
+  dirlist
+  render
+end
+
+def exit_archive_mode # {{{3
+  @archive_mode = false
+  @archive_path = nil
+  @archive_current_dir = ''
+  @archive_entries = []
+  @archive_files_cache = []
+  @tagged = @archive_origin_tagged || []
+  @archive_origin_tagged = []
+  @archive_origin_dir = nil
+  @index = 0
+  @pB.say("Returned to local browsing".fg(156))
+  @pL.update = @pR.update = @pT.update = @pB.update = true
+  dirlist
+  render
+end
+
+def show_archive_file_info(entry) # {{{3
+  info_text = "Archive File Information\n".b.fg(226)
+  info_text << "=" * 40 + "\n\n"
+  info_text << "Archive:       #{File.basename(@archive_path)}\n".fg(255)
+  info_text << "Name:          #{entry[:name]}\n".fg(255)
+  info_text << "Type:          #{entry[:type].capitalize}\n".fg(255)
+  info_text << "Size:          #{format_size_simple(entry[:size])}\n".fg(255)
+  info_text << "Path:          #{entry[:full_path]}\n".fg(240)
+  info_text << "Permissions:   #{entry[:permissions]}\n".fg(255) unless entry[:permissions].to_s.empty?
+  info_text << "\n"
+  info_text << "Actions:\n".fg(226)
+  if entry[:type] == 'directory'
+    info_text << "  Enter  = Navigate into directory\n".fg(240)
+  end
+  info_text << "  d      = Extract to origin directory\n".fg(240)
+  info_text << "  D      = Delete from archive\n".fg(240)
+  info_text << "  p      = Add local files into archive\n".fg(240)
+  info_text << "  P      = Move out (extract + delete from archive)\n".fg(240)
+  info_text << "  t      = Tag/untag for bulk operations\n".fg(240)
+  info_text << "  LEFT   = Go to parent / exit archive\n".fg(240)
+  @pR.say(info_text)
+  @pR.update = false
+end
+
+def archive_extract_entries # {{{3
+  return unless @archive_mode && @archive_path
+
+  # Get entries to extract: tagged archive entries, or selected
+  entries = archive_tagged_or_selected
+  return if entries.empty?
+
+  dest = @archive_origin_dir || Dir.pwd
+  escaped_archive = Shellwords.escape(@archive_path)
+  entry_paths = entries.map { |e| e[:full_path] }
+  # For tar archives, use raw_path (preserves ./ prefix) for correct extraction
+  tar_paths = entries.map { |e| e[:raw_path] || e[:full_path] }
+
+  @pB.say(" Extracting #{entries.size} item(s) to #{dest}...".fg(226))
+
+  success = case @archive_path.downcase
+            when /\.zip$/
+              escaped_paths = entry_paths.map { |p| Shellwords.escape(p) }.join(' ')
+              system("unzip -o #{escaped_archive} #{escaped_paths} -d #{Shellwords.escape(dest)} >/dev/null 2>&1")
+            when /\.rar$/
+              escaped_paths = entry_paths.map { |p| Shellwords.escape(p) }.join(' ')
+              system("unrar x -o+ #{escaped_archive} #{escaped_paths} #{Shellwords.escape(dest)}/ >/dev/null 2>&1")
+            when /\.7z$/
+              escaped_paths = entry_paths.map { |p| Shellwords.escape(p) }.join(' ')
+              system("7z x #{escaped_archive} #{escaped_paths} -o#{Shellwords.escape(dest)} -y >/dev/null 2>&1")
+            else
+              # tar variants — use raw_path to match archive entries exactly
+              escaped_paths = tar_paths.map { |p| Shellwords.escape(p) }.join(' ')
+              tar_flag = tar_decompress_flag(@archive_path)
+              system("tar x#{tar_flag}f #{escaped_archive} -C #{Shellwords.escape(dest)} #{escaped_paths} 2>/dev/null")
+            end
+
+  if success
+    @pB.say(" Extracted #{entries.size} item(s) to #{dest}".fg(156))
+  else
+    @pB.say(" Extraction failed".fg(196))
+  end
+  @tagged = []
+  @pL.update = @pR.update = true
+end
+
+def archive_delete_entries # {{{3
+  return unless @archive_mode && @archive_path
+
+  entries = archive_tagged_or_selected
+  return if entries.empty?
+
+  clear_image
+  names = entries.map { |e| e[:name] }
+  warning = "\nDelete from Archive\n".b.fg(196)
+  warning << "=" * 40 + "\n\n"
+  warning << "Archive: #{File.basename(@archive_path)}\n".fg(255)
+  warning << "\nItems to delete:\n".fg(226)
+  entries.first(10).each { |e| warning << "  #{e[:full_path]}\n".fg(255) }
+  warning << "  ... and #{entries.size - 10} more\n".fg(240) if entries.size > 10
+  warning << "\nThis modifies the archive file permanently!\n".fg(196).b
+  warning << "Press " + "y".fg(156).b + " to confirm, any other key to cancel".fg(249)
+  @pR.say(warning)
+  @pB.say(" Delete #{entries.size} item(s) from archive? (y/n)".fg(196))
+
+  unless getchr == 'y'
+    @pB.say(" Cancelled".fg(240))
+    @pR.update = true
+    return
+  end
+
+  escaped_archive = Shellwords.escape(@archive_path)
+  entry_paths = entries.map { |e| e[:full_path] }
+
+  success = case @archive_path.downcase
+            when /\.zip$/
+              escaped_paths = entry_paths.map { |p| Shellwords.escape(p) }.join(' ')
+              system("zip -d #{escaped_archive} #{escaped_paths} >/dev/null 2>&1")
+            when /\.rar$/
+              escaped_paths = entry_paths.map { |p| Shellwords.escape(p) }.join(' ')
+              system("rar d #{escaped_archive} #{escaped_paths} >/dev/null 2>&1")
+            when /\.7z$/
+              escaped_paths = entry_paths.map { |p| Shellwords.escape(p) }.join(' ')
+              system("7z d #{escaped_archive} #{escaped_paths} >/dev/null 2>&1")
+            else
+              archive_tar_modify(:delete, entry_paths)
+            end
+
+  if success
+    @pB.say(" Deleted #{entries.size} item(s) from archive".fg(156))
+    archive_refresh
+  else
+    @pB.say(" Delete failed".fg(196))
+  end
+  @tagged = []
+  @pR.update = true
+end
+
+def archive_add_files # {{{3
+  return unless @archive_mode && @archive_path
+
+  # Use files tagged before entering archive mode, or ask
+  if @archive_origin_tagged.empty?
+    @pB.say(" No files were tagged before entering archive. Tag files first, then enter archive.".fg(196))
+    return
+  end
+
+  files_to_add = @archive_origin_tagged.select { |f| File.exist?(f) }
+  if files_to_add.empty?
+    @pB.say(" Tagged files no longer exist".fg(196))
+    return
+  end
+
+  clear_image
+  info = "\nAdd Files to Archive\n".b.fg(226)
+  info << "=" * 40 + "\n\n"
+  info << "Archive: #{File.basename(@archive_path)}\n".fg(255)
+  target = @archive_current_dir.empty? ? "archive root" : @archive_current_dir
+  info << "Target:  #{target}\n".fg(255)
+  info << "\nFiles to add:\n".fg(226)
+  files_to_add.first(10).each { |f| info << "  #{File.basename(f)}\n".fg(255) }
+  info << "  ... and #{files_to_add.size - 10} more\n".fg(240) if files_to_add.size > 10
+  info << "\nPress " + "y".fg(156).b + " to confirm, any other key to cancel".fg(249)
+  @pR.say(info)
+  @pB.say(" Add #{files_to_add.size} file(s) to archive? (y/n)".fg(226))
+
+  unless getchr == 'y'
+    @pB.say(" Cancelled".fg(240))
+    @pR.update = true
+    return
+  end
+
+  escaped_archive = Shellwords.escape(@archive_path)
+  escaped_files = files_to_add.map { |f| Shellwords.escape(f) }.join(' ')
+
+  success = case @archive_path.downcase
+            when /\.zip$/
+              if @archive_current_dir.empty?
+                system("zip -j #{escaped_archive} #{escaped_files} >/dev/null 2>&1")
+              else
+                # zip doesn't have a native "add to subdir" flag - use a temp dir
+                archive_add_to_subdir_zip(files_to_add)
+              end
+            when /\.rar$/
+              # rar -ap sets the archive path prefix
+              ap = @archive_current_dir.empty? ? '' : "-ap#{Shellwords.escape(@archive_current_dir)}"
+              system("rar a #{ap} #{escaped_archive} #{escaped_files} >/dev/null 2>&1")
+            when /\.7z$/
+              # 7z doesn't support adding to subdirectory natively - use temp dir approach
+              if @archive_current_dir.empty?
+                system("7z a #{escaped_archive} #{escaped_files} >/dev/null 2>&1")
+              else
+                archive_add_to_subdir_generic(files_to_add)
+              end
+            else
+              archive_tar_modify(:add, files_to_add)
+            end
+
+  if success
+    @pB.say(" Added #{files_to_add.size} file(s) to archive".fg(156))
+    @archive_origin_tagged = []
+    archive_refresh
+  else
+    @pB.say(" Add failed".fg(196))
+  end
+  @pR.update = true
+end
+
+def archive_add_to_subdir_zip(files) # {{{3
+  # To add files to a specific subdirectory in a zip, create temp structure
+  Dir.mktmpdir('rtfm_zip_add') do |tmpdir|
+    target = File.join(tmpdir, @archive_current_dir)
+    FileUtils.mkdir_p(target)
+    files.each { |f| FileUtils.cp(f, target) }
+    Dir.chdir(tmpdir) do
+      escaped_files = files.map { |f| Shellwords.escape(File.join(@archive_current_dir, File.basename(f))) }.join(' ')
+      system("zip #{Shellwords.escape(@archive_path)} #{escaped_files} >/dev/null 2>&1")
+    end
+  end
+end
+
+def archive_add_to_subdir_generic(files) # {{{3
+  Dir.mktmpdir('rtfm_7z_add') do |tmpdir|
+    target = File.join(tmpdir, @archive_current_dir)
+    FileUtils.mkdir_p(target)
+    files.each { |f| FileUtils.cp(f, target) }
+    Dir.chdir(tmpdir) do
+      escaped_files = files.map { |f| Shellwords.escape(File.join(@archive_current_dir, File.basename(f))) }.join(' ')
+      system("7z a #{Shellwords.escape(@archive_path)} #{escaped_files} >/dev/null 2>&1")
+    end
+  end
+end
+
+def archive_tar_modify(action, paths) # {{{3
+  # For tar-based archives: extract all, modify, re-archive
+  # This is expensive but tar doesn't support in-place modifications on compressed archives
+  Dir.mktmpdir('rtfm_tar_mod') do |tmpdir|
+    escaped_archive = Shellwords.escape(@archive_path)
+    tar_flag = tar_decompress_flag(@archive_path)
+
+    # Extract everything
+    unless system("tar x#{tar_flag}f #{escaped_archive} -C #{Shellwords.escape(tmpdir)} 2>/dev/null")
+      @pB.say(" Failed to extract archive for modification".fg(196))
+      return false
+    end
+
+    case action
+    when :delete
+      paths.each do |p|
+        target = File.join(tmpdir, p)
+        FileUtils.rm_rf(target) if File.exist?(target) || File.symlink?(target)
+      end
+    when :add
+      target_dir = @archive_current_dir.empty? ? tmpdir : File.join(tmpdir, @archive_current_dir)
+      FileUtils.mkdir_p(target_dir)
+      paths.each { |f| FileUtils.cp(f, target_dir) }
+    end
+
+    # Re-archive
+    tar_compress = tar_compress_flag(@archive_path)
+    Dir.chdir(tmpdir) do
+      all_entries = Dir.glob('*', File::FNM_DOTMATCH).reject { |e| e == '.' || e == '..' }
+      escaped_entries = all_entries.map { |e| Shellwords.escape(e) }.join(' ')
+      system("tar c#{tar_compress}f #{escaped_archive} #{escaped_entries} 2>/dev/null")
+    end
+  end
+end
+
+def tar_decompress_flag(path) # {{{3
+  case path.downcase
+  when /\.tar\.gz$|\.tgz$/  then 'z'
+  when /\.tar\.bz2$|\.tbz2?$/ then 'j'
+  when /\.tar\.xz$|\.txz$/  then 'J'
+  when /\.tar\.zst$/         then ' --zstd '
+  else ''
+  end
+end
+
+def tar_compress_flag(path) # {{{3
+  case path.downcase
+  when /\.tar\.gz$|\.tgz$/  then 'z'
+  when /\.tar\.bz2$|\.tbz2?$/ then 'j'
+  when /\.tar\.xz$|\.txz$/  then 'J'
+  when /\.tar\.zst$/         then ' --zstd '
+  else ''
+  end
+end
+
+def archive_tagged_or_selected # {{{3
+  if @tagged.any?
+    # Map tagged file names back to archive entries
+    @archive_files_cache.select { |e| @tagged.include?("#{@archive_path}:#{e[:full_path]}") }
+  elsif @archive_files_cache[@index]
+    [@archive_files_cache[@index]]
+  else
+    []
+  end
+end
+
+def archive_refresh # {{{3
+  @archive_entries = parse_archive_listing(@archive_path)
+  @archive_files_cache = []
+  @index = 0 if @index >= archive_entries_for_dir(@archive_current_dir).size
+  @pL.update = @pR.update = @pT.update = true
   dirlist
   render
 end
@@ -3213,14 +3865,28 @@ end
 
 # MANIPULATE ITEMS {{{2
 def copy_items # {{{3
+  if @archive_mode
+    # In archive mode, 'p' adds local files into the archive
+    archive_add_files
+    return
+  end
   copy_move_link('copy')
-  # Dual-pane refresh is handled in copy_move_link function
   @pR.update = true
 end
 
 def move_items # {{{3
+  if @archive_mode
+    # In archive mode, 'P' extracts then deletes (move out of archive)
+    return unless @archive_mode && @archive_path
+    entries = archive_tagged_or_selected
+    return if entries.empty?
+    archive_extract_entries
+    # Re-tag the entries so archive_delete_entries can find them
+    @tagged = entries.map { |e| "#{@archive_path}:#{e[:full_path]}" }
+    archive_delete_entries if @archive_mode
+    return
+  end
   copy_move_link('move')
-  # Dual-pane refresh is handled in copy_move_link function
   @pR.update = true
 end
 
@@ -3281,6 +3947,11 @@ def link_items # {{{3
 end
 
 def delete_items # {{{3
+  if @archive_mode
+    # In archive mode, 'd' key extracts to origin directory
+    archive_extract_entries
+    return
+  end
   if @remote_mode
     # In remote mode, 'd' key downloads the selected file
     remote_download_selected
@@ -3392,6 +4063,11 @@ def delete_items # {{{3
 end
 
 def empty_trash # {{{3
+  if @archive_mode
+    # In archive mode, 'D' deletes entries from archive
+    archive_delete_entries
+    return
+  end
   @pB.say(" Really empty Trash (~/.rtfm/trash)? (press 'y')")
   return unless  getchr == 'y'
 
@@ -4587,6 +5263,47 @@ def get_cached_file_metadata(file_path) # {{{2
   end
 end
 
+def dirlist_archive # {{{2
+  return '' unless @archive_mode && @archive_path
+
+  current_index = @index || 0
+  current_index = current_index.to_i
+  width = @pL.w
+
+  files = archive_entries_for_dir(@archive_current_dir)
+  @files = files.map { |f| f[:name] }
+  @archive_files_cache = files
+
+  if @files[current_index] && files[current_index]
+    entry = files[current_index]
+    vpath = @archive_current_dir.empty? ? entry[:name] : "#{@archive_current_dir}/#{entry[:name]}"
+    @selected = "#{@archive_path}:#{vpath}"
+    @fileattr = "#{entry[:permissions]}  #{format_size_simple(entry[:size])}"
+  end
+
+  search_regex = @searched.empty? ? nil : /#{@searched}/
+
+  result = files.map.with_index do |entry, i|
+    name = entry[:name]
+    color = entry[:type] == 'directory' ? 156 : 255
+    n = name.fg(color)
+    n = n.inject('/', -1) if entry[:type] == 'directory'
+    n = n.bg(238) if search_regex && name.match(search_regex)
+    tag_key = "#{@archive_path}:#{entry[:full_path]}"
+    n = n.r if @tagged.include?(tag_key)
+    n = n.shorten(width - 5).inject('...', -1) if name.length > width - 6
+
+    if i == current_index
+      n = '→ ' + n.u.bg(58)  # Yellow-green background for archive mode selection
+    else
+      n = '  ' + n.bg(58)    # Yellow-green background for archive mode
+    end
+    n
+  end
+
+  result.join("\n")
+end
+
 def dirlist_remote # {{{2
   return '' unless @current_remote && @remote_mode
   
@@ -4669,7 +5386,10 @@ def dirlist(left: true, directory: nil) # LIST DIRECTORIES {{{2
   current_index = @index || 0
   current_index = current_index.to_i
   
-  # Handle remote mode for left pane
+  # Handle archive/remote mode for left pane
+  if left && @archive_mode
+    return dirlist_archive
+  end
   if left && @remote_mode
     return dirlist_remote
   end
@@ -4804,14 +5524,16 @@ def current_render_state # {{{2
       dual_pane: false,
       dir: Dir.pwd,
       index: @index,
-      files_mtime: File.mtime(Dir.pwd).to_i,
+      files_mtime: @archive_mode ? 0 : File.mtime(Dir.pwd).to_i,
       selected: @selected,
       tagged_count: @tagged.size,
       preview: @preview,
       showimage: @showimage,
       searched: @searched,
       filters: [@filter, @filtered].join,
-      tabs_state: [@tabs.size, @current_tab, @tabs.map { |t| t[:name] }.join('|')]
+      tabs_state: [@tabs.size, @current_tab, @tabs.map { |t| t[:name] }.join('|')],
+      archive_mode: @archive_mode,
+      archive_dir: @archive_current_dir
     }
   end
 end
@@ -4916,16 +5638,22 @@ def render # RENDER ALL PANES {{{2
   # TOP PANE {{{3
   if @pT.update
     toptext = @pT.text
-    text = ' ' + ENV.fetch('USER') + '@' + `hostname 2>/dev/null`.chomp + ': '
-    unless @selected.nil?
-      text += @selected
-      text += " → #{File.readlink(@selected)}" if File.symlink?(@selected)
+    if @archive_mode
+      text = ' ARCHIVE: ' + File.basename(@archive_path)
+      text += "/#{@archive_current_dir}" unless @archive_current_dir.empty?
+      text += " (#{@fileattr})" if defined?(@fileattr) && !@fileattr.to_s.empty?
+    else
+      text = ' ' + ENV.fetch('USER') + '@' + `hostname 2>/dev/null`.chomp + ': '
+      unless @selected.nil?
+        text += @selected
+        text += " → #{File.readlink(@selected)}" if File.symlink?(@selected)
+      end
+      # File attributes
+      text += " (#{@fileattr})" if defined?(@fileattr)
     end
-    # File attributes
-    text += " (#{@fileattr})" if defined?(@fileattr)
-    # Image or PDF metadata using cache
+    # Image or PDF metadata using cache (skip in archive mode)
     begin
-      cached_meta = get_cached_file_metadata(@selected)
+      cached_meta = @archive_mode ? nil : get_cached_file_metadata(@selected)
       if cached_meta
         text += cached_meta
       elsif @preview && @selected&.match(@imagefile) && cmd?('identify')
@@ -4947,8 +5675,8 @@ def render # RENDER ALL PANES {{{2
     rescue Errno::ENOENT, Errno::EACCES
       # ignore missing or permission errors
     end
-    # Directory children count
-    if @selected && Dir.exist?(@selected)
+    # Directory children count (skip in archive mode)
+    if !@archive_mode && @selected && Dir.exist?(@selected)
       begin
         count = Dir.children(@selected).count
         text += " [#{count} items]"
@@ -4971,8 +5699,12 @@ def render # RENDER ALL PANES {{{2
     end
     
     @pT.text = text
-    
-    @pT.bg   = @topmatch.find { |name, _| name.empty? || Dir.pwd.include?(name) }&.last
+
+    @pT.bg = if @archive_mode
+               58  # Yellow-green background for archive mode
+             else
+               @topmatch.find { |name, _| name.empty? || Dir.pwd.include?(name) }&.last
+             end
     @pT.refresh unless @pT.text == toptext
   end
 
@@ -5166,7 +5898,17 @@ def command(cmd, timeout: 5, return_both: false) # {{{2
   end
 end
 
+def file_op_running? # {{{3
+  @file_op_thread&.alive?
+end
+
 def copy_move_link(type) # COPY OR MOVE TAGGED ITEMS {{{2
+  # Block if another async operation is running
+  if file_op_running?
+    @pB.say(" Another file operation is in progress. Please wait.".fg(196))
+    return
+  end
+
   # Use tagged items if any exist, otherwise use selected item
   items = @tagged.empty? ? [@selected] : @tagged.uniq
 
@@ -5177,14 +5919,66 @@ def copy_move_link(type) # COPY OR MOVE TAGGED ITEMS {{{2
                Dir.pwd
              end
 
-  # Track operations for undo
+  # Symlinks are instant - run synchronously
+  if type == 'link'
+    copy_move_link_sync(type, items, dest_dir)
+    return
+  end
+
+  # For small operations (single file, not a directory), run synchronously
+  if items.size == 1 && !File.directory?(items[0])
+    copy_move_link_sync(type, items, dest_dir)
+    return
+  end
+
+  # Run copy/move asynchronously for larger operations
+  @tagged = []
+  previously_selected = type == 'move' ? (items[0] ? File.basename(items[0]) : nil) : nil
+  @file_op_progress = " #{type.capitalize}ing #{items.size} item(s)...".fg(226)
+  @pB.say(@file_op_progress)
+
+  @file_op_thread = Thread.new do
+    operations = []
+    begin
+      items.each_with_index do |item, idx|
+        @file_op_progress = " #{type.capitalize}ing #{idx + 1}/#{items.size}: #{File.basename(item)}".fg(226)
+        dest = File.join(dest_dir, File.basename(item))
+        dest += '1' if File.exist?(dest)
+        while File.exist?(dest)
+          dest = dest.chop + (dest[-1].to_i + 1).to_s
+        end
+        case type
+        when 'copy'
+          FileUtils.cp_r(item, dest)
+        when 'move'
+          FileUtils.mv(item, dest)
+        end
+        operations << { source_path: item, dest_path: dest }
+      end
+
+      # Record undo
+      unless operations.empty?
+        undo_key = type == 'copy' ? :copies : :moves
+        add_undo_operation({ type: type, undo_key => operations, timestamp: Time.now })
+      end
+
+      @file_op_result = " #{type.capitalize} complete: #{operations.size} item(s)".fg(156)
+    rescue => e
+      @file_op_result = " #{type.capitalize} error: #{e.message}".fg(196)
+    ensure
+      @file_op_progress = nil
+      @file_op_complete = true
+    end
+  end
+end
+
+def copy_move_link_sync(type, items, dest_dir) # {{{3
   operations = []
 
   items.each do |item|
     dest = File.join(dest_dir, File.basename(item))
     dest += '1' if File.exist?(dest)
     while File.exist?(dest)
-      # Replace the last character (presumed to be a digit) by incrementing it
       dest = dest.chop + (dest[-1].to_i + 1).to_s
     end
     begin
@@ -5206,53 +6000,38 @@ def copy_move_link(type) # COPY OR MOVE TAGGED ITEMS {{{2
       @pB.say(e.to_s)
     end
   end
-  
-  # Record undo information if operations were successful
+
+  # Record undo information
   unless operations.empty?
     case type
     when 'copy'
-      add_undo_operation({
-        type: 'copy',
-        copies: operations,
-        timestamp: Time.now
-      })
+      add_undo_operation({ type: 'copy', copies: operations, timestamp: Time.now })
     when 'move'
-      add_undo_operation({
-        type: 'move',
-        moves: operations,
-        timestamp: Time.now
-      })
+      add_undo_operation({ type: 'move', moves: operations, timestamp: Time.now })
     when 'link'
-      add_undo_operation({
-        type: 'link',
-        links: operations,
-        timestamp: Time.now
-      })
+      add_undo_operation({ type: 'link', links: operations, timestamp: Time.now })
     end
   end
-  
+
   @tagged = []
 
-  # Store the currently selected item to restore selection after refresh (for move operations)
+  # Restore selection after move operations
   if type == 'move'
     previously_selected = @selected ? File.basename(@selected) : nil
   end
 
-  # Set update flags for proper refresh - let render system handle the actual refresh
+  # Set update flags for proper refresh
   if @dual_pane
-    # Update the destination pane
     if @active_pane == :left
       @pLeft.update = true
     else
       @pRight.update = true
     end
-    # Also update the preview pane
     @pPreview.update = true if @pPreview
   end
 
   render
 
-  # Restore selection after move operations
   if type == 'move' && previously_selected && @files
     restored_index = @files.index(previously_selected)
     @index = restored_index if restored_index
@@ -5323,6 +6102,12 @@ def open_selected(html = nil) # OPEN SELECTED FILE {{{2
     mark_latest
     Dir.chdir(@selected) rescue nil
     track_directory_access(@selected)
+    return
+  end
+
+  # Enter archive browsing mode for archive files (unless forced open with 'x')
+  if !html && @selected && ARCHIVE_RE.match?(@selected) && File.file?(@selected)
+    enter_archive_mode(@selected)
     return
   end
   
@@ -5548,6 +6333,12 @@ def showcontent # SHOW CONTENTS IN THE RIGHT WINDOW {{{2
     @pR.clear
   end
   begin
+    # Handle archive mode separately
+    if @archive_mode && @files && @files[@index] && @archive_files_cache[@index]
+      show_archive_file_info(@archive_files_cache[@index])
+      return
+    end
+
     # Handle remote mode separately
     if @remote_mode && @files && @files[@index] && @remote_files_cache[@index]
       selected_file = @remote_files_cache[@index]
@@ -5957,7 +6748,20 @@ $stdin.getc while $stdin.wait_readable(0)
 ## THE LOOP {{{2
 loop do
   @dir_old = Dir.pwd
-  
+
+  # Check async file operation progress
+  if @file_op_complete
+    @file_op_complete = false
+    @pB.say(@file_op_result || " Operation complete.".fg(156))
+    @file_op_result = nil
+    @file_op_progress = nil
+    @dir_cache.delete_if { |key, _| key.start_with?("#{Dir.pwd}:") }
+    @pL.update = @pR.update = @pT.update = @pB.update = true
+  elsif @file_op_progress
+    @pB.say(@file_op_progress)
+    @pB.update = false
+  end
+
   # redraw, but ignore TTY‐focus errors
   begin
     render
@@ -5976,8 +6780,8 @@ loop do
   rescue
     Dir.chdir
   end
-  # If selected file was removed externally, force pane refresh
-  if @selected && !File.exist?(@selected)
+  # If selected file was removed externally, force pane refresh (skip in archive/remote mode)
+  if !@archive_mode && !@remote_mode && @selected && !File.exist?(@selected)
     @dir_cache.delete_if { |key, _| key.start_with?("#{Dir.pwd}:") }
     @index = [@index, (@files.size - 2)].min
     @index = 0 if @index.negative?

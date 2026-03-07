@@ -5,6 +5,14 @@ All notable changes to RTFM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.0] - 2026-03-07
+
+### Added
+- **Browse archives as virtual directories** - Press Enter on .zip, .tar.gz, .tar.bz2, .tar.xz, .rar, .7z files to browse their contents as if they were directories. Navigate with normal keys, press LEFT at root to exit. Yellow-green visual indicator distinguishes archive mode. Supports nested directories within archives. Press `x` to open archive with external program instead.
+- **Archive write operations** - Full read/write support for archives: extract entries (`d`), delete entries (`D`), add local files (`p`), and move out (`P` = extract + delete). Tag multiple entries with `t` for bulk operations. Supports zip, tar.gz, tar.bz2, tar.xz, rar, and 7z formats.
+- **Async background file operations** - Copy and move operations on multiple items or directories now run in a background thread with progress displayed in the bottom pane. The UI remains responsive during large operations. Single-file operations and symlinks remain synchronous for instant feedback.
+- **Scrollable diff viewer** - File comparison (`X`) now shows the full unified diff with scrollable navigation (j/k, PgUp/PgDn, Home/End). Press `s` to toggle between unified diff and side-by-side view. No more truncation at 15 lines.
+
 ## [7.5.3] - 2026-03-05
 
 ### Fixed
