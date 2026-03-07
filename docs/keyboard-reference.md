@@ -238,10 +238,22 @@ When viewing an image, `Ctrl-y` copies the actual image file - paste into GIMP, 
 
 | Key | Action |
 |-----|--------|
-| `z` | Extract tagged archive |
+| `Enter` | Browse archive as virtual directory |
+| `x` | Open archive with external program (bypass browsing) |
+| `z` | Extract tagged archive to current directory |
 | `Z` | Create archive from tagged items |
 
-**Supported formats:** .zip, .tar, .gz, .bz2, .xz, .rar, .7z
+**Inside archive browsing mode:**
+
+| Key | Action |
+|-----|--------|
+| `d` | Delete entry from archive |
+| `D` | Extract entry to origin directory |
+| `p` | Add pre-tagged local files into archive |
+| `t` | Tag/untag entries for bulk operations |
+| `LEFT` | Go to parent directory / exit archive |
+
+**Supported formats:** .zip, .tar.gz, .tar.bz2, .tar.xz, .rar, .7z
 
 ## Git Operations
 
@@ -333,7 +345,7 @@ Useful for plugin development and debugging.
 | `↑` `↓` | Navigate files |
 | `←` `h` | Parent directory |
 | `→` `ENTER` | Show file info |
-| `d` | Download file |
+| `D` | Download file |
 | `u` | Upload tagged files |
 | `s` | Open SSH shell |
 

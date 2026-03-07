@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '8.0' # Archive browsing, async file ops, scrollable diff viewer
+@version    = '8.0.1' # Archive browsing, async file ops, scrollable diff viewer
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -206,7 +206,7 @@ CONFIG_FILE   = File.join(RTFM_HOME, 'conf')
     >       = Follow symlink to the directory where the target resides
     Ctrl-r  = Show recently accessed files and directories (press number to jump)
     Ctrl-e  = Browse remote directories via SSH/SFTP (toggle remote mode)
-                In remote mode: d=download, u=upload, s=shell, →=file info, ←=parent dir
+                In remote mode: D=download, u=upload, s=shell, →=file info, ←=parent dir
                 SSH connections support comments: user@host:/path # Comment
 
   DIRECTORY VIEWS
@@ -270,7 +270,7 @@ CONFIG_FILE   = File.join(RTFM_HOME, 'conf')
     ENTER   = Browse inside archive (zip, tar, gz, bz2, xz, rar, 7z) - virtual browsing
               Press LEFT at archive root to exit back to normal browsing
     x       = Open archive with external program (bypass archive browsing)
-              Inside an archive: d=extract, D=delete, p=add files, t=tag, P=move out
+              Inside an archive: d=delete, D=extract, p=add files, t=tag
     z       = Extract tagged zipped archive to current directory
     Z       = Create zipped archive from tagged files/directories
 
@@ -2968,10 +2968,9 @@ def show_archive_file_info(entry) # {{{3
   if entry[:type] == 'directory'
     info_text << "  Enter  = Navigate into directory\n".fg(240)
   end
-  info_text << "  d      = Extract to origin directory\n".fg(240)
-  info_text << "  D      = Delete from archive\n".fg(240)
+  info_text << "  d      = Delete from archive\n".fg(240)
+  info_text << "  D      = Extract to origin directory\n".fg(240)
   info_text << "  p      = Add local files into archive\n".fg(240)
-  info_text << "  P      = Move out (extract + delete from archive)\n".fg(240)
   info_text << "  t      = Tag/untag for bulk operations\n".fg(240)
   info_text << "  LEFT   = Go to parent / exit archive\n".fg(240)
   @pR.say(info_text)
@@ -3854,7 +3853,7 @@ def build_remote_help # {{{3
   
   help_text << "Remote Navigation:\n".fg(226)
   help_text << "  • Use arrow keys to navigate directories\n"
-  help_text << "  • Press " + "d".fg(156) + " to download files\n"
+  help_text << "  • Press " + "D".fg(156) + " to download files\n"
   help_text << "  • Press " + "u".fg(156) + " to upload files\n"
   help_text << "  • Press " + "s".fg(156) + " to open SSH shell\n"
   help_text << "  • Press " + "→".fg(156) + " to view file info\n"
@@ -3875,17 +3874,6 @@ def copy_items # {{{3
 end
 
 def move_items # {{{3
-  if @archive_mode
-    # In archive mode, 'P' extracts then deletes (move out of archive)
-    return unless @archive_mode && @archive_path
-    entries = archive_tagged_or_selected
-    return if entries.empty?
-    archive_extract_entries
-    # Re-tag the entries so archive_delete_entries can find them
-    @tagged = entries.map { |e| "#{@archive_path}:#{e[:full_path]}" }
-    archive_delete_entries if @archive_mode
-    return
-  end
   copy_move_link('move')
   @pR.update = true
 end
@@ -3948,14 +3936,12 @@ end
 
 def delete_items # {{{3
   if @archive_mode
-    # In archive mode, 'd' key extracts to origin directory
-    archive_extract_entries
+    # In archive mode, 'd' = delete from archive (consistent with normal mode)
+    archive_delete_entries
     return
   end
   if @remote_mode
-    # In remote mode, 'd' key downloads the selected file
-    remote_download_selected
-    return
+    return  # No delete in remote mode; download is on 'D'
   end
   
   tagged_info
@@ -4064,8 +4050,13 @@ end
 
 def empty_trash # {{{3
   if @archive_mode
-    # In archive mode, 'D' deletes entries from archive
-    archive_delete_entries
+    # In archive mode, 'D' = extract entries to origin directory
+    archive_extract_entries
+    return
+  end
+  if @remote_mode
+    # In remote mode, 'D' = download selected file
+    remote_download_selected
     return
   end
   @pB.say(" Really empty Trash (~/.rtfm/trash)? (press 'y')")

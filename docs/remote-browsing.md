@@ -11,7 +11,7 @@ RTFM lets you browse and manage files on remote servers via SSH/SFTP as seamless
 1. Press `Ctrl-e` to enter remote mode
 2. Enter connection: `user@server.com:/path/to/directory`
 3. Navigate with normal keys
-4. Press `d` to download, `u` to upload
+4. Press `D` to download, `u` to upload
 5. Press `Ctrl-e` to return to local mode
 
 ## Connection Formats
@@ -90,13 +90,13 @@ Press `→` or `ENTER` on a file to see:
 ### Download Single File
 
 1. Navigate to file
-2. Press `d`
+2. Press `D`
 3. File downloads to your current local directory
 
 ### Download Multiple Files
 
 1. Tag files with `t`
-2. Press `d`
+2. Press `D`
 3. All tagged files download
 
 **Download location:** Current local directory (where you were before entering remote mode)
@@ -221,7 +221,7 @@ Tag local files → Ctrl-e → server:/var/www → u (upload)
 ### Backup Files
 
 ```
-Ctrl-e → server:/data → Tag files → d (download)
+Ctrl-e → server:/data → Tag files → D (download)
 ```
 
 ### Quick Config Edit
