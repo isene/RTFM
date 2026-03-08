@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '8.0.1' # Archive browsing, async file ops, scrollable diff viewer
+@version    = '8.0.2' # Archive browsing, async file ops, scrollable diff viewer
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -2564,9 +2564,9 @@ end
 def render_side_by_side(lines1, lines2, name1, name2, offset, page_height) # {{{3
   half_width = (@pR.w - 7) / 2
   half_width = [half_width, 10].max
-  text = "\n"
-  text << sprintf("  %-#{half_width}s | %s\n", name1[0, half_width], name2[0, half_width]).fg(226)
-  text << "  " + "-" * half_width + "-+-" + "-" * half_width + "\n"
+  text = +"\n"
+  text << sprintf("  %-#{half_width}s \u2502 %s\n", name1[0, half_width], name2[0, half_width]).fg(226)
+  text << "  " + "\u2500" * half_width + "\u2500\u253C\u2500" + "\u2500" * half_width + "\n"
 
   max_lines = [lines1.size, lines2.size].max
   end_line = [offset + page_height, max_lines].min
@@ -2577,7 +2577,7 @@ def render_side_by_side(lines1, lines2, name1, name2, offset, page_height) # {{{
     same = lines1[i] == lines2[i]
     color = same ? 240 : (lines1[i].nil? ? 156 : (lines2[i].nil? ? 196 : 226))
 
-    text << sprintf("  %-#{half_width}s | %s\n", l1, l2).fg(color)
+    text << sprintf("  %-#{half_width}s \u2502 %s\n", l1, l2).fg(color)
   end
 
   text
