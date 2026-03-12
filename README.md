@@ -22,6 +22,9 @@ rtfm
 # Or start in specific directory
 rtfm ~/Documents
 
+# Use as file picker (tag files with t, quit with q)
+rtfm --pick=/tmp/selected_files.txt
+
 # Press ? for help
 ```
 
@@ -84,6 +87,7 @@ After first run, use `r` command to launch RTFM and exit into your current direc
 - **Cryptographic hashing** - Directory tree verification
 - **OpenAI integration** - File descriptions and interactive chat
 - **Tab management** - Multiple tabs with duplication and renaming
+- **File picker mode** - Use RTFM as a file selector for other applications (`--pick`)
 - **Fuzzy search** - fzf integration
 - **Navi integration** - Interactive command cheatsheets
 
@@ -645,6 +649,10 @@ Best image experience with: kitty, urxvt, xterm, mlterm, foot
 ---
 
 ## Latest Updates
+
+### Version 8.1 Highlights
+
+- **File picker mode** - `rtfm --pick=/path/to/output.txt` launches RTFM as a file selector. Browse and tag files normally with `t`, then quit with `q`. Tagged file paths are written one per line to the output file. Enables integration with email clients, upload tools, and other applications that need a file selection dialog.
 
 ### Version 7.3 Highlights
 
