@@ -5,6 +5,11 @@ All notable changes to RTFM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.1.1] - 2026-03-12
+
+### Fixed
+- **Right pane text not showing over images or file previews** - Fixed monkey-patched `say` method so pane refresh always draws, regardless of prior update state. Also added `clear_image` calls to marks, recent files, file properties, AI description, chat mode, command history, and SSH history
+
 ## [8.1.0] - 2026-03-12
 
 ### Added

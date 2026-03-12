@@ -134,6 +134,7 @@ module Rcurses
     # Restore original say method override for compatibility
     alias original_say say
     def say(text)
+      self.update = true
       original_say(text)
       self.update = false
     end
@@ -1902,6 +1903,7 @@ def track_directory_access(dir_path) # {{{3
 end
 
 def show_recent_files # {{{3
+  clear_image
   text = "Recently Accessed Files and Directories\n".b.fg(156)
   text << "=" * 40 + "\n\n"
   
@@ -1975,8 +1977,9 @@ end
 
 # FILE PROPERTIES {{{2
 def show_file_properties # {{{3
+  clear_image
   return unless @selected && File.exist?(@selected)
-  
+
   begin
     stat = File.stat(@selected)
     text = "File Properties: #{File.basename(@selected)}\n".b.fg(156)
@@ -4518,6 +4521,7 @@ def hash_directory # {{{3
 end
 
 def openai_description # {{{3
+  clear_image
   begin
     require 'ruby/openai'
   rescue LoadError
@@ -4557,6 +4561,7 @@ def openai_description # {{{3
 end
 
 def chat_mode # {{{3
+  clear_image
   unless defined?(OpenAI) && @ai && !@ai.empty?
     @pB.say("To make OpenAI work in RTFM, run `gem install ruby-openai` and add to ~/.rtfm/conf:\n  @ai = 'your-secret-openai-key'")
     return
@@ -5108,11 +5113,13 @@ def command_mode # {{{3
 end
 
 def show_history # {{{3
+  clear_image
   @pR.say("Command history:\n\n" + @pCmd.history.reverse.join("\n"))
   @pB.update = true
 end
 
 def show_ssh_history # {{{3
+  clear_image
   history_text = "SSH Connection History\n".b.fg(156)
   history_text << "=" * 50 + "\n\n"
   
@@ -6629,6 +6636,7 @@ def showimage(image) # SHOW THE SELECTED IMAGE IN THE RIGHT WINDOW {{{2
 end
 
 def marks_info # SHOW MARKS IN RIGHT WINDOW {{{2
+  clear_image
   @marks = @marks.sort.to_h
   info = "Directory Marks".b.fg(156) + "\n"
   info << "=" * 50 + "\n\n"
