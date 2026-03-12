@@ -1,9 +1,9 @@
 Gem::Specification.new do |s|
   s.name        = 'rtfm-filemanager'
-  s.version     = '8.0.2'
+  s.version     = '8.1.0'
   s.licenses    = ['Unlicense']
   s.summary     = "RTFM - Ruby Terminal File Manager"
-  s.description = "RTFM v8.0: Browse and modify archives as virtual directories (extract, delete, add, move), async background file operations, scrollable diff viewer with side-by-side mode. A full featured terminal browser with syntax highlighted files, images shown in the terminal, videos thumbnailed, etc. Features include remote SSH/SFTP browsing, interactive SSH shell, comprehensive undo system, OpenAI integration, bookmarks, and much more. RTFM is one of the most feature-packed terminal file managers."
+  s.description = "RTFM v8.0: Browse and modify archives as virtual directories (extract, delete, add, move), async background file operations, scrollable diff viewer with side-by-side mode. A full featured terminal browser with syntax highlighted files, images shown in the terminal, videos thumbnailed, etc. Features include remote SSH/SFTP browsing, interactive SSH shell, comprehensive undo system, OpenAI integration, bookmarks, and much more. RTFM is one of the most feature-packed terminal file managers. v8.1: File picker mode (--pick) for integration with other tools."
   s.authors     = ["Geir Isene"]
   s.email       = 'g@isene.com'
   s.files       = [
