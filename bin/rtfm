@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '8.0.2' # Archive browsing, async file ops, scrollable diff viewer
+@version    = '8.1.0' # File picker mode (--pick) for integration with other tools
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -825,8 +825,21 @@ rescue StandardError => e
   errormsg("⚠ Errors while loading #{CONFIG_FILE}\nCheck your config file or delete it to remake in a fresh RTFM start.", e)
 end
 load_config
+# Load persisted width setting if it exists
+width_file = File.join(RTFM_HOME, 'width')
+if File.exist?(width_file)
+  saved_width = File.read(width_file).strip.to_i
+  @width = saved_width if saved_width >= 2 && saved_width <= 7
+end
 @marks['0']  = Dir.pwd # Original dir
 @marks["'"]  = Dir.pwd # Initial mark
+
+# File picker mode: --pick=/path/to/output writes tagged files on quit
+@pick_output = nil
+if (pick_arg = ARGV.find { |a| a.start_with?('--pick=') })
+  @pick_output = pick_arg.split('=', 2).last
+  ARGV.delete(pick_arg)
+end
 
 # Handle start dir {{{2
 Dir.chdir(ARGV.shift) if ARGV[0] && File.directory?(ARGV[0])
@@ -1203,7 +1216,10 @@ end
 def change_width # {{{3
   @width += 1
   @width = 2 if @width == 8
-  
+
+  # Persist width setting
+  File.write(File.join(RTFM_HOME, 'width'), @width.to_s) rescue nil
+
   if @dual_pane
     # Show width setting info for dual-pane mode using the new ratio calculation
     dir_panes_ratio = [0.5 - (@width - 2) * 0.034, 0.33].max
@@ -1212,7 +1228,7 @@ def change_width # {{{3
   else
     @pB.say("Width: #{@width}")
   end
-  
+
   refresh
   @pL.update = @pR.update = @pT.update = @pB.update = true
   # Also update dual-pane objects if they exist
@@ -6038,6 +6054,42 @@ def mark_latest # UPDATE MARKS LIST {{{2
   @marks["'"] = Dir.pwd
 end
 
+def mailcap_command(file_path) # FIND VIEWER VIA ~/.mailcap {{{2
+  # Detect MIME type
+  mime_type = IO.popen(['file', '--brief', '--mime-type', file_path]) { |f| f.read.strip }
+  return nil if mime_type.nil? || mime_type.empty?
+
+  # Search mailcap files in order of preference
+  mailcap_files = [File.join(Dir.home, '.mailcap'), '/etc/mailcap']
+  mailcap_files.each do |mc_file|
+    next unless File.exist?(mc_file)
+    File.foreach(mc_file) do |line|
+      line = line.strip
+      next if line.empty? || line.start_with?('#')
+      # Handle continuation lines (trailing backslash)
+      # For simplicity, skip multi-line entries
+      next if line.end_with?('\\')
+      parts = line.split(';').map(&:strip)
+      next if parts.length < 2
+      pattern = parts[0]
+      command = parts[1]
+      flags = parts[2..].join(';')
+      # Skip entries with copiousoutput (meant for text dump, not viewing)
+      next if flags =~ /copiousoutput/i
+      # Check if MIME type matches (supports wildcards like "image/*")
+      pattern_re = Regexp.new('^' + Regexp.escape(pattern).gsub('\\*', '.*') + '$', Regexp::IGNORECASE)
+      next unless mime_type.match?(pattern_re)
+      # Replace %s with the file path in the command
+      if command.include?('%s')
+        return command.gsub('%s', Shellwords.escape(file_path))
+      else
+        return "#{command} #{Shellwords.escape(file_path)}"
+      end
+    end
+  end
+  nil # No mailcap match found
+end
+
 def get_interactive_program(file_path) # HELPER FOR OPEN_SELECTED TO USE @interactive {{{2
   begin
     inter_list = (@interactive || '').split(',').map(&:strip)
@@ -6146,16 +6198,11 @@ def open_selected(html = nil) # OPEN SELECTED FILE {{{2
   # Use tagged items if any exist, otherwise use selected item
   paths   = @tagged.empty? ? [@selected] : @tagged
   if html # html mode - open in HTML-browser
-    esc = paths.map { |p| Shellwords.escape(p) }.join(' ')
-    shell("xdg-open #{esc} &", err: tmpfile)
-    Rcurses.clear_screen; refresh; render
-    if File.exist?(tmpfile)
-      sleep 0.5
-      err = File.read(tmpfile)
-      showimage('clear') if @image
-      @pR.say(err.fg(196))
-      File.delete(tmpfile)
+    paths.each do |p|
+      pid = Process.spawn('xdg-open', p, [:out, :err] => '/dev/null')
+      Process.detach(pid)
     end
+    Rcurses.clear_screen; refresh; render
     return
   end
   # Check if file is text (UTF-8, UTF-16, or other text encodings)
@@ -6209,21 +6256,22 @@ def open_selected(html = nil) # OPEN SELECTED FILE {{{2
     render
     return
   end
-  if @runmailcap # Open with run-mailcap or xdg-open
-    arg = paths.map { |p| Shellwords.escape(p) }.join(' ')
-    shell("run-mailcap #{arg} &", err: tmpfile)
+  # Try mailcap first, then fall back to run-mailcap or xdg-open
+  mc_cmd = mailcap_command(@selected)
+  if mc_cmd
+    pid = Process.spawn(mc_cmd, :in => '/dev/null', [:out, :err] => '/dev/null')
+    Process.detach(pid)
+  elsif @runmailcap
+    paths.each do |p|
+      pid = Process.spawn('run-mailcap', p, :in => '/dev/null', [:out, :err] => '/dev/null')
+      Process.detach(pid)
+    end
   else
-    shell("xdg-open #{Shellwords.escape(@selected)} &", err: tmpfile)
+    pid = Process.spawn('xdg-open', @selected, :in => '/dev/null', [:out, :err] => '/dev/null')
+    Process.detach(pid)
   end
   # Clean up
   Rcurses.clear_screen; refresh; render
-  if File.exist?(tmpfile)
-    sleep 0.5
-    err = File.read(tmpfile)
-    showimage('clear') if @image
-    @pR.say(err.fg(196))
-    File.delete(tmpfile)
-  end
 end
 
 def conf_write(all: false) # WRITE TO ~/.rtfm/conf {{{2
@@ -6264,6 +6312,13 @@ def conf_write(all: false) # WRITE TO ~/.rtfm/conf {{{2
 end
 
 def exit_rtfm # CLEAN EXIT {{{2
+  # Pick mode: write tagged file paths to output file
+  if @pick_output
+    begin
+      File.write(@pick_output, @tagged.join("\n") + "\n")
+    rescue StandardError
+    end
+  end
   # If invoked with a stub filename, write out our cwd
   if ARGV[0]
     begin
