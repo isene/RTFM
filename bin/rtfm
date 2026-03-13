@@ -3393,7 +3393,6 @@ def open_remote_shell # {{{3
     system('stty raw -echo isig < /dev/tty')
     $stdin.raw!
     $stdin.echo = false
-    Rcurses.init! # Reinitialize rcurses to fix input handling
     Cursor.hide
     Rcurses.clear_screen
     
@@ -6665,6 +6664,7 @@ def marks_info # SHOW MARKS IN RIGHT WINDOW {{{2
     end
     info << "\n" + "Press " + "'" + " + letter to jump".fg(240)
   end
+  @pR.update = true
   @pR.say(info)
 end
 
