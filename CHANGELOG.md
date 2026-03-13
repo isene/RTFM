@@ -5,6 +5,11 @@ All notable changes to RTFM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.1.2] - 2026-03-13
+
+### Fixed
+- **Redraw loop on terminal resize** - SIGWINCH handler now only sets a flag; the actual resize and redraw is handled once per main loop iteration. Fixes infinite redraw cascade on macOS/mlterm when dragging to resize the terminal window (#11)
+
 ## [8.1.1] - 2026-03-12
 
 ### Fixed
