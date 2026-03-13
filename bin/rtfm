@@ -6774,26 +6774,10 @@ end
 setborder
 
 ## Catch change in terminal resize, redraw {{{2
-Signal.trap('WINCH') do
-  # Don't refresh/render if an external interactive program is running
-  # This prevents RTFM from painting over programs like HyperList when
-  # switching terminals in window managers like i3-wm
-  unless @external_program_running
-    begin
-      new_h, new_w = IO.console.winsize
-      # Validate terminal size (minimum 10x20 to be usable)
-      if new_h && new_w && new_h >= 10 && new_w >= 20
-        @h, @w = new_h, new_w
-        @pT.update = @pL.update = @pR.update = @pB.update = true
-        refresh
-        render
-      end
-    rescue => e
-      # Silently ignore resize errors to prevent crashes
-      # User can manually refresh with 'r' key if needed
-    end
-  end
-end
+# Signal handler only sets a flag (no I/O, signal-safe).
+# Rapid-fire SIGWINCH from live-resizing collapses into one redraw per loop.
+@winch_pending = false
+Signal.trap('WINCH') { @winch_pending = true }
 
 
 ## One-time flush {{{2
@@ -6814,6 +6798,19 @@ loop do
   elsif @file_op_progress
     @pB.say(@file_op_progress)
     @pB.update = false
+  end
+
+  # Handle pending terminal resize (debounced from SIGWINCH)
+  if @winch_pending && !@external_program_running
+    @winch_pending = false
+    begin
+      new_h, new_w = IO.console.winsize
+      if new_h && new_w && new_h >= 10 && new_w >= 20
+        @h, @w = new_h, new_w
+        @pT.update = @pL.update = @pR.update = @pB.update = true
+        refresh
+      end
+    rescue; end
   end
 
   # redraw, but ignore TTY‐focus errors
