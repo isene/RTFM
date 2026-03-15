@@ -5,6 +5,17 @@ All notable changes to RTFM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.2.0] - 2026-03-15
+
+### Added
+- **Plugin system** - Plugins in `~/.rtfm/plugins/` are auto-loaded on startup. Each plugin is a `.rb` file with metadata comments (`@name`, `@description`, `@key`). Disabled plugins use `.rb.off` extension
+- **Plugin manager** (`V` key) - Enable/disable plugins live without restarting RTFM. Press `?` on any plugin to view its built-in help text
+- **Settings plugin** (`C` key) - Interactive editor for settings without dedicated keys: trash mode, run-mailcap, interactive programs, ls flags, OpenAI config, and all pane colors with live preview
+- **Git plugin** (`Ctrl-G`) - Quick git menu: status, diff, commit+push, and log, all from within RTFM
+- **Bookmarks plugin** (`F6`) - Unlimited directory bookmarks with fuzzy filtering, complementing the built-in single-letter marks
+- **Notes plugin** (`F5`) - Attach text notes to any file or directory, stored in `~/.rtfm/notes/`
+- **Opener plugin** (`RIGHT`/`l`) - Define custom programs for specific file extensions via a simple hash
+
 ## [8.1.3] - 2026-03-13
 
 ### Fixed
