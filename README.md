@@ -92,10 +92,10 @@ After first run, use `r` command to launch RTFM and exit into your current direc
 - **Navi integration** - Interactive command cheatsheets
 
 ### Developer Features
-- **Plugin architecture** - Custom preview handlers and key bindings
+- **Plugin system** - Live enable/disable plugins with built-in manager (`V` key)
+- **Example plugins** - Settings editor, git, bookmarks, notes, custom openers
 - **Ruby debug mode** - Execute arbitrary Ruby in context
 - **Command history** - Preserved across sessions
-- **Extensible** - Clean plugin API
 
 ---
 
@@ -168,6 +168,7 @@ For complete reference: `man rtfm` or press `?` in RTFM
 | `q` | Quit (save config) |
 | `Q` | Quit (don't save) |
 | `r` | Refresh display |
+| `V` | Plugin manager |
 
 ### Navigation
 
@@ -359,9 +360,11 @@ Configuration stored in `~/.rtfm/conf`
 
 | Action | Command |
 |--------|---------|
-| View config | Press `C` |
+| View config | Press `C` (or interactive editor with Settings plugin) |
 | Save config | Press `W` |
 | Reload config | Press `R` |
+
+**Tip:** Install the Settings plugin for an interactive settings editor with live color preview. See [Plugins](#plugins).
 
 ### Common Settings
 
@@ -492,50 +495,75 @@ The chat maintains context throughout your RTFM session, so follow-up questions 
 
 ## Plugins
 
-RTFM supports two types of plugins in `~/.rtfm/plugins/`:
+RTFM has a plugin system with live enable/disable. Plugins live in `~/.rtfm/plugins/` as `.rb` files and are auto-loaded on startup.
 
-### 1. Preview Handlers (`preview.rb`)
+### Plugin Manager (`V` key)
 
-Add custom file type previews:
+Press `V` to open the built-in plugin manager:
+- See all available plugins with their status (ON/OFF)
+- Press `ENTER` to toggle a plugin on or off (takes effect immediately)
+- Press `?` to view the plugin's built-in help text
+- No restart required
+
+### Example Plugins
+
+RTFM ships with five example plugins in the `examples/` directory. Copy any of them to `~/.rtfm/plugins/` to activate:
+
+```bash
+cp examples/settings.rb ~/.rtfm/plugins/
+cp examples/git.rb ~/.rtfm/plugins/
+cp examples/bookmarks.rb ~/.rtfm/plugins/
+cp examples/notes.rb ~/.rtfm/plugins/
+cp examples/opener.rb ~/.rtfm/plugins/
+```
+
+| Plugin | Key | Description |
+|--------|-----|-------------|
+| **Settings** | `C` | Interactive editor for settings without dedicated keys (colors, trash, interactive programs, OpenAI config). Color changes apply in real-time. Overrides the default config viewer |
+| **Git** | `Ctrl-G` | Git operations menu: status, diff, commit+push, log. Output shown in right pane |
+| **Bookmarks** | `F6` | Unlimited directory bookmarks with fuzzy filtering. Add, delete, and jump to bookmarked directories. Complements the built-in single-letter marks (m/') |
+| **Notes** | `F5` | Attach text notes to any file or directory. View, edit, or delete notes. Stored in `~/.rtfm/notes/` |
+| **Opener** | `RIGHT`/`l` | Custom file openers by extension. Configure a hash of extension-to-command mappings (e.g., `.hl` files open in hyperlist) |
+
+### Writing Your Own Plugins
+
+A plugin is a simple Ruby file with metadata comments and KEYMAP bindings:
 
 ```ruby
-# ~/.rtfm/plugins/preview.rb
+# @name: My Plugin
+# @description: What it does
+# @key: X
 
+KEYMAP['X'] = :my_action
+
+# Optional: register help text shown by ? in plugin manager
+PLUGIN_HELP['My Plugin'] = <<~HELP
+  This is the help text for my plugin.
+  Shown when pressing ? in the plugin manager.
+HELP
+
+def my_action
+  clear_image
+  @pR.update = true
+  @pR.say("Hello from my plugin!")
+end
+```
+
+Plugins can also be defined in `~/.rtfm/keys.rb` for personal bindings that don't need the enable/disable mechanism.
+
+### Preview Handlers (`preview.rb`)
+
+Custom file type previews are configured separately in `~/.rtfm/preview.rb`:
+
+```ruby
 # Syntax: ext1, ext2 = command with @s placeholder
-# @s is replaced with shell-escaped filename
-
-# Examples:
 txt, log = bat -n --color=always @s
 md = pandoc @s -t plain
 pdf = pdftotext -f 1 -l 4 @s -
 json = jq . @s
 ```
 
-### 2. Custom Key Bindings (`keys.rb`)
-
-Add or override key bindings:
-
-```ruby
-# ~/.rtfm/plugins/keys.rb
-
-# Add new key binding
-KEYMAP['Z'] = :my_custom_action
-
-def my_custom_action(_chr)
-  @pB.say("Custom action triggered!")
-  # Use @pL, @pR, @selected, etc.
-end
-
-# Git commit shortcut example
-KEYMAP['C-G'] = :git_commit
-
-def git_commit
-  message = @pCmd.ask('Commit message: ', '')
-  shellexec("git add . && git commit -m '#{message}' && git push")
-end
-```
-
-### Available Variables
+### Available Variables for Plugin Authors
 
 | Variable | Description |
 |----------|-------------|
@@ -543,22 +571,33 @@ end
 | `@pL` | Left pane (file list) |
 | `@pR` | Right pane (preview) |
 | `@pB` | Bottom pane (status) |
-| `@pCmd` | Command prompt |
+| `@pCmd` | Command prompt (use `.ask(prompt, default)` for input) |
 | `@selected` | Currently selected file/dir |
 | `@tagged` | Array of tagged items |
 | `@external_program_running` | Set true when launching TUI programs |
+| `PLUGIN_HELP` | Hash to register help text (keyed by plugin name) |
 
 ### Plugin Helper Functions
 
 ```ruby
-# Capture command output
+# Capture command output as string
 output = command("ls -la", timeout: 5)
 
-# Run command, show errors
-shell("mv file1 file2", background: false)
-
-# Run and show both stdout/stderr in right pane
+# Run command interactively (full terminal)
 shellexec("grep -r pattern .")
+
+# Read a keypress
+chr = getchr
+
+# Clear any displayed image
+clear_image
+
+# Text formatting
+"text".fg(112)   # foreground color (0-255)
+"text".bg(236)   # background color
+"text".b         # bold
+"text".u         # underline
+"text".r         # reverse
 ```
 
 ---
@@ -649,6 +688,11 @@ Best image experience with: kitty, urxvt, xterm, mlterm, foot
 ---
 
 ## Latest Updates
+
+### Version 8.2 Highlights
+
+- **Plugin system with live enable/disable** - Plugins in `~/.rtfm/plugins/` are auto-loaded on startup. Toggle them on and off at runtime with the plugin manager (`V` key), no restart needed. Each plugin can register help text viewable with `?`.
+- **Five example plugins** - Settings editor, git operations, directory bookmarks, file notes, and custom file openers. Copy from `examples/` to `~/.rtfm/plugins/` to use.
 
 ### Version 8.1 Highlights
 

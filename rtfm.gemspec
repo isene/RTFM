@@ -1,9 +1,9 @@
 Gem::Specification.new do |s|
   s.name        = 'rtfm-filemanager'
-  s.version     = '8.1.3'
+  s.version     = '8.2.0'
   s.licenses    = ['Unlicense']
   s.summary     = "RTFM - Ruby Terminal File Manager"
-  s.description = "RTFM v8.0: Browse and modify archives as virtual directories (extract, delete, add, move), async background file operations, scrollable diff viewer with side-by-side mode. A full featured terminal browser with syntax highlighted files, images shown in the terminal, videos thumbnailed, etc. Features include remote SSH/SFTP browsing, interactive SSH shell, comprehensive undo system, OpenAI integration, bookmarks, and much more. RTFM is one of the most feature-packed terminal file managers. v8.1: File picker mode (--pick) for integration with other tools."
+  s.description = "A full featured terminal file manager with syntax highlighted files, images shown in the terminal, videos thumbnailed, etc. Features include remote SSH/SFTP browsing, interactive SSH shell, comprehensive undo system, OpenAI integration, bookmarks, archive browsing, and much more. v8.2: Plugin system with live enable/disable, built-in plugin manager (V key), and example plugins (settings editor, git operations, bookmarks, notes, custom file openers)."
   s.authors     = ["Geir Isene"]
   s.email       = 'g@isene.com'
   s.files       = [
@@ -20,7 +20,12 @@ Gem::Specification.new do |s|
     "docs/plugins.md",
     "docs/troubleshooting.md",
     "docs/faq.md",
-    "examples/rtfm.conf"
+    "examples/rtfm.conf",
+    "examples/settings.rb",
+    "examples/git.rb",
+    "examples/bookmarks.rb",
+    "examples/notes.rb",
+    "examples/opener.rb"
   ]
   s.add_runtime_dependency 'rcurses', '~> 6.0'
   s.add_runtime_dependency 'termpix', '~> 0.3'

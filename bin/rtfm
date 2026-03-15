@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '8.1.0' # File picker mode (--pick) for integration with other tools
+@version    = '8.2.0' # Plugin system with live enable/disable and built-in plugin manager
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -173,6 +173,7 @@ CONFIG_FILE   = File.join(RTFM_HOME, 'conf')
     W       = Write parameters to ~/.rtfm/conf: @marks, @hash, @history, @rubyhistory, @aihistory, @sshhistory
               @lslong, @lsall, @lsorder, @lsinvert, @width, @border, @preview, @trash
     C       = Show the current configuration in ~/.rtfm/conf
+    V       = Plugin manager (enable/disable plugins from ~/.rtfm/plugins/)
     q       = Quit (save basic configuration: @marks, @hash, @history, @rubyhistory, @aihistory, @sshhistory)
     Q       = QUIT (without writing any changes to the config file)
 
@@ -928,6 +929,7 @@ KEYMAP = { # {{{2
   'R'       => :load_config,
   'C'       => :show_config,
   'W'       => :write_config,
+  'V'       => :plugin_manager,
   'q'       => :quit_and_save,
   'Q'       => :quit_no_save,
 
@@ -1078,6 +1080,78 @@ if File.exist?(KEYS_FILE)
   end
 end
 
+# PLUGIN SYSTEM {{{2
+# Plugins live in ~/.rtfm/plugins/ as .rb files.
+# Each plugin should start with metadata comments:
+#   # @name: My Plugin
+#   # @description: What it does
+#   # @key: X (optional, documents which key it binds)
+# Disabled plugins have .rb.off extension.
+
+@plugins = {} # name => { file:, enabled:, meta:, saved_keys: }
+PLUGIN_HELP = {} # name => help string (registered by each plugin)
+
+def parse_plugin_meta(file)
+  meta = { name: File.basename(file).sub(/\.rb(\.off)?$/, ''), description: '', key: '' }
+  File.foreach(file) do |line|
+    break unless line.start_with?('#')
+    meta[:name]        = $1.strip if line =~ /^#\s*@name:\s*(.+)/
+    meta[:description] = $1.strip if line =~ /^#\s*@description:\s*(.+)/
+    meta[:key]         = $1.strip if line =~ /^#\s*@key:\s*(.+)/
+  end
+  meta
+end
+
+def load_plugin(name)
+  p = @plugins[name]
+  return unless p
+  snapshot = KEYMAP.dup
+  begin
+    load p[:file].sub(/\.off$/, '')
+    # Track which KEYMAP entries changed
+    changed = {}
+    KEYMAP.each { |k, v| changed[k] = snapshot[k] if snapshot[k] != v }
+    snapshot.each { |k, v| changed[k] = v unless KEYMAP.key?(k) }
+    p[:saved_keys] = changed
+    p[:enabled] = true
+  rescue => e
+    @plugin_errors << "Error loading plugin #{name}: #{e.class}: #{e.message}"
+  end
+end
+
+def unload_plugin(name)
+  p = @plugins[name]
+  return unless p
+  (p[:saved_keys] || {}).each do |k, original|
+    original ? KEYMAP[k] = original : KEYMAP.delete(k)
+  end
+  p[:enabled] = false
+end
+
+def toggle_plugin(name)
+  p = @plugins[name]
+  return unless p
+  base = p[:file].sub(/\.off$/, '')
+  off  = base + '.off'
+  if p[:enabled]
+    unload_plugin(name)
+    File.rename(base, off) if File.exist?(base)
+    p[:file] = off
+  else
+    File.rename(off, base) if File.exist?(off)
+    p[:file] = base
+    load_plugin(name)
+  end
+end
+
+# Scan and load enabled plugins
+Dir.glob(File.join(PLUGINS_DIR, '*.rb{,.off}')).sort.each do |f|
+  meta = parse_plugin_meta(f)
+  enabled = !f.end_with?('.off')
+  @plugins[meta[:name]] = { file: f, enabled: false, meta: meta, saved_keys: {} }
+  load_plugin(meta[:name]) if enabled
+end
+
 # MAIN GETKEY FOR USER INPUT {{{2
 def getkey # {{{3
   chr = getchr(1)
@@ -1195,6 +1269,59 @@ end
 def show_config
   clear_image
   @pR.say('Configuration'.u.fg(254) + ":\n\n" + @conf.fg(249))
+end
+
+def plugin_manager # {{{3
+  clear_image
+  names = @plugins.keys.sort
+  if names.empty?
+    @pR.say("Plugins".u.fg(254) + "\n\nNo plugins found in ~/.rtfm/plugins/\n\nPlace .rb files there to make them available.")
+    return
+  end
+  sel = 0
+  loop do
+    lines = []
+    lines << "Plugins".b.fg(254)
+    lines << ""
+    names.each_with_index do |name, i|
+      p = @plugins[name]
+      status = p[:enabled] ? " ON ".bg(22).fg(255) : " OFF".bg(52).fg(255)
+      key_info = p[:meta][:key].empty? ? '' : " [#{p[:meta][:key]}]".fg(240)
+      desc = p[:meta][:description].empty? ? '' : " #{p[:meta][:description]}".fg(249)
+      line = "#{status} #{name}#{key_info}#{desc}"
+      line = i == sel ? line.u : line
+      lines << line
+    end
+    lines << ""
+    lines << "j/k:move  ENTER:toggle  ?:help  q:close".fg(240)
+    @pR.update = true
+    @pR.say(lines.join("\n"))
+
+    chr = getchr
+    case chr
+    when 'q', 'ESC'
+      break
+    when 'j', 'DOWN'
+      sel = (sel + 1) % names.size
+    when 'k', 'UP'
+      sel = (sel - 1) % names.size
+    when 'ENTER', 'RIGHT', 'LEFT'
+      toggle_plugin(names[sel])
+    when '?'
+      name = names[sel]
+      help = PLUGIN_HELP[name]
+      if help
+        @pR.update = true
+        @pR.say(name.b.fg(254) + " help\n\n" + help)
+        getchr
+      else
+        @pB.say("No help available for #{name}.")
+      end
+    end
+  end
+  @pR.update = true
+  refresh
+  render
 end
 
 def write_config # {{{3
