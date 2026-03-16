@@ -211,7 +211,7 @@ For complete reference: `man rtfm` or press `?` in RTFM
 | `c` | Rename item |
 | `E` | Bulk rename (patterns) |
 | `d` | Delete (→ trash if enabled) |
-| `D` | Empty trash |
+| `D` | Trash browser (browse, restore, delete) |
 | `Ctrl-d` | Toggle trash on/off |
 | `U` | Undo last operation |
 
@@ -515,6 +515,8 @@ cp examples/git.rb ~/.rtfm/plugins/
 cp examples/bookmarks.rb ~/.rtfm/plugins/
 cp examples/notes.rb ~/.rtfm/plugins/
 cp examples/opener.rb ~/.rtfm/plugins/
+cp examples/diskusage.rb ~/.rtfm/plugins/
+cp examples/dupes.rb ~/.rtfm/plugins/
 ```
 
 | Plugin | Key | Description |
@@ -524,6 +526,8 @@ cp examples/opener.rb ~/.rtfm/plugins/
 | **Bookmarks** | `F6` | Unlimited directory bookmarks with fuzzy filtering. Add, delete, and jump to bookmarked directories. Complements the built-in single-letter marks (m/') |
 | **Notes** | `F5` | Attach text notes to any file or directory. View, edit, or delete notes. Stored in `~/.rtfm/notes/` |
 | **Opener** | `RIGHT`/`l` | Custom file openers by extension. Configure a hash of extension-to-command mappings (e.g., `.hl` files open in hyperlist) |
+| **Disk Usage** | `S` | Interactive disk usage analyzer. Extends system info with a browseable size-sorted directory view with visual bars |
+| **Dupes** | `F7` | Find duplicate files by content hash. Two-pass scan (size then SHA256) with in-place deletion of duplicates |
 
 ### Writing Your Own Plugins
 
@@ -692,7 +696,8 @@ Best image experience with: kitty, urxvt, xterm, mlterm, foot
 ### Version 8.2 Highlights
 
 - **Plugin system with live enable/disable** - Plugins in `~/.rtfm/plugins/` are auto-loaded on startup. Toggle them on and off at runtime with the plugin manager (`V` key), no restart needed. Each plugin can register help text viewable with `?`.
-- **Five example plugins** - Settings editor, git operations, directory bookmarks, file notes, and custom file openers. Copy from `examples/` to `~/.rtfm/plugins/` to use.
+- **Seven example plugins** - Settings editor, git operations, directory bookmarks, file notes, custom file openers, disk usage analyzer, and duplicate file finder. Copy from `examples/` to `~/.rtfm/plugins/` to use.
+- **Trash browser** (`D` key) - Browse trash contents with timestamps and original paths. Restore files to their original location, permanently delete individual items, or empty all trash.
 
 ### Version 8.1 Highlights
 
