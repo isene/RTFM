@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '8.2.0' # Plugin system with live enable/disable and built-in plugin manager
+@version    = '8.2.1' # Trash browser, right pane scroll fix, plugin improvements
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -242,7 +242,7 @@ CONFIG_FILE   = File.join(RTFM_HOME, 'conf')
     s       = Create symlink to tagged items here
     d       = Delete selected item and tagged items. Confirm with 'y'. 
               Moves items to trash directory (~/.rtfm/trash/) if @trash = true
-    D       = Empty trash directory
+    D       = Trash browser (browse, restore, delete, empty trash)
     Ctrl-d  = Toggle use of trash directory
 
   UNDO OPERATIONS
@@ -4204,12 +4204,150 @@ def empty_trash # {{{3
     remote_download_selected
     return
   end
-  @pB.say(" Really empty Trash (~/.rtfm/trash)? (press 'y')")
-  return unless  getchr == 'y'
+  trash_browser
+end
 
-  command("rm -rf #{TRASH_DIR}/*")
-  @pB.say('Trash is now empty')
+def trash_browser # TRASH BROWSER {{{3
+  clear_image
+  sel = 0
+  offset = 0
+
+  loop do
+    # Scan trash directory, build item list with metadata
+    raw = Dir.entries(TRASH_DIR).reject { |e| e == '.' || e == '..' }.map { |e| File.join(TRASH_DIR, e) }
+    entries = raw.select { |f| File.exist?(f) || File.symlink?(f) }
+    entries.sort_by! { |f| File.mtime(f) rescue Time.at(0) }
+    entries.reverse!
+    items = entries.filter_map do |f|
+      basename = File.basename(f)
+      orig_name = basename.sub(/^\d{8}_\d{6}_/, '').sub(/_\d{4}$/, '')
+      orig_path = nil
+      @undo_history.each do |op|
+        next unless op[:type] == 'delete' && op[:trash]
+        op[:paths].each { |p| orig_path = p[:path] if p[:trash_name] == basename }
+      end
+      begin
+        size = File.directory?(f) ? (command("du -sb #{Shellwords.escape(f)} 2>/dev/null").split.first.to_i rescue 0) : File.size(f)
+        mtime = File.mtime(f)
+      rescue
+        size = 0
+        mtime = Time.at(0)
+      end
+      { path: f, basename: basename, orig_name: orig_name, orig_path: orig_path,
+        size: size, mtime: mtime, dir: File.directory?(f) }
+    end
+
+    sel = [sel, items.size - 1, 0].sort[1]
+    page_h = @pR.h - 5
+    page_h = 1 if page_h < 1
+    offset = sel - page_h + 1 if sel >= offset + page_h
+    offset = sel if sel < offset
+    offset = 0 if offset < 0
+    visible = items[offset, page_h] || []
+
+    lines = []
+    lines << "j/k:move  r:restore  d:delete  E:empty all  q:close".fg(240)
+    lines << "Trash".b.fg(254) + "  (#{items.size} items)".fg(240)
+    lines << ""
+
+    if items.empty?
+      lines << "Trash is empty.".fg(240)
+    else
+      visible.each_with_index do |item, i|
+        idx = offset + i
+        size_s = human_size(item[:size])
+        type_indicator = item[:dir] ? "/".fg(69) : ""
+        age = time_ago(item[:mtime])
+        name = item[:orig_name] + type_indicator
+        origin = item[:orig_path] ? "  #{File.dirname(item[:orig_path])}".fg(240) : ""
+        line = "#{size_s.rjust(8).fg(249)} #{age.rjust(6).fg(240)} #{name}#{origin}"
+        line = idx == sel ? line.u : line
+        lines << line
+      end
+      lines << "(#{sel + 1}/#{items.size})".fg(240) if items.size > page_h
+    end
+
+    @pR.update = true
+    @pR.say(lines.join("\n"))
+
+    chr = getchr
+    case chr
+    when 'q', 'ESC'
+      break
+    when 'j', 'DOWN'
+      sel = items.empty? ? 0 : (sel + 1) % items.size
+    when 'k', 'UP'
+      sel = items.empty? ? 0 : (sel - 1) % items.size
+    when 'r'
+      next if items.empty?
+      item = items[sel]
+      if item[:orig_path]
+        dest = item[:orig_path]
+      else
+        dest = @pCmd.ask('Restore to: ', File.join(Dir.pwd, item[:orig_name]))
+      end
+      next if dest.strip.empty?
+      if File.exist?(dest)
+        @pB.say("Destination exists: #{dest}".fg(196))
+        next
+      end
+      begin
+        FileUtils.mv(item[:path], dest)
+        # Remove from undo history
+        @undo_history.each do |op|
+          next unless op[:type] == 'delete' && op[:trash]
+          op[:paths].reject! { |p| p[:trash_name] == item[:basename] }
+        end
+        @pB.say("Restored: #{File.basename(dest)}".fg(156))
+        sel = [sel - 1, 0].max
+      rescue => e
+        @pB.say("Restore failed: #{e.message}".fg(196))
+      end
+    when 'd'
+      next if items.empty?
+      item = items[sel]
+      @pB.say(" Permanently delete #{item[:orig_name]}? (y/n)".fg(196))
+      if getchr == 'y'
+        command("rm -rf #{Shellwords.escape(item[:path])}")
+        @pB.say("Deleted: #{item[:orig_name]}".fg(204))
+        sel = [sel - 1, 0].max
+      end
+    when 'E'
+      @pB.say(" Empty ALL trash? This cannot be undone! (y/n)".fg(196))
+      if getchr == 'y'
+        command("rm -rf #{TRASH_DIR}/*")
+        @undo_history.reject! { |op| op[:type] == 'delete' && op[:trash] }
+        @pB.say("Trash emptied.".fg(204))
+        sel = 0
+      end
+    end
+  end
+
+  @pR.update = true
+  refresh
   render
+end
+
+def human_size(bytes) # {{{3
+  if bytes >= 1_073_741_824
+    "%.1fG" % (bytes / 1_073_741_824.0)
+  elsif bytes >= 1_048_576
+    "%.1fM" % (bytes / 1_048_576.0)
+  elsif bytes >= 1024
+    "%.1fK" % (bytes / 1024.0)
+  else
+    "#{bytes}B"
+  end
+end
+
+def time_ago(time) # {{{3
+  seconds = Time.now - time
+  if seconds < 60 then "now"
+  elsif seconds < 3600 then "#{(seconds / 60).to_i}m"
+  elsif seconds < 86400 then "#{(seconds / 3600).to_i}h"
+  elsif seconds < 604800 then "#{(seconds / 86400).to_i}d"
+  else "#{(seconds / 604800).to_i}w"
+  end
 end
 
 def toggle_trash # {{{3
@@ -4720,19 +4858,19 @@ def refresh_right # {{{3
 end
 
 def line_down_right # {{{3
-  @pR.linedown; @pB.update = true
+  @pR.update = true; @pR.linedown; @pR.update = false; @pB.update = true
 end
 
 def line_up_right # {{{3
-  @pR.lineup;   @pB.update = true
+  @pR.update = true; @pR.lineup; @pR.update = false; @pB.update = true
 end
 
 def page_down_right # {{{3
-  @pR.pagedown; @pB.update = true
+  @pR.update = true; @pR.pagedown; @pR.update = false; @pB.update = true
 end
 
 def page_up_right # {{{3
-  @pR.pageup; @pB.update = true
+  @pR.update = true; @pR.pageup; @pR.update = false; @pB.update = true
 end
 
 # CLIPBOARD COPY {{{2

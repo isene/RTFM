@@ -5,6 +5,17 @@ All notable changes to RTFM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.2.1] - 2026-03-16
+
+### Added
+- **Trash browser** (`D` key) - Browse trash contents with timestamps and original paths. Restore files, permanently delete individual items, or empty all trash
+- **Disk usage plugin** (`S` key) - Interactive size-sorted directory analyzer with visual bars and cancellable scanning
+- **Duplicate finder plugin** (`F7`) - Find duplicate files by content hash with tag-to-keep workflow and cancellable scanning
+
+### Fixed
+- **Right pane scrolling** - Shift-Down/Up now works after displaying content via `say` (marks, help, system info, etc.)
+- **rcurses pane refresh** - No longer queries cursor position via stdin (uses ANSI save/restore), preventing keypresses from being consumed during progress updates
+
 ## [8.2.0] - 2026-03-15
 
 ### Added

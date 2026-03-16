@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name        = 'rtfm-filemanager'
-  s.version     = '8.2.0'
+  s.version     = '8.2.1'
   s.licenses    = ['Unlicense']
   s.summary     = "RTFM - Ruby Terminal File Manager"
   s.description = "A full featured terminal file manager with syntax highlighted files, images shown in the terminal, videos thumbnailed, etc. Features include remote SSH/SFTP browsing, interactive SSH shell, comprehensive undo system, OpenAI integration, bookmarks, archive browsing, and much more. v8.2: Plugin system with live enable/disable, built-in plugin manager (V key), and example plugins (settings editor, git operations, bookmarks, notes, custom file openers)."
@@ -25,7 +25,9 @@ Gem::Specification.new do |s|
     "examples/git.rb",
     "examples/bookmarks.rb",
     "examples/notes.rb",
-    "examples/opener.rb"
+    "examples/opener.rb",
+    "examples/diskusage.rb",
+    "examples/dupes.rb"
   ]
   s.add_runtime_dependency 'rcurses', '~> 6.0'
   s.add_runtime_dependency 'termpix', '~> 0.3'
