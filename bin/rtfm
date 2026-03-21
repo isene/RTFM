@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '8.2.1' # Trash browser, right pane scroll fix, plugin improvements
+@version    = '8.2.2' # Replace bare rescues with typed exceptions
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -61,7 +61,7 @@ def check_image_redraw # {{{2
       end
     end
     # Kitty and Sixel protocols don't need redraw checks - images persist
-  rescue
+  rescue StandardError # non-fatal image redraw check
     # Silently fail - we don't want focus checking to break anything
   end
 end
@@ -682,7 +682,7 @@ def restore_tab_state # {{{2
   
   begin
     Dir.chdir(tab[:directory]) if Dir.exist?(tab[:directory])
-  rescue
+  rescue Errno::ENOENT, Errno::EACCES # permission denied or missing dir
     # If directory doesn't exist, go to home
     Dir.chdir
     tab[:directory] = Dir.pwd
@@ -910,7 +910,7 @@ if File.exist?(PREVIEW_FILE)
         @plugin_errors << "Invalid preview.rb line #{idx + 1}: #{line}"
       end
     end
-  rescue => e
+  rescue StandardError => e # malformed preview config
     @plugin_errors << "Error loading preview.rb: #{e.class}: #{e.message}"
   end
 end
@@ -1075,7 +1075,7 @@ KEYMAP = { # {{{2
 if File.exist?(KEYS_FILE)
   begin
     load KEYS_FILE
-  rescue => e
+  rescue StandardError => e # broken key binding config
     @plugin_errors << "Error loading keys.rb: #{e.class}: #{e.message}"
   end
 end
@@ -1114,7 +1114,7 @@ def load_plugin(name)
     snapshot.each { |k, v| changed[k] = v unless KEYMAP.key?(k) }
     p[:saved_keys] = changed
     p[:enabled] = true
-  rescue => e
+  rescue StandardError => e # plugin load failure
     @plugin_errors << "Error loading plugin #{name}: #{e.class}: #{e.message}"
   end
 end
@@ -1248,7 +1248,7 @@ def refresh_all # {{{3
     if new_h && new_w && new_h >= 10 && new_w >= 20
       @h, @w = new_h, new_w
     end
-  rescue
+  rescue StandardError # terminal size query failed
     # Keep current size if we can't read new size
   end
 
@@ -1346,7 +1346,7 @@ def change_width # {{{3
   @width = 2 if @width == 8
 
   # Persist width setting
-  File.write(File.join(RTFM_HOME, 'width'), @width.to_s) rescue nil
+  File.write(File.join(RTFM_HOME, 'width'), @width.to_s) rescue nil # ignore write error
 
   if @dual_pane
     # Show width setting info for dual-pane mode using the new ratio calculation
@@ -1589,7 +1589,7 @@ def jump_to_mark # {{{3
   if m =~ /[\w']/ && @marks[m]
     @directory[Dir.pwd] = @index
     dir_before = Dir.pwd
-    begin; Dir.chdir(@marks[m]); track_directory_access(@marks[m]); rescue; @pB.say(' No such directory'); end
+    begin; Dir.chdir(@marks[m]); track_directory_access(@marks[m]); rescue Errno::ENOENT, Errno::EACCES; @pB.say(' No such directory'); end
     mark_latest
     @marks["'"] = dir_before
   end
@@ -1692,7 +1692,7 @@ def follow_symlink # {{{3
       
       # Clear history after successful navigation
       @symlink_history.clear
-    rescue => e
+    rescue StandardError => e # symlink resolution failure
       @pB.say("Error following symlink: #{e}")
       @symlink_history&.clear
     end
@@ -1755,7 +1755,7 @@ def tag_current # {{{3
       else
         @tagged.push(item); @tagsize += File.size(item) rescue 0
       end
-      
+
       # Advance to next item in the active pane
       max_index = current_files.size - 1
       if @active_pane == :left
@@ -2124,7 +2124,7 @@ def show_file_properties # {{{3
       mime_output = `file --mime-type #{Shellwords.escape(@selected)} 2>/dev/null`.strip
       mime_type = mime_output.split(':')[1]&.strip || "Unknown"
       text << sprintf("  %-20s %s\n", "MIME Type:", mime_type.fg(156))
-    rescue
+    rescue StandardError # file command failed
       text << sprintf("  %-20s %s\n", "MIME Type:", "Unknown".fg(240))
     end
     
@@ -2143,7 +2143,7 @@ def show_file_properties # {{{3
       owner = Etc.getpwuid(stat.uid).name rescue stat.uid.to_s
       group = Etc.getgrgid(stat.gid).name rescue stat.gid.to_s
       text << sprintf("  %-20s %s\n", "Owner:Group:", "#{owner}:#{group}".fg(156))
-    rescue
+    rescue StandardError # uid/gid lookup failed
       text << sprintf("  %-20s %s\n", "Owner:Group:", "#{stat.uid}:#{stat.gid}".fg(156))
     end
     
@@ -2163,7 +2163,7 @@ def show_file_properties # {{{3
         target = File.readlink(@selected)
         text << sprintf("  %-20s %s\n", "Points to:", target.fg(156))
         text << sprintf("  %-20s %s\n", "Target exists:", File.exist?(target) ? "Yes".fg(156) : "No".fg(196))
-      rescue
+      rescue Errno::ENOENT, Errno::EACCES # permission denied or missing symlink target
         text << sprintf("  %-20s %s\n", "Target:", "Cannot read link".fg(196))
       end
     end
@@ -2178,7 +2178,7 @@ def show_file_properties # {{{3
         dirs = entries.select { |e| File.directory?(File.join(@selected, e)) }
         files = entries.select { |e| File.file?(File.join(@selected, e)) }
         text << sprintf("  %-20s %s\n", "Breakdown:", "#{dirs.length} directories, #{files.length} files")
-      rescue
+      rescue Errno::EACCES, Errno::ENOENT # permission denied or missing dir
         text << sprintf("  %-20s %s\n", "Contents:", "Cannot read directory".fg(196))
       end
     end
@@ -2194,7 +2194,7 @@ def show_file_properties # {{{3
           require 'digest'
           checksum = Digest::SHA256.file(@selected).hexdigest[0, 16]
           text << sprintf("  %-20s %s...\n", "SHA256 (partial):", checksum.fg(156))
-        rescue
+        rescue Errno::EACCES, Errno::ENOENT # permission denied or missing file
           text << sprintf("  %-20s %s\n", "Checksum:", "Cannot calculate".fg(240))
         end
       else
@@ -2209,7 +2209,7 @@ def show_file_properties # {{{3
                      (chunk.bytes.any? { |b| b < 32 && ![9, 10, 13].include?(b) })
           text << sprintf("  %-20s %s\n", "Content type:", is_binary ? "Binary".fg(196) : "Text".fg(156))
         end
-      rescue
+      rescue Errno::EACCES, Errno::ENOENT # permission denied or missing file
         text << sprintf("  %-20s %s\n", "Content type:", "Unknown".fg(240))
       end
     end
@@ -2578,7 +2578,7 @@ def show_binary_comparison(file1, file2, stat1, stat2) # {{{3
     text << "\n  File types:\n".fg(226)
     text << "    #{File.basename(file1)}: #{type1.split(':')[1]&.strip || 'Unknown'}\n".fg(240)
     text << "    #{File.basename(file2)}: #{type2.split(':')[1]&.strip || 'Unknown'}\n".fg(240)
-  rescue
+  rescue StandardError # file type detection failed
     # Ignore file type detection errors
   end
   
@@ -2792,7 +2792,7 @@ def files_identical?(file1, file2) # {{{3
   end
   
   true
-rescue
+rescue Errno::EACCES, Errno::ENOENT, Errno::EISDIR # permission denied or missing file
   false
 end
 
@@ -2808,7 +2808,7 @@ def binary_file?(file) # {{{3
     
     null_count > 0 || (non_printable.to_f / chunk.length) > 0.3
   end
-rescue
+rescue Errno::EACCES, Errno::ENOENT, Errno::EISDIR # permission denied or missing file
   true # Assume binary if we can't read it
 end
 
@@ -2924,7 +2924,7 @@ def parse_archive_listing(archive_path) # {{{3
     else
       parse_tar_listing(raw, entries)
     end
-  rescue => e
+  rescue StandardError => e # archive format or read error
     @pB.say("Error reading archive: #{e.message}".fg(196))
   end
   entries
@@ -3064,6 +3064,7 @@ end
 def enter_archive_mode(archive_path) # {{{3
   @archive_origin_dir = Dir.pwd
   @archive_origin_tagged = @tagged.dup
+  @archive_origin_index = @index
   @archive_mode = true
   @archive_path = archive_path
   @archive_current_dir = ''
@@ -3093,7 +3094,8 @@ def exit_archive_mode # {{{3
   @tagged = @archive_origin_tagged || []
   @archive_origin_tagged = []
   @archive_origin_dir = nil
-  @index = 0
+  @index = @archive_origin_index || 0
+  @archive_origin_index = nil
   @pB.say("Returned to local browsing".fg(156))
   @pL.update = @pR.update = @pT.update = @pB.update = true
   dirlist
@@ -3645,7 +3647,7 @@ def upload_tagged_files # {{{3
         failed_count += 1
         @pB.say("✗ Failed to upload #{File.basename(local_file)}".fg(196))
       end
-    rescue => e
+    rescue StandardError => e # upload failure
       failed_count += 1
       @pB.say("✗ Error uploading #{File.basename(local_file)}: #{e.message}".fg(196))
     end
@@ -4229,7 +4231,7 @@ def trash_browser # TRASH BROWSER {{{3
       begin
         size = File.directory?(f) ? (command("du -sb #{Shellwords.escape(f)} 2>/dev/null").split.first.to_i rescue 0) : File.size(f)
         mtime = File.mtime(f)
-      rescue
+      rescue Errno::EACCES, Errno::ENOENT # permission denied or missing file
         size = 0
         mtime = Time.at(0)
       end
@@ -4300,7 +4302,7 @@ def trash_browser # TRASH BROWSER {{{3
         end
         @pB.say("Restored: #{File.basename(dest)}".fg(156))
         sel = [sel - 1, 0].max
-      rescue => e
+      rescue StandardError => e # restore from trash failed
         @pB.say("Restore failed: #{e.message}".fg(196))
       end
     when 'd'
@@ -5002,9 +5004,9 @@ def system_info # {{{3
     text << sprintf("  %-15s %s\n", "Kernel:".fg(249), kernel_version.fg(156))
     text << sprintf("  %-15s %s\n", "Architecture:".fg(249), architecture.fg(156))
     text << "\n"
-  rescue # rubocop:disable Lint/SuppressedException
+  rescue StandardError # OS info unavailable
   end
-  
+
   begin
     # Hardware Information
     text << "Hardware".fg(226).b + "\n"
@@ -5033,11 +5035,11 @@ def system_info # {{{3
       temp_color = temp > 80 ? 196 : temp > 60 ? 220 : 156
       text << sprintf("  %-15s %s\n", "CPU Temp:".fg(249), "#{temp}°C".fg(temp_color))
     end
-    
+
     text << "\n"
-  rescue # rubocop:disable Lint/SuppressedException
+  rescue StandardError # hardware info unavailable
   end
-  
+
   begin
     # Memory Information with visual bar
     text << "Memory".fg(226).b + "\n"
@@ -5079,11 +5081,11 @@ def system_info # {{{3
       swap_used = (parts[2].to_i / 1024.0 / 1024.0 / 1024.0).round(1)
       text << sprintf("  %-15s %s\n", "Swap:".fg(249), "#{swap_used}/#{swap_total} GB".fg(156))
     end
-    
+
     text << "\n"
-  rescue # rubocop:disable Lint/SuppressedException
+  rescue StandardError # memory info unavailable
   end
-  
+
   begin
     # Storage Information with visual bars
     text << "Storage".fg(226).b + "\n"
@@ -5123,9 +5125,9 @@ def system_info # {{{3
       end
     end
     text << "\n"
-  rescue # rubocop:disable Lint/SuppressedException
+  rescue StandardError # storage info unavailable
   end
-  
+
   begin
     # Network Information
     text << "Network".fg(226).b + "\n"
@@ -5159,14 +5161,14 @@ def system_info # {{{3
         `curl -s ifconfig.me 2>/dev/null`.chomp
       end
       text << sprintf("  %-15s %s\n", "Public IP:".fg(249), public_ip.fg(156)) unless public_ip.empty?
-    rescue
+    rescue StandardError # timeout or network error
       # Skip public IP if timeout or error
     end
     
     text << "\n"
-  rescue # rubocop:disable Lint/SuppressedException
+  rescue StandardError # network info unavailable
   end
-  
+
   begin
     # Environment Information
     text << "Environment".fg(226).b + "\n"
@@ -5201,9 +5203,9 @@ def system_info # {{{3
     end
     
     text << "\n"
-  rescue # rubocop:disable Lint/SuppressedException
+  rescue StandardError # environment info unavailable
   end
-  
+
   begin
     # Services & Processes
     text << "Services & Processes".fg(226).b + "\n"
@@ -5244,11 +5246,11 @@ def system_info # {{{3
     text << sprintf("  %-15s %s\n", "Users:".fg(249), "#{users} logged in".fg(156))
     
     text << "\n"
-  rescue # rubocop:disable Lint/SuppressedException
+  rescue StandardError # services info unavailable
   end
-  
+
   @pR.say(text)
-rescue => e
+rescue StandardError => e # system info display failed
   @pR.say("Unable to show system info\n#{e.message}".fg(196))
 end
 
@@ -5261,7 +5263,7 @@ end
 
 def navi_invoke # {{{3
   @navi = `navi`
-rescue
+rescue StandardError # navi command not found
   @pB.say(' navi not installed - see https://github.com/junegunn/fzf')
 end
 
@@ -5460,7 +5462,7 @@ def get_cached_dirlist(dir, ls_options, ls_options_with_long = nil) # {{{2
     dir_mtime = File.mtime(dir).to_i
     file_count = Dir.entries(dir).size
     cache_key = "#{dir}:#{ls_options_with_long}:#{dir_mtime}:#{file_count}"
-  rescue
+  rescue Errno::EACCES, Errno::ENOENT # permission denied or missing dir
     return nil  # Can't cache if we can't get mtime or file count
   end
 
@@ -5488,7 +5490,7 @@ def get_cached_dirlist(dir, ls_options, ls_options_with_long = nil) # {{{2
     @dir_cache.delete_if { |key, _| key.start_with?("#{dir}:") && key != cache_key }
     
     result
-  rescue => e
+  rescue StandardError => e # ls command failed
     # Return empty result on error
     { purels: [], colorls: [] }
   end
@@ -5500,7 +5502,7 @@ def get_cached_file_metadata(file_path) # {{{2
   begin
     file_stat = File.stat(file_path)
     cache_key = "#{file_path}:#{file_stat.mtime.to_i}:#{file_stat.size}"
-  rescue
+  rescue Errno::EACCES, Errno::ENOENT # permission denied or missing file
     return nil
   end
   
@@ -5536,7 +5538,7 @@ def get_cached_file_metadata(file_path) # {{{2
     @metadata_cache.delete_if { |key, _| key.start_with?("#{file_path}:") && key != cache_key }
     
     metadata
-  rescue
+  rescue StandardError # metadata extraction failed
     nil
   end
 end
@@ -5701,7 +5703,7 @@ def dirlist(left: true, directory: nil) # LIST DIRECTORIES {{{2
       pure_output = command("ls #{Shellwords.escape(dir)} #{ls_options}")
       purels = pure_output.pure.split("\n")
       colorls = color_output.split("\n")
-    rescue => e
+    rescue StandardError => e # ls command failed
       purels = []
       colorls = []
     end
@@ -5732,7 +5734,7 @@ def dirlist(left: true, directory: nil) # LIST DIRECTORIES {{{2
     @files = purels
     # Update @selected & @fileattr for left pane
     if purels[@index]
-      @selected = Dir.pwd + '/' + purels[@index]
+      @selected = File.join(Dir.pwd, purels[@index])
       sfile = @selected.dup
       sfile += '/' if File.directory?(@selected)
       time_opt = @is_macos_bsd ? '-T' : '--time-style=long-iso'
@@ -6165,7 +6167,7 @@ def command(cmd, timeout: 5, return_both: false) # {{{2
       @pR.say(msg.fg(196))
       ''
     end
-  rescue => e
+  rescue StandardError => e # command execution failed
     msg = "Error: #{e.message}\n#{e.backtrace.join("\n")}\n"
     if return_both
       ['', msg]
@@ -6241,7 +6243,7 @@ def copy_move_link(type) # COPY OR MOVE TAGGED ITEMS {{{2
       end
 
       @file_op_result = " #{type.capitalize} complete: #{operations.size} item(s)".fg(156)
-    rescue => e
+    rescue StandardError => e # file operation failed
       @file_op_result = " #{type.capitalize} error: #{e.message}".fg(196)
     ensure
       @file_op_progress = nil
@@ -6274,7 +6276,7 @@ def copy_move_link_sync(type, items, dest_dir) # {{{3
         operations << { source_path: item, dest_path: dest }
         @pB.say(' Item(s) symlinked here.')
       end
-    rescue => e
+    rescue StandardError => e # file operation failed
       @pB.say(e.to_s)
     end
   end
@@ -6403,7 +6405,7 @@ def get_interactive_program(file_path) # HELPER FOR OPEN_SELECTED TO USE @intera
         end
       end
     end
-  rescue
+  rescue StandardError # desktop file detection failed
     # If detection fails, fall back to normal behavior
   end
   nil
@@ -6723,7 +6725,7 @@ def showcontent # SHOW CONTENTS IN THE RIGHT WINDOW {{{2
                 end
               end
             end
-          rescue => e
+          rescue StandardError => e # SVG render failed
             @pR.say("Error processing SVG: #{e}")
           end
         when /\.(?:png|jpe?g|bmp|gif|webp|tiff?)$/i
@@ -6736,7 +6738,7 @@ def showcontent # SHOW CONTENTS IN THE RIGHT WINDOW {{{2
               showimage(@selected)
               @image = true
             end
-          rescue => e
+          rescue Errno::EACCES, Errno::ENOENT => e # permission denied or missing image
             @pR.say("Error checking image size: #{e}")
           end
         when /\.(?:mpg|mpeg|avi|mov|mkv|mp4|webm|flv|wmv|m4v)$/i
@@ -6765,6 +6767,7 @@ def showcontent # SHOW CONTENTS IN THE RIGHT WINDOW {{{2
         else
           # Enhanced text file preview with partial loading for large files
           begin
+            Timeout.timeout(5) do # Prevent preview from hanging
             file_size = File.size(@selected)
             
             # For text files, we can preview them partially even if large
@@ -6779,6 +6782,7 @@ def showcontent # SHOW CONTENTS IN THE RIGHT WINDOW {{{2
                 line_count = 0
                 
                 file.each_line do |line|
+                  line = line[0, 10_000] + "...\n" if line.length > 10_000
                   lines << line
                   line_count += 1
                   break if line_count >= preview_lines
@@ -6819,25 +6823,33 @@ def showcontent # SHOW CONTENTS IN THE RIGHT WINDOW {{{2
             else
               # Small files - read entirely as before
               text = File.read(@selected).force_encoding('UTF-8') rescue ''
+              # Truncate extremely long lines to prevent UI hang
+              has_long_lines = text.lines.any? { |l| l.length > 2_000 }
+              if has_long_lines
+                text = text.lines.map { |l| l.length > 2_000 ? l[0, 10_000] + "...\n" : l }.join
+              end
               if text.valid_encoding?
-                if @batuse
-                  # Try bat first, with robust fallback
+                if @batuse && !has_long_lines
+                  # Try bat on original file (safe, no long lines)
                   bat_cmd = "#{@bat} -n --color=always #{Shellwords.escape(@selected)}"
-                  bat_output = command(bat_cmd, timeout: 10)
+                  bat_output = command(bat_cmd, timeout: 5)
                   if bat_output.empty?
-                    # Bat failed or returned empty - try plain cat
                     showcommand("cat #{Shellwords.escape(@selected)}")
                   else
                     @pR.say(bat_output)
                   end
                 else
-                  showcommand("cat #{Shellwords.escape(@selected)}")
+                  # Use truncated text directly (long lines or no bat)
+                  @pR.say(text)
                 end
               else
                 @pR.say("No preview available for #{@selected}")
               end
             end
-          rescue => e
+            end # Timeout.timeout
+          rescue Timeout::Error
+            @pR.say("Preview timed out (file too large or complex)")
+          rescue StandardError => e # file preview failed
             @pR.say("Error previewing file: #{e}")
           end
         end
@@ -6894,7 +6906,7 @@ def showimage(image) # SHOW THE SELECTED IMAGE IN THE RIGHT WINDOW {{{2
         max_height: @pR.h - 1)
       @current_image_path = img_path
     end
-  rescue => e
+  rescue StandardError => e # image display failed
     @pR.text = "Error showing image: #{e.message}"
   end
 end
@@ -7075,7 +7087,7 @@ loop do
         @pT.update = @pL.update = @pR.update = @pB.update = true
         refresh
       end
-    rescue; end
+    rescue StandardError; end # terminal size query failed
   end
 
   # redraw, but ignore TTY‐focus errors
@@ -7093,7 +7105,7 @@ loop do
   # If cwd was deleted externally, jump home
   begin
     Dir.pwd
-  rescue
+  rescue Errno::ENOENT, Errno::EACCES # cwd was deleted or became inaccessible
     Dir.chdir
   end
   # If selected file was removed externally, force pane refresh (skip in archive/remote mode)
