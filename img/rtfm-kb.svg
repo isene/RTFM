@@ -1,0 +1,341 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 560" width="1500" height="560" font-family="monospace, Courier New, Courier">
+  <defs>
+    <style>
+      .key { fill: #f5f5f5; stroke: #aaa; stroke-width: 1; rx: 5; ry: 5; }
+      .kw { fill: #e8e8e8; stroke: #aaa; stroke-width: 1; rx: 5; ry: 5; }
+      .kl { font-size: 12px; fill: #444; font-weight: bold; text-anchor: middle; }
+      .lo { font-size: 8.5px; fill: #c00; text-anchor: middle; }
+      .up { font-size: 8.5px; fill: #00a; text-anchor: middle; }
+      .ct { font-size: 10px; fill: #080; }
+      .sp { font-size: 8.5px; fill: #808; text-anchor: middle; }
+      .nv { font-size: 8.5px; fill: #666; text-anchor: middle; }
+    </style>
+  </defs>
+  <rect width="1500" height="560" fill="#fff" rx="8"/>
+  <text x="470" y="22" text-anchor="middle" font-size="15" font-weight="bold" fill="#333">RTFM Keyboard Reference</text>
+
+  <!-- Row 0: Esc -->
+  <rect x="10" y="34" width="58" height="55" class="key"/>
+  <text x="39" y="54" class="kl">Esc</text>
+  <text x="39" y="80" class="lo">quit</text>
+
+  <!-- Row 1: Number row  kw=62 gap=4 -->
+  <rect x="10" y="97" width="58" height="55" class="key"/>
+  <text x="39" y="117" class="kl">` ~</text>
+  <text x="39" y="143" class="lo">~ home</text>
+
+  <rect x="72" y="97" width="62" height="55" class="key"/>
+  <text x="103" y="117" class="kl">1</text>
+  <text x="103" y="143" class="lo">tab 1</text>
+
+  <rect x="138" y="97" width="62" height="55" class="key"/>
+  <text x="169" y="117" class="kl">2</text>
+  <text x="169" y="143" class="lo">tab 2</text>
+
+  <rect x="204" y="97" width="62" height="55" class="key"/>
+  <text x="235" y="117" class="kl">3</text>
+  <text x="235" y="143" class="lo">tab 3</text>
+
+  <rect x="270" y="97" width="62" height="55" class="key"/>
+  <text x="301" y="117" class="kl">4</text>
+  <text x="301" y="143" class="lo">tab 4</text>
+
+  <rect x="336" y="97" width="62" height="55" class="key"/>
+  <text x="367" y="117" class="kl">5</text>
+  <text x="367" y="143" class="lo">tab 5</text>
+
+  <rect x="402" y="97" width="62" height="55" class="key"/>
+  <text x="433" y="117" class="kl">6</text>
+  <text x="433" y="143" class="lo">tab 6</text>
+
+  <rect x="468" y="97" width="62" height="55" class="key"/>
+  <text x="499" y="117" class="kl">7</text>
+  <text x="499" y="143" class="lo">tab 7</text>
+
+  <rect x="534" y="97" width="62" height="55" class="key"/>
+  <text x="565" y="117" class="kl">8</text>
+  <text x="565" y="143" class="lo">tab 8</text>
+
+  <rect x="600" y="97" width="62" height="55" class="key"/>
+  <text x="631" y="117" class="kl">9</text>
+  <text x="631" y="143" class="lo">tab 9</text>
+
+  <rect x="666" y="97" width="62" height="55" class="key"/>
+  <text x="697" y="127" class="kl">0</text>
+
+  <rect x="732" y="97" width="62" height="55" class="key"/>
+  <text x="763" y="115" class="kl">- _</text>
+  <text x="763" y="133" class="sp">_ image</text>
+  <text x="763" y="146" class="lo">- preview</text>
+
+  <rect x="798" y="97" width="62" height="55" class="key"/>
+  <text x="829" y="115" class="kl">= +</text>
+  <text x="829" y="133" class="sp">+ interact</text>
+  <text x="829" y="146" class="lo">= mkdir</text>
+
+  <rect x="864" y="97" width="76" height="55" class="kw"/>
+  <text x="902" y="130" class="nv">Bksp</text>
+
+  <!-- Row 2: QWERTY  start x=10+80=90 offset, kw=62 -->
+  <rect x="10" y="160" width="76" height="55" class="kw"/>
+  <text x="48" y="183" class="nv">Tab</text>
+  <text x="48" y="206" class="nv">pgdn R</text>
+
+  <rect x="90" y="160" width="62" height="55" class="key"/>
+  <text x="121" y="176" class="kl">Q</text>
+  <text x="121" y="194" class="up">Q nosave</text>
+  <text x="121" y="207" class="lo">q save</text>
+
+  <rect x="156" y="160" width="62" height="55" class="key"/>
+  <text x="187" y="176" class="kl">W</text>
+  <text x="187" y="194" class="up">Write cfg</text>
+  <text x="187" y="207" class="lo">width</text>
+
+  <rect x="222" y="160" width="62" height="55" class="key"/>
+  <text x="253" y="176" class="kl">E</text>
+  <text x="253" y="194" class="up">Bulk ren</text>
+  <text x="253" y="207" class="lo">props</text>
+
+  <rect x="288" y="160" width="62" height="55" class="key"/>
+  <text x="319" y="176" class="kl">R</text>
+  <text x="319" y="194" class="up">Load cfg</text>
+  <text x="319" y="207" class="lo">refresh</text>
+
+  <rect x="354" y="160" width="62" height="55" class="key"/>
+  <text x="385" y="176" class="kl">T</text>
+  <text x="385" y="194" class="up">Tag list</text>
+  <text x="385" y="207" class="lo">tag</text>
+
+  <rect x="420" y="160" width="62" height="55" class="key"/>
+  <text x="451" y="176" class="kl">Y</text>
+  <text x="451" y="194" class="up">Cp clipbd</text>
+  <text x="451" y="207" class="lo">cp primary</text>
+
+  <rect x="486" y="160" width="62" height="55" class="key"/>
+  <text x="517" y="176" class="kl">U</text>
+  <text x="517" y="194" class="up">Undo</text>
+  <text x="517" y="207" class="lo">untag all</text>
+
+  <rect x="552" y="160" width="62" height="55" class="key"/>
+  <text x="583" y="176" class="kl">I</text>
+  <text x="583" y="194" class="up">AI descr</text>
+  <text x="583" y="207" class="lo">invert</text>
+
+  <rect x="618" y="160" width="62" height="55" class="key"/>
+  <text x="649" y="176" class="kl">O</text>
+  <text x="649" y="194" class="up">ls cmd</text>
+  <text x="649" y="207" class="lo">order</text>
+
+  <rect x="684" y="160" width="62" height="55" class="key"/>
+  <text x="715" y="176" class="kl">P</text>
+  <text x="715" y="194" class="up">Move here</text>
+  <text x="715" y="207" class="lo">copy here</text>
+
+  <rect x="750" y="160" width="62" height="55" class="key"/>
+  <text x="781" y="176" class="kl">[ {</text>
+  <text x="781" y="194" class="sp">{ ren tab</text>
+  <text x="781" y="207" class="sp">[ cls tab</text>
+
+  <rect x="816" y="160" width="62" height="55" class="key"/>
+  <text x="847" y="176" class="kl">] }</text>
+  <text x="847" y="194" class="sp">} dup tab</text>
+  <text x="847" y="207" class="sp">] new tab</text>
+
+  <rect x="882" y="160" width="58" height="55" class="key"/>
+  <text x="911" y="176" class="kl">\</text>
+  <text x="911" y="200" class="sp">clr srch</text>
+
+  <!-- Row 3: ASDF  start x=10+90=100 offset -->
+  <rect x="10" y="223" width="86" height="55" class="kw"/>
+  <text x="53" y="255" class="nv">Ctrl</text>
+
+  <rect x="100" y="223" width="62" height="55" class="key"/>
+  <text x="131" y="239" class="kl">A</text>
+  <text x="131" y="257" class="up">Long list</text>
+  <text x="131" y="270" class="lo">all/none</text>
+
+  <rect x="166" y="223" width="62" height="55" class="key"/>
+  <text x="197" y="239" class="kl">S</text>
+  <text x="197" y="257" class="up">Sys info</text>
+  <text x="197" y="270" class="lo">symlink</text>
+
+  <rect x="232" y="223" width="62" height="55" class="key"/>
+  <text x="263" y="239" class="kl">D</text>
+  <text x="263" y="257" class="up">Emp trash</text>
+  <text x="263" y="270" class="lo">delete</text>
+
+  <rect x="298" y="223" width="62" height="55" class="key"/>
+  <text x="329" y="239" class="kl">F</text>
+  <text x="329" y="257" class="up">Filt regex</text>
+  <text x="329" y="270" class="lo">filt type</text>
+
+  <rect x="364" y="223" width="62" height="55" class="key"/>
+  <text x="395" y="239" class="kl">G</text>
+  <text x="395" y="257" class="up">Git status</text>
+  <text x="395" y="270" class="lo">grep</text>
+
+  <rect x="430" y="223" width="62" height="55" class="key"/>
+  <text x="461" y="239" class="kl">H</text>
+  <text x="461" y="257" class="up">Hash dir</text>
+  <text x="461" y="270" class="nv">h = LEFT</text>
+
+  <rect x="496" y="223" width="62" height="55" class="key"/>
+  <text x="527" y="239" class="kl">J</text>
+  <text x="527" y="257" class="up">Prev tab</text>
+  <text x="527" y="270" class="nv">j = DOWN</text>
+
+  <rect x="562" y="223" width="62" height="55" class="key"/>
+  <text x="593" y="239" class="kl">K</text>
+  <text x="593" y="257" class="up">Next tab</text>
+  <text x="593" y="270" class="nv">k = UP</text>
+
+  <rect x="628" y="223" width="62" height="55" class="key"/>
+  <text x="659" y="239" class="kl">L</text>
+  <text x="659" y="257" class="up">Locate</text>
+  <text x="659" y="270" class="nv">l = RIGHT</text>
+
+  <rect x="694" y="223" width="62" height="55" class="key"/>
+  <text x="725" y="239" class="kl">; :</text>
+  <text x="725" y="257" class="sp">: command</text>
+  <text x="725" y="270" class="sp">; history</text>
+
+  <rect x="760" y="223" width="62" height="55" class="key"/>
+  <text x="791" y="239" class="kl">'</text>
+  <text x="791" y="262" class="sp">jump mark</text>
+
+  <rect x="826" y="223" width="114" height="55" class="kw"/>
+  <text x="883" y="248" class="nv">Enter</text>
+  <text x="883" y="268" class="nv">open/refresh</text>
+
+  <!-- Row 4: ZXCV  start x=10+100=110 offset -->
+  <rect x="10" y="286" width="96" height="55" class="kw"/>
+  <text x="58" y="318" class="nv">Shift</text>
+
+  <rect x="110" y="286" width="62" height="55" class="key"/>
+  <text x="141" y="302" class="kl">Z</text>
+  <text x="141" y="320" class="up">Zip</text>
+  <text x="141" y="333" class="lo">unzip</text>
+
+  <rect x="176" y="286" width="62" height="55" class="key"/>
+  <text x="207" y="302" class="kl">X</text>
+  <text x="207" y="320" class="up">Compare</text>
+  <text x="207" y="333" class="lo">open force</text>
+
+  <rect x="242" y="286" width="62" height="55" class="key"/>
+  <text x="273" y="302" class="kl">C</text>
+  <text x="273" y="320" class="up">Config</text>
+  <text x="273" y="333" class="lo">rename</text>
+
+  <rect x="308" y="286" width="62" height="55" class="key"/>
+  <text x="339" y="302" class="kl">V</text>
+  <text x="339" y="320" class="up">Plugins</text>
+  <text x="339" y="333" class="lo">version</text>
+
+  <rect x="374" y="286" width="62" height="55" class="key"/>
+  <text x="405" y="302" class="kl">B</text>
+  <text x="405" y="320" class="up">Border</text>
+  <text x="405" y="333" class="lo">syntax hl</text>
+
+  <rect x="440" y="286" width="62" height="55" class="key"/>
+  <text x="471" y="302" class="kl">N</text>
+  <text x="471" y="320" class="up">Srch prev</text>
+  <text x="471" y="333" class="lo">srch next</text>
+
+  <rect x="506" y="286" width="62" height="55" class="key"/>
+  <text x="537" y="302" class="kl">M</text>
+  <text x="537" y="320" class="up">Show mrks</text>
+  <text x="537" y="333" class="lo">set mark</text>
+
+  <rect x="572" y="286" width="62" height="55" class="key"/>
+  <text x="603" y="315" class="kl">, &lt;</text>
+
+  <rect x="638" y="286" width="62" height="55" class="key"/>
+  <text x="669" y="302" class="kl">. &gt;</text>
+  <text x="669" y="333" class="sp">&gt; follow lnk</text>
+
+  <rect x="704" y="286" width="62" height="55" class="key"/>
+  <text x="735" y="302" class="kl">/ ?</text>
+  <text x="735" y="320" class="sp">? help</text>
+  <text x="735" y="333" class="sp">/ search</text>
+
+  <rect x="770" y="286" width="170" height="55" class="kw"/>
+  <text x="855" y="318" class="nv">Shift</text>
+
+  <!-- Row 5: Bottom -->
+  <rect x="10" y="349" width="70" height="50" class="kw"/>
+  <text x="45" y="378" class="nv">Ctrl</text>
+
+  <rect x="84" y="349" width="58" height="50" class="kw"/>
+  <text x="113" y="378" class="nv">Alt</text>
+
+  <rect x="146" y="349" width="330" height="50" class="key"/>
+  <text x="311" y="378" class="nv">Space</text>
+
+  <rect x="480" y="349" width="62" height="50" class="key"/>
+  <text x="511" y="366" class="kl"># @</text>
+  <text x="511" y="382" class="sp"># locate</text>
+  <text x="511" y="394" class="sp">@ ruby dbg</text>
+
+  <!-- Nav cluster -->
+  <rect x="990" y="97" width="64" height="55" class="key"/>
+  <text x="1022" y="120" class="nv">Home</text>
+  <text x="1022" y="143" class="nv">g first</text>
+
+  <rect x="1058" y="97" width="64" height="55" class="key"/>
+  <text x="1090" y="120" class="nv">End</text>
+  <text x="1090" y="143" class="nv">G last</text>
+
+  <rect x="990" y="160" width="64" height="55" class="key"/>
+  <text x="1022" y="183" class="nv">PgUp</text>
+  <text x="1022" y="206" class="nv">page up</text>
+
+  <rect x="1058" y="160" width="64" height="55" class="key"/>
+  <text x="1090" y="183" class="nv">PgDn</text>
+  <text x="1090" y="206" class="nv">page dn</text>
+
+  <rect x="1022" y="286" width="60" height="55" class="key"/>
+  <text x="1052" y="310" class="nv">UP</text>
+  <text x="1052" y="333" class="nv">k</text>
+
+  <rect x="958" y="349" width="60" height="50" class="key"/>
+  <text x="988" y="370" class="nv">LEFT</text>
+  <text x="988" y="390" class="nv">h</text>
+
+  <rect x="1022" y="349" width="60" height="50" class="key"/>
+  <text x="1052" y="370" class="nv">DOWN</text>
+  <text x="1052" y="390" class="nv">j</text>
+
+  <rect x="1086" y="349" width="60" height="50" class="key"/>
+  <text x="1116" y="370" class="nv">RIGHT</text>
+  <text x="1116" y="390" class="nv">l/enter</text>
+
+  <!-- Right panel: Ctrl combos -->
+  <rect x="1180" y="34" width="300" height="340" rx="6" fill="#f4fdf4" stroke="#8c8" stroke-width="1"/>
+  <text x="1330" y="56" text-anchor="middle" font-size="13" font-weight="bold" fill="#080">Ctrl Combos</text>
+  <text x="1194" y="80" class="ct">C-A   AI chat mode</text>
+  <text x="1194" y="100" class="ct">C-D   Toggle trash view</text>
+  <text x="1194" y="120" class="ct">C-E   Browse remote</text>
+  <text x="1194" y="140" class="ct">C-F   Clear filter</text>
+  <text x="1194" y="160" class="ct">C-L   fzf jump</text>
+  <text x="1194" y="180" class="ct">C-N   Navi cheatsheet</text>
+  <text x="1194" y="200" class="ct">C-O   Change ownership</text>
+  <text x="1194" y="220" class="ct">C-P   Change permissions</text>
+  <text x="1194" y="240" class="ct">C-R   Recent files</text>
+  <text x="1194" y="260" class="ct">C-T   Tag by pattern</text>
+  <text x="1194" y="280" class="ct">C-Y   Copy pane to clipboard</text>
+  <text x="1194" y="300" class="ct">C-;   SSH history</text>
+  <text x="1194" y="328" class="ct">C-Arrows   Move/copy items</text>
+  <text x="1194" y="348" class="ct">S-Arrows   Scroll right pane</text>
+  <text x="1194" y="368" class="ct">S-Tab      Page up right pane</text>
+
+  <!-- Legend -->
+  <rect x="20" y="470" width="14" height="14" fill="#fdd" rx="2" stroke="#daa" stroke-width="0.5"/>
+  <text x="40" y="482" font-size="10" fill="#c00">lowercase</text>
+  <rect x="120" y="470" width="14" height="14" fill="#ddf" rx="2" stroke="#aad" stroke-width="0.5"/>
+  <text x="140" y="482" font-size="10" fill="#00a">UPPERCASE</text>
+  <rect x="240" y="470" width="14" height="14" fill="#dfd" rx="2" stroke="#ada" stroke-width="0.5"/>
+  <text x="260" y="482" font-size="10" fill="#080">Ctrl+key</text>
+  <rect x="350" y="470" width="14" height="14" fill="#fdf" rx="2" stroke="#dad" stroke-width="0.5"/>
+  <text x="370" y="482" font-size="10" fill="#808">special</text>
+  <text x="460" y="482" font-size="10" fill="#666">gray = navigation</text>
+</svg>
