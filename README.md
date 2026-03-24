@@ -1,6 +1,7 @@
 # RTFM - Ruby Terminal File Manager
 
 ![Ruby](https://img.shields.io/badge/language-Ruby-red) [![Gem Version](https://badge.fury.io/rb/rtfm-filemanager.svg)](https://badge.fury.io/rb/rtfm-filemanager) ![Unlicense](https://img.shields.io/badge/license-Unlicense-green) [![Documentation](https://img.shields.io/badge/docs-comprehensive-blue)](docs/) ![Stay Amazing](https://img.shields.io/badge/Stay-Amazing-important)
+[![Hypercommit](https://img.shields.io/badge/Hypercommit-DB2475)](https://hypercommit.com/rtfm)
 
 <img src="img/logo.png" align="left" width="150" height="150">
 
