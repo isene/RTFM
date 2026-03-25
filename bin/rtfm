@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '8.2.2' # Replace bare rescues with typed exceptions
+@version    = '8.2.3' # Replace bare rescues with typed exceptions
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -4882,7 +4882,8 @@ def copy_path_primary # {{{3
     path = get_selected_full_path
     if path
       copy_to_clipboard(path, 'primary')
-      @pB.say(' Path copied to primary selection (middle-click to paste)')
+      copy_to_clipboard(path, 'clipboard')
+      @pB.say(' Path copied')
     else
       @pB.say(' No selected item path to copy')
     end
@@ -4897,7 +4898,8 @@ def copy_path_clipboard # {{{3
     path = get_selected_full_path
     if path
       copy_to_clipboard(path, 'clipboard')
-      @pB.say(' Path copied to clipboard (Ctrl+V to paste)')
+      copy_to_clipboard(path, 'primary')
+      @pB.say(' Path copied')
     else
       @pB.say(' No selected item path to copy')
     end
@@ -4968,10 +4970,11 @@ def copy_right # {{{3
       @pB.say(' Failed to copy image - xclip may not be installed')
     end
   else
-    # Copy right pane text content
-    clip = 'xclip -selection clipboard'
-    @pB.say(' Right pane text copied to clipboard')
-    shell("echo -n #{Shellwords.escape(@pR.text.pure)} | #{clip} > /dev/null 2>&1", background: true)
+    # Copy right pane text content to both selections
+    escaped = Shellwords.escape(@pR.text.pure)
+    shell("echo -n #{escaped} | xclip -selection clipboard > /dev/null 2>&1", background: true)
+    shell("echo -n #{escaped} | xclip -selection primary > /dev/null 2>&1", background: true)
+    @pB.say(' Right pane text copied')
   end
 end
 

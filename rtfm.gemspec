@@ -1,6 +1,7 @@
+version = File.read(File.join(__dir__, 'bin/rtfm'))[/@version\s*=\s*'([^']+)'/, 1]
 Gem::Specification.new do |s|
   s.name        = 'rtfm-filemanager'
-  s.version     = '8.2.2'
+  s.version     = version
   s.licenses    = ['Unlicense']
   s.summary     = "RTFM - Ruby Terminal File Manager"
   s.description = "A full featured terminal file manager with syntax highlighted files, images shown in the terminal, videos thumbnailed, etc. Features include remote SSH/SFTP browsing, interactive SSH shell, comprehensive undo system, OpenAI integration, bookmarks, archive browsing, and much more. v8.2: Plugin system with live enable/disable, built-in plugin manager (V key), and example plugins (settings editor, git operations, bookmarks, notes, custom file openers)."
@@ -10,7 +11,7 @@ Gem::Specification.new do |s|
     "bin/rtfm",
     "README.md",
     "CHANGELOG.md",
-    "img/rtfm-kb.png",
+    "img/rtfm-kb.svg",
     "img/logo.png",
     "man/rtfm.1",
     "docs/getting-started.md",

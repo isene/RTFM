@@ -1,18 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 560" width="1500" height="560" font-family="monospace, Courier New, Courier">
   <defs>
     <style>
-      .key { fill: #f5f5f5; stroke: #aaa; stroke-width: 1; rx: 5; ry: 5; }
-      .kw { fill: #e8e8e8; stroke: #aaa; stroke-width: 1; rx: 5; ry: 5; }
-      .kl { font-size: 12px; fill: #444; font-weight: bold; text-anchor: middle; }
-      .lo { font-size: 8.5px; fill: #c00; text-anchor: middle; }
-      .up { font-size: 8.5px; fill: #00a; text-anchor: middle; }
-      .ct { font-size: 10px; fill: #080; }
-      .sp { font-size: 8.5px; fill: #808; text-anchor: middle; }
-      .nv { font-size: 8.5px; fill: #666; text-anchor: middle; }
+      .key { fill: #333; stroke: #555; stroke-width: 1; rx: 5; ry: 5; }
+      .kw { fill: #2a2a2a; stroke: #555; stroke-width: 1; rx: 5; ry: 5; }
+      .kl { font-size: 12px; fill: #bbb; font-weight: bold; text-anchor: middle; }
+      .lo { font-size: 8.5px; fill: #FF8888; text-anchor: middle; }
+      .up { font-size: 8.5px; fill: #88BBFF; text-anchor: middle; }
+      .ct { font-size: 10px; fill: #88FF88; }
+      .sp { font-size: 8.5px; fill: #DDAAFF; text-anchor: middle; }
+      .nv { font-size: 8.5px; fill: #bbb; text-anchor: middle; }
     </style>
   </defs>
-  <rect width="1500" height="560" fill="#fff" rx="8"/>
-  <text x="470" y="22" text-anchor="middle" font-size="15" font-weight="bold" fill="#333">RTFM Keyboard Reference</text>
+  <rect width="1500" height="560" fill="#1a1a1a" rx="8"/>
+  <text x="470" y="22" text-anchor="middle" font-size="15" font-weight="bold" fill="#fff">RTFM Keyboard Reference</text>
 
   <!-- Row 0: Esc -->
   <rect x="10" y="34" width="58" height="55" class="key"/>
@@ -310,8 +310,8 @@
   <text x="1116" y="390" class="nv">l/enter</text>
 
   <!-- Right panel: Ctrl combos -->
-  <rect x="1180" y="34" width="300" height="340" rx="6" fill="#f4fdf4" stroke="#8c8" stroke-width="1"/>
-  <text x="1330" y="56" text-anchor="middle" font-size="13" font-weight="bold" fill="#080">Ctrl Combos</text>
+  <rect x="1180" y="34" width="300" height="340" rx="6" fill="#1a2a1a" stroke="#4a6a4a" stroke-width="1"/>
+  <text x="1330" y="56" text-anchor="middle" font-size="13" font-weight="bold" fill="#88FF88">Ctrl Combos</text>
   <text x="1194" y="80" class="ct">C-A   AI chat mode</text>
   <text x="1194" y="100" class="ct">C-D   Toggle trash view</text>
   <text x="1194" y="120" class="ct">C-E   Browse remote</text>
@@ -329,13 +329,13 @@
   <text x="1194" y="368" class="ct">S-Tab      Page up right pane</text>
 
   <!-- Legend -->
-  <rect x="20" y="470" width="14" height="14" fill="#fdd" rx="2" stroke="#daa" stroke-width="0.5"/>
-  <text x="40" y="482" font-size="10" fill="#c00">lowercase</text>
-  <rect x="120" y="470" width="14" height="14" fill="#ddf" rx="2" stroke="#aad" stroke-width="0.5"/>
-  <text x="140" y="482" font-size="10" fill="#00a">UPPERCASE</text>
-  <rect x="240" y="470" width="14" height="14" fill="#dfd" rx="2" stroke="#ada" stroke-width="0.5"/>
-  <text x="260" y="482" font-size="10" fill="#080">Ctrl+key</text>
-  <rect x="350" y="470" width="14" height="14" fill="#fdf" rx="2" stroke="#dad" stroke-width="0.5"/>
-  <text x="370" y="482" font-size="10" fill="#808">special</text>
-  <text x="460" y="482" font-size="10" fill="#666">gray = navigation</text>
+  <rect x="20" y="470" width="14" height="14" fill="#442222" rx="2" stroke="#663333" stroke-width="0.5"/>
+  <text x="40" y="482" font-size="10" fill="#FF8888">lowercase</text>
+  <rect x="120" y="470" width="14" height="14" fill="#222244" rx="2" stroke="#333366" stroke-width="0.5"/>
+  <text x="140" y="482" font-size="10" fill="#88BBFF">UPPERCASE</text>
+  <rect x="240" y="470" width="14" height="14" fill="#224422" rx="2" stroke="#336633" stroke-width="0.5"/>
+  <text x="260" y="482" font-size="10" fill="#88FF88">Ctrl+key</text>
+  <rect x="350" y="470" width="14" height="14" fill="#332244" rx="2" stroke="#553366" stroke-width="0.5"/>
+  <text x="370" y="482" font-size="10" fill="#DDAAFF">special</text>
+  <text x="460" y="482" font-size="10" fill="#bbb">gray = navigation</text>
 </svg>
