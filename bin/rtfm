@@ -494,6 +494,20 @@ def cmd?(cmd) # Helper function
   system("which #{cmd} > /dev/null 2>&1")
 end
 
+def mime_type(path) # Cached MIME type lookup
+  mtime = File.mtime(path).to_i rescue 0
+  key = "#{path}:#{mtime}"
+  return @mime_cache[key] if @mime_cache[key]
+  result = `file --mime-type -b #{Shellwords.escape(path)} 2>/dev/null`.strip
+  if @mime_cache_size >= @max_mime_entries
+    @mime_cache.clear
+    @mime_cache_size = 0
+  end
+  @mime_cache[key] = result
+  @mime_cache_size += 1
+  result
+end
+
 # Initialize termpix for image display
 @termpix = Termpix::Display.new
 @showimage = @termpix.supported?
@@ -525,6 +539,9 @@ $stdin.set_encoding(Encoding::UTF_8)
 @command_cache = {}  # Cache for expensive shell commands
 @command_cache_size = 0
 @max_command_cache = 50
+@mime_cache = {}     # Cache for file MIME type lookups
+@mime_cache_size = 0
+@max_mime_entries = 200
 
 # INITIALIZE VARIABLES {{{1
 ## These can be set by user in ~/.rtfm/conf
@@ -2121,9 +2138,8 @@ def show_file_properties # {{{3
     
     # MIME type
     begin
-      mime_output = `file --mime-type #{Shellwords.escape(@selected)} 2>/dev/null`.strip
-      mime_type = mime_output.split(':')[1]&.strip || "Unknown"
-      text << sprintf("  %-20s %s\n", "MIME Type:", mime_type.fg(156))
+      mt = mime_type(@selected)
+      text << sprintf("  %-20s %s\n", "MIME Type:", mt.fg(156))
     rescue StandardError # file command failed
       text << sprintf("  %-20s %s\n", "MIME Type:", "Unknown".fg(240))
     end
@@ -6382,7 +6398,7 @@ def get_interactive_program(file_path) # HELPER FOR OPEN_SELECTED TO USE @intera
       end
     else
       # Check what xdg-open would use
-      mimetype = `file --mime-type -b #{Shellwords.escape(file_path)}`.chomp
+      mimetype = mime_type(file_path)
       desktop_file = `xdg-mime query default #{Shellwords.escape(mimetype)}`.chomp
       
       if desktop_file && !desktop_file.empty?
@@ -6752,7 +6768,7 @@ def showcontent # SHOW CONTENTS IN THE RIGHT WINDOW {{{2
           @image = true
         else
           # Check if file is text using the `file` command
-          file_type = `file --mime-type -b #{Shellwords.escape(@selected)} 2>/dev/null`.strip
+          file_type = mime_type(@selected)
           if file_type.start_with?('text/') || file_type == 'application/x-empty'
             # It's a text file - fall through to text preview below
           else
