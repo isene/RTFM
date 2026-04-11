@@ -15,17 +15,17 @@ PLUGIN_HELP['Notes'] = <<~HELP
   Press F5 on any selected item to view, create,
   edit, or delete its note.
 
-  #{"How it works:".b}
+  #{"How it works:".bd}
     If no note exists, you're prompted to create one.
     If a note exists, it shows in the right pane
     with options to edit or delete.
 
-  #{"Commands (when viewing a note):".b}
+  #{"Commands (when viewing a note):".bd}
     e   Edit the note
     d   Delete the note
     q   Close
 
-  #{"Difference from marks:".b}
+  #{"Difference from marks:".bd}
     Marks (m/') are single-letter bookmarks for
     quick directory jumping. Notes are free-text
     annotations attached to specific files or
@@ -49,13 +49,13 @@ def toggle_note
     note = File.read(npath)
     loop do
       lines = []
-      lines << "Note for:".b.fg(254)
+      lines << "Note for:".bd.fg(254)
       lines << File.basename(file).fg(112)
       lines << ""
       lines << note
       lines << ""
-      lines << "e".b.fg(112) + "  edit note"
-      lines << "d".b.fg(112) + "  delete note"
+      lines << "e".bd.fg(112) + "  edit note"
+      lines << "d".bd.fg(112) + "  delete note"
       lines << "q/ESC: close".fg(240)
 
       @pR.update = true

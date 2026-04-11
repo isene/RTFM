@@ -11,7 +11,7 @@ PLUGIN_HELP['Bookmarks'] = <<~HELP
 
   Press F6 to open the bookmark manager.
 
-  #{"Commands:".b}
+  #{"Commands:".bd}
     a       Add current directory to bookmarks
     d       Delete selected bookmark
     j/k     Navigate up/down
@@ -19,7 +19,7 @@ PLUGIN_HELP['Bookmarks'] = <<~HELP
     /       Filter bookmarks (fuzzy search)
     q/ESC   Close
 
-  #{"Difference from marks:".b}
+  #{"Difference from marks:".bd}
     Marks (m/') are single-letter slots (a-z) that
     save a directory path for quick recall. You get
     26 slots max, and must remember which letter
@@ -51,7 +51,7 @@ def bookmark_menu
     visible = filter ? bookmarks.select { |b| b.downcase.include?(filter.downcase) } : bookmarks
 
     lines = []
-    lines << "Bookmarks".b.fg(254)
+    lines << "Bookmarks".bd.fg(254)
     lines << "filter: #{filter}".fg(240) if filter
     lines << ""
 
@@ -74,15 +74,15 @@ def bookmark_menu
         prefix = common.empty? ? "" : path[0, common.length].fg(240)
         suffix = common.empty? ? path.fg(112) : path[common.length..].fg(112)
         line = "#{idx.to_s.rjust(2).fg(240)} #{prefix}#{suffix}"
-        line = i == sel ? line.u : line
+        line = i == sel ? line.ul : line
         lines << line
       end
     end
 
     lines << ""
-    lines << "a".b.fg(112) + ":add  " + "d".b.fg(112) + ":del  " +
-             "/".b.fg(112) + ":filter  " + "ENTER".b.fg(112) + ":jump  " +
-             "q".b.fg(112) + ":close"
+    lines << "a".bd.fg(112) + ":add  " + "d".bd.fg(112) + ":del  " +
+             "/".bd.fg(112) + ":filter  " + "ENTER".bd.fg(112) + ":jump  " +
+             "q".bd.fg(112) + ":close"
 
     @pR.update = true
     @pR.say(lines.join("\n"))

@@ -599,9 +599,9 @@ clear_image
 # Text formatting
 "text".fg(112)   # foreground color (0-255)
 "text".bg(236)   # background color
-"text".b         # bold
-"text".u         # underline
-"text".r         # reverse
+"text".bd        # bold
+"text".ul        # underline
+"text".rv        # reverse
 ```
 
 ---

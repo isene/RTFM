@@ -30,7 +30,7 @@ Gem::Specification.new do |s|
     "examples/diskusage.rb",
     "examples/dupes.rb"
   ]
-  s.add_runtime_dependency 'rcurses', '~> 6.0'
+  s.add_runtime_dependency 'rcurses', '~> 7.0'
   s.add_runtime_dependency 'termpix', '~> 0.3'
   s.add_runtime_dependency 'bootsnap', '~> 1.18'
   s.add_runtime_dependency 'ruby-openai', '~> 7.4'

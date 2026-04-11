@@ -9,11 +9,11 @@ PLUGIN_HELP['Disk Usage'] = <<~HELP
 
   Press S to open the system/disk usage menu.
 
-  #{"Menu:".b}
+  #{"Menu:".bd}
     s   Show system info (original S behavior)
     d   Open disk usage analyzer
 
-  #{"Disk Usage Analyzer:".b}
+  #{"Disk Usage Analyzer:".bd}
     j/k       Navigate up/down
     ENTER     Drill into selected directory
     LEFT/h    Go up to parent directory
@@ -29,10 +29,10 @@ def diskusage_menu
   clear_image
 
   lines = []
-  lines << "System / Disk Usage".b.fg(254)
+  lines << "System / Disk Usage".bd.fg(254)
   lines << ""
-  lines << "s".b.fg(112) + "  System info"
-  lines << "d".b.fg(112) + "  Disk usage analyzer"
+  lines << "s".bd.fg(112) + "  System info"
+  lines << "d".bd.fg(112) + "  Disk usage analyzer"
   lines << ""
   lines << "q/ESC: close".fg(240)
 
@@ -77,7 +77,7 @@ def diskusage_browse(start_dir)
     visible = entries[offset, page_h] || []
 
     lines = []
-    lines << "Disk Usage".b.fg(254) + "  " + browse_dir.fg(240)
+    lines << "Disk Usage".bd.fg(254) + "  " + browse_dir.fg(240)
     lines << ("Total: " + diskusage_human(total)).fg(249)
     lines << ""
 
@@ -98,7 +98,7 @@ def diskusage_browse(start_dir)
       line = bar.fg(entry[:dir] ? 69 : 243) + " " +
              size_str.fg(156) + " " +
              name.fg(name_color)
-      line = idx == sel ? line.u : line
+      line = idx == sel ? line.ul : line
       lines << line
     end
 

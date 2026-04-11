@@ -13,7 +13,7 @@ PLUGIN_HELP['Opener'] = <<~HELP
   a list of custom openers before using the default
   open behavior.
 
-  #{"Configuration:".b}
+  #{"Configuration:".bd}
     Edit the CUSTOM_OPENERS hash in the plugin file
     (~/.rtfm/plugins/opener.rb):
 
@@ -25,7 +25,7 @@ PLUGIN_HELP['Opener'] = <<~HELP
 
     Use %f as placeholder for the file path.
 
-  #{"How it works:".b}
+  #{"How it works:".bd}
     When you press RIGHT or l on a file, the plugin
     checks if its extension matches any entry in
     CUSTOM_OPENERS. If yes, it launches that program
