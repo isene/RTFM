@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '8.2.4' # Performance: cache MIME type lookups
+@version    = '8.2.5' # rcurses 7.0: rename .b/.i/.u/.r to .bd/.it/.ul/.rv
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -446,7 +446,7 @@ def display_welcome_message # {{{2
 @firstrun = "
   Welcome to RTFM - the Ruby Terminal File Manager. This help text is shown on the first run.
   Next time you run RTFM, you can launch it from your terminal with a one letter command: 'r'
-  When launched this way, RTFM will also exit in the directory you are currently in.\n".b.fg(226)
+  When launched this way, RTFM will also exit in the directory you are currently in.\n".bd.fg(226)
 @firstrun += "
   To benefit fully from all the features, you need to install some auxiliary software.\n".fg(230)
 @firstrun += "
@@ -480,7 +480,7 @@ def display_welcome_message # {{{2
   For users of ArchLinux and derivatives, install all dependencies available outside of AUR with:
   sudo pacman -Syu ruby git ncurses xdotool bat pandoc poppler odt2txt docx2txt unzip gnumeric catdoc w3m imagemagick ffmpegthumbnailer
 
-  Note: Package names may vary between platforms. The 'libncurses-dev' package is Linux-specific.".b.fg(87)
+  Note: Package names may vary between platforms. The 'libncurses-dev' package is Linux-specific.".bd.fg(87)
 @firstrun += "\n\n
   You need to install the basic requirements and you should install the viewers before you...
   ... hit any key to start RTFM. Hit ? inside RTFM to show the full help text. Enjoy :-)\n".fg(214)
@@ -812,7 +812,7 @@ def render_tab_bar # {{{2
     
     if i == @current_tab
       # Active tab with bright background and bold text
-      tab_display << " #{i+1}:#{display_name} ".bg(226).fg(0).b  # Yellow background, black text, bold
+      tab_display << " #{i+1}:#{display_name} ".bg(226).fg(0).bd  # Yellow background, black text, bold
     else
       # Inactive tab with subtle styling
       tab_display << " #{i+1}:#{display_name} ".fg(244)          # Gray text
@@ -1201,7 +1201,7 @@ def show_help # {{{3
 end
 
 def help_info # {{{3
-  help_text = "RTFM Help\n".b.fg(156)
+  help_text = "RTFM Help\n".bd.fg(156)
   help_text << "=" * 50 + "\n\n"
   
   # First pass: find the longest key to determine column alignment
@@ -1223,9 +1223,9 @@ def help_info # {{{3
     
     case content
     when /^[A-Z][A-Z \/]+$/  # Section headers like "BASIC KEYS", "GIT/HASH/OPENAI" (no leading spaces)
-      help_text << content.b.fg(156) + "\n"  # Removed extra newline before
+      help_text << content.bd.fg(156) + "\n"  # Removed extra newline before
     when /^  RTFM - Ruby Terminal File Manager/  # Title
-      help_text << content.b.fg(154) + "\n"
+      help_text << content.bd.fg(154) + "\n"
     when /^COPYRIGHT:/  # Copyright line (no leading spaces)
       help_text << "\n" + content.fg(242) + "\n"
     when /^  (\S+)\s+=\s+/  # Key lines: "  key = description"
@@ -1253,7 +1253,7 @@ end
 def show_version # {{{3
   protocol_info = @termpix ? " [Image protocol: #{@termpix.protocol || 'none'}]" : ""
   version_text = " RTFM version = #{@version}#{protocol_info} (latest RubyGems version is #{Gem.latest_version_for('rtfm-filemanager').version} - https://github.com/isene/RTFM)"
-  @pB.say(version_text.b)
+  @pB.say(version_text.bd)
   @pB.update = false  # Prevent terminal clearing on next render
 end
 
@@ -1285,20 +1285,20 @@ end
 
 def show_config
   clear_image
-  @pR.say('Configuration'.u.fg(254) + ":\n\n" + @conf.fg(249))
+  @pR.say('Configuration'.ul.fg(254) + ":\n\n" + @conf.fg(249))
 end
 
 def plugin_manager # {{{3
   clear_image
   names = @plugins.keys.sort
   if names.empty?
-    @pR.say("Plugins".u.fg(254) + "\n\nNo plugins found in ~/.rtfm/plugins/\n\nPlace .rb files there to make them available.")
+    @pR.say("Plugins".ul.fg(254) + "\n\nNo plugins found in ~/.rtfm/plugins/\n\nPlace .rb files there to make them available.")
     return
   end
   sel = 0
   loop do
     lines = []
-    lines << "Plugins".b.fg(254)
+    lines << "Plugins".bd.fg(254)
     lines << ""
     names.each_with_index do |name, i|
       p = @plugins[name]
@@ -1306,7 +1306,7 @@ def plugin_manager # {{{3
       key_info = p[:meta][:key].empty? ? '' : " [#{p[:meta][:key]}]".fg(240)
       desc = p[:meta][:description].empty? ? '' : " #{p[:meta][:description]}".fg(249)
       line = "#{status} #{name}#{key_info}#{desc}"
-      line = i == sel ? line.u : line
+      line = i == sel ? line.ul : line
       lines << line
     end
     lines << ""
@@ -1329,7 +1329,7 @@ def plugin_manager # {{{3
       help = PLUGIN_HELP[name]
       if help
         @pR.update = true
-        @pR.say(name.b.fg(254) + " help\n\n" + help)
+        @pR.say(name.bd.fg(254) + " help\n\n" + help)
         getchr
       else
         @pB.say("No help available for #{name}.")
@@ -2048,7 +2048,7 @@ end
 
 def show_recent_files # {{{3
   clear_image
-  text = "Recently Accessed Files and Directories\n".b.fg(156)
+  text = "Recently Accessed Files and Directories\n".bd.fg(156)
   text << "=" * 40 + "\n\n"
   
   unless @recent_files.empty?
@@ -2126,7 +2126,7 @@ def show_file_properties # {{{3
 
   begin
     stat = File.stat(@selected)
-    text = "File Properties: #{File.basename(@selected)}\n".b.fg(156)
+    text = "File Properties: #{File.basename(@selected)}\n".bd.fg(156)
     text << "=" * 50 + "\n\n"
     
     # Basic information
@@ -2449,7 +2449,7 @@ def build_pattern_help # {{{3
 end
 
 def show_rename_preview(operations, errors, pattern) # {{{3
-  text = "Bulk Rename Preview: #{pattern}\n".b.fg(156)
+  text = "Bulk Rename Preview: #{pattern}\n".bd.fg(156)
   text << "=" * 50 + "\n\n"
   
   unless operations.empty?
@@ -2513,7 +2513,7 @@ def show_file_comparison(file1, file2) # {{{3
   basename1 = File.basename(file1)
   basename2 = File.basename(file2)
 
-  header = "File Comparison\n".b.fg(156)
+  header = "File Comparison\n".bd.fg(156)
   header << "=" * 50 + "\n\n"
   header << sprintf("%-25s vs %s\n", basename1.fg(156), basename2.fg(156))
   header << "=" * 50 + "\n\n"
@@ -2530,7 +2530,7 @@ def show_file_comparison(file1, file2) # {{{3
   # Check if files are identical
   if stat1.size == stat2.size && files_identical?(file1, file2)
     header << "\n"
-    header << "Files are identical!\n".fg(156).b
+    header << "Files are identical!\n".fg(156).bd
     header << "\nPress any key to close...".fg(240)
     @pR.say(header)
     @pR.update = false
@@ -3119,7 +3119,7 @@ def exit_archive_mode # {{{3
 end
 
 def show_archive_file_info(entry) # {{{3
-  info_text = "Archive File Information\n".b.fg(226)
+  info_text = "Archive File Information\n".bd.fg(226)
   info_text << "=" * 40 + "\n\n"
   info_text << "Archive:       #{File.basename(@archive_path)}\n".fg(255)
   info_text << "Name:          #{entry[:name]}\n".fg(255)
@@ -3190,14 +3190,14 @@ def archive_delete_entries # {{{3
 
   clear_image
   names = entries.map { |e| e[:name] }
-  warning = "\nDelete from Archive\n".b.fg(196)
+  warning = "\nDelete from Archive\n".bd.fg(196)
   warning << "=" * 40 + "\n\n"
   warning << "Archive: #{File.basename(@archive_path)}\n".fg(255)
   warning << "\nItems to delete:\n".fg(226)
   entries.first(10).each { |e| warning << "  #{e[:full_path]}\n".fg(255) }
   warning << "  ... and #{entries.size - 10} more\n".fg(240) if entries.size > 10
-  warning << "\nThis modifies the archive file permanently!\n".fg(196).b
-  warning << "Press " + "y".fg(156).b + " to confirm, any other key to cancel".fg(249)
+  warning << "\nThis modifies the archive file permanently!\n".fg(196).bd
+  warning << "Press " + "y".fg(156).bd + " to confirm, any other key to cancel".fg(249)
   @pR.say(warning)
   @pB.say(" Delete #{entries.size} item(s) from archive? (y/n)".fg(196))
 
@@ -3250,7 +3250,7 @@ def archive_add_files # {{{3
   end
 
   clear_image
-  info = "\nAdd Files to Archive\n".b.fg(226)
+  info = "\nAdd Files to Archive\n".bd.fg(226)
   info << "=" * 40 + "\n\n"
   info << "Archive: #{File.basename(@archive_path)}\n".fg(255)
   target = @archive_current_dir.empty? ? "archive root" : @archive_current_dir
@@ -3258,7 +3258,7 @@ def archive_add_files # {{{3
   info << "\nFiles to add:\n".fg(226)
   files_to_add.first(10).each { |f| info << "  #{File.basename(f)}\n".fg(255) }
   info << "  ... and #{files_to_add.size - 10} more\n".fg(240) if files_to_add.size > 10
-  info << "\nPress " + "y".fg(156).b + " to confirm, any other key to cancel".fg(249)
+  info << "\nPress " + "y".fg(156).bd + " to confirm, any other key to cancel".fg(249)
   @pR.say(info)
   @pB.say(" Add #{files_to_add.size} file(s) to archive? (y/n)".fg(226))
 
@@ -3405,7 +3405,7 @@ def archive_refresh # {{{3
 end
 
 def show_remote_file_info(file) # {{{3
-  info_text = "Remote File Information\n".b.fg(156)
+  info_text = "Remote File Information\n".bd.fg(156)
   info_text << "=" * 40 + "\n\n"
   
   info_text << "Name:          #{file[:name]}\n".fg(255)
@@ -3966,7 +3966,7 @@ end
 
 
 def build_remote_help # {{{3
-  help_text = "Remote Connection Setup\n".b.fg(156)
+  help_text = "Remote Connection Setup\n".bd.fg(156)
   help_text << "=" * 50 + "\n\n"
   
   # Show recent SSH connections if any exist
@@ -4116,19 +4116,19 @@ def delete_items # {{{3
   warning_text = "\n" + "=" * 50 + "\n"
   action = @trash ? 'Move to Trash' : 'PERMANENT DELETE'
   action_color = @trash ? 220 : 196
-  warning_text << action.fg(action_color).b + "\n\n"
+  warning_text << action.fg(action_color).bd + "\n\n"
 
   if @trash
     warning_text << "Items will be moved to:\n".fg(249)
     warning_text << "  ~/.rtfm/trash/\n".fg(240)
     warning_text << "\nYou can restore them with " + "U".fg(156) + " (undo)\n".fg(249)
   else
-    warning_text << "⚠️  WARNING: PERMANENT DELETION!\n".fg(196).b
+    warning_text << "⚠️  WARNING: PERMANENT DELETION!\n".fg(196).bd
     warning_text << "Files will be permanently removed\n".fg(196)
-    warning_text << "This action CANNOT be undone!\n".fg(196).b
+    warning_text << "This action CANNOT be undone!\n".fg(196).bd
   end
 
-  warning_text << "\n" + "Press " + "y".fg(156).b + " to confirm, any other key to cancel".fg(249)
+  warning_text << "\n" + "Press " + "y".fg(156).bd + " to confirm, any other key to cancel".fg(249)
 
   @pR.text << warning_text
   @pR.refresh
@@ -4265,7 +4265,7 @@ def trash_browser # TRASH BROWSER {{{3
 
     lines = []
     lines << "j/k:move  r:restore  d:delete  E:empty all  q:close".fg(240)
-    lines << "Trash".b.fg(254) + "  (#{items.size} items)".fg(240)
+    lines << "Trash".bd.fg(254) + "  (#{items.size} items)".fg(240)
     lines << ""
 
     if items.empty?
@@ -4279,7 +4279,7 @@ def trash_browser # TRASH BROWSER {{{3
         name = item[:orig_name] + type_indicator
         origin = item[:orig_path] ? "  #{File.dirname(item[:orig_path])}".fg(240) : ""
         line = "#{size_s.rjust(8).fg(249)} #{age.rjust(6).fg(240)} #{name}#{origin}"
-        line = idx == sel ? line.u : line
+        line = idx == sel ? line.ul : line
         lines << line
       end
       lines << "(#{sel + 1}/#{items.size})".fg(240) if items.size > page_h
@@ -4663,7 +4663,7 @@ def git_status # {{{3
 
   # Check if we're in a git repository
   unless Dir.exist?('.git') || system('git rev-parse --git-dir > /dev/null 2>&1')
-    @pR.say("Not a Git Repository".b.fg(196) + "\n\n" + "This directory is not under Git version control.".fg(240))
+    @pR.say("Not a Git Repository".bd.fg(196) + "\n\n" + "This directory is not under Git version control.".fg(240))
     @pR.update = false
     @pB.update = true
     return
@@ -4680,7 +4680,7 @@ def git_status # {{{3
   commit_out, commit_err = command('git log --oneline -n 5 2>/dev/null || echo "No commits"', return_both: true)
   
   # Build formatted output
-  info = "Git Status".b.fg(156) + "\n"
+  info = "Git Status".bd.fg(156) + "\n"
   info << "=" * 50 + "\n\n"
   
   # Show errors if any
@@ -4695,7 +4695,7 @@ def git_status # {{{3
   if current_branch.empty?
     info << "Branch: ".fg(226) + "Not on any branch".fg(240) + "\n\n"
   else
-    info << "Branch: ".fg(226) + current_branch.fg(156).b + "\n\n"
+    info << "Branch: ".fg(226) + current_branch.fg(156).bd + "\n\n"
   end
   
   # Parse and categorize changes
@@ -4997,12 +4997,12 @@ end
 # SYSTEM SHORTCUTS {{{2
 def system_info # {{{3
   clear_image
-  text = "SYSTEM INFORMATION".b.fg(156) + " - " + Time.now.strftime("%Y-%m-%d %H:%M:%S").fg(249) + "\n"
+  text = "SYSTEM INFORMATION".bd.fg(156) + " - " + Time.now.strftime("%Y-%m-%d %H:%M:%S").fg(249) + "\n"
   text << "=" * 50 + "\n\n"
   
   begin
     # System Overview
-    text << "System Overview".fg(226).b + "\n"
+    text << "System Overview".fg(226).bd + "\n"
     text << "─" * 20 + "\n"
     
     # Hostname and uptime
@@ -5028,7 +5028,7 @@ def system_info # {{{3
 
   begin
     # Hardware Information
-    text << "Hardware".fg(226).b + "\n"
+    text << "Hardware".fg(226).bd + "\n"
     text << "─" * 20 + "\n"
     
     # CPU Info
@@ -5061,7 +5061,7 @@ def system_info # {{{3
 
   begin
     # Memory Information with visual bar
-    text << "Memory".fg(226).b + "\n"
+    text << "Memory".fg(226).bd + "\n"
     text << "─" * 20 + "\n"
     
     mem_info = `free -b 2>/dev/null | grep Mem:`
@@ -5107,7 +5107,7 @@ def system_info # {{{3
 
   begin
     # Storage Information with visual bars
-    text << "Storage".fg(226).b + "\n"
+    text << "Storage".fg(226).bd + "\n"
     text << "─" * 20 + "\n"
     
     # Get disk usage for main filesystems only
@@ -5149,7 +5149,7 @@ def system_info # {{{3
 
   begin
     # Network Information
-    text << "Network".fg(226).b + "\n"
+    text << "Network".fg(226).bd + "\n"
     text << "─" * 20 + "\n"
     
     # Get active network interfaces
@@ -5190,7 +5190,7 @@ def system_info # {{{3
 
   begin
     # Environment Information
-    text << "Environment".fg(226).b + "\n"
+    text << "Environment".fg(226).bd + "\n"
     text << "─" * 20 + "\n"
     
     # Shell and terminal
@@ -5227,7 +5227,7 @@ def system_info # {{{3
 
   begin
     # Services & Processes
-    text << "Services & Processes".fg(226).b + "\n"
+    text << "Services & Processes".fg(226).bd + "\n"
     text << "─" * 20 + "\n"
     
     # Running services count
@@ -5405,7 +5405,7 @@ end
 
 def show_ssh_history # {{{3
   clear_image
-  history_text = "SSH Connection History\n".b.fg(156)
+  history_text = "SSH Connection History\n".bd.fg(156)
   history_text << "=" * 50 + "\n\n"
   
   if @pSsh.history.empty?
@@ -5589,11 +5589,11 @@ def dirlist_archive # {{{2
     n = n.inject('/', -1) if entry[:type] == 'directory'
     n = n.bg(238) if search_regex && name.match(search_regex)
     tag_key = "#{@archive_path}:#{entry[:full_path]}"
-    n = n.r if @tagged.include?(tag_key)
+    n = n.rv if @tagged.include?(tag_key)
     n = n.shorten(width - 5).inject('...', -1) if name.length > width - 6
 
     if i == current_index
-      n = '→ ' + n.u.bg(58)  # Yellow-green background for archive mode selection
+      n = '→ ' + n.ul.bg(58)  # Yellow-green background for archive mode selection
     else
       n = '  ' + n.bg(58)    # Yellow-green background for archive mode
     end
@@ -5670,7 +5670,7 @@ def dirlist_remote # {{{2
     
     # Add selection indicator and remote mode indicator (red background)
     if i == current_index
-      n = '→ ' + n.u.bg(52)  # Red background for remote mode selection
+      n = '→ ' + n.ul.bg(52)  # Red background for remote mode selection
     else
       n = '  ' + n.bg(52)    # Red background for remote mode
     end
@@ -5782,11 +5782,11 @@ def dirlist(left: true, directory: nil) # LIST DIRECTORIES {{{2
     n = n.inject('@', -1) if is_symlink
     n = n.inject('/', -1) if is_directory
     n = n.bg(238) if search_regex && raw_name.match(search_regex)
-    n = n.r if @tagged.include?(fullpath)
+    n = n.rv if @tagged.include?(fullpath)
     
     if left
       if i == current_index
-        n = '→ ' + n.u  # Default terminal color
+        n = '→ ' + n.ul  # Default terminal color
       else
         n = '  ' + n
       end
@@ -6011,10 +6011,10 @@ def render # RENDER ALL PANES {{{2
   if @pB.update
     bottomtext = @pB.text
     info = ': for command (use @s for selected item, @t for tagged items) - press ? for help'
-    info = " Showing only files matching '#{@lsmatch}'".fg(130).u if @lsmatch != ''
-    info = " Showing only file type '#{@lsfiles}'".fg(129).u if @lsfiles != ''
-    info = " Showing only file types '#{@lsfiles}'".fg(129).u if @lsfiles =~ /,/
-    info += " and only files matching '#{@lsmatch}'".fg(129).u if @lsfiles != '' && @lsmatch != ''
+    info = " Showing only files matching '#{@lsmatch}'".fg(130).ul if @lsmatch != ''
+    info = " Showing only file type '#{@lsfiles}'".fg(129).ul if @lsfiles != ''
+    info = " Showing only file types '#{@lsfiles}'".fg(129).ul if @lsfiles =~ /,/
+    info += " and only files matching '#{@lsmatch}'".fg(129).ul if @lsfiles != '' && @lsmatch != ''
     @pB.text = info
     # Ensure screen output is complete before continuing
     if @pB.text != bottomtext
@@ -6933,7 +6933,7 @@ end
 def marks_info # SHOW MARKS IN RIGHT WINDOW {{{2
   clear_image
   @marks = @marks.sort.to_h
-  info = "Directory Marks".b.fg(156) + "\n"
+  info = "Directory Marks".bd.fg(156) + "\n"
   info << "=" * 50 + "\n\n"
   
   if @marks.empty?
@@ -6952,7 +6952,7 @@ def marks_info # SHOW MARKS IN RIGHT WINDOW {{{2
       
       # Truncate long paths for better display
       display_dir = dir.length > 45 ? "..." + dir[-42..-1] : dir
-      info << sprintf("  %s  →  %s\n", mark.fg(mark_color).b, display_dir.fg(249))
+      info << sprintf("  %s  →  %s\n", mark.fg(mark_color).bd, display_dir.fg(249))
       
       # Add spacing after special marks
       info << "\n" if mark == "'"
@@ -6966,7 +6966,7 @@ end
 
 def tagged_info # SHOW THE LIST OF TAGGED ITEMS IN @pR {{{2
   clear_image
-  info = "Tagged Items".b.fg(204) + "\n"
+  info = "Tagged Items".bd.fg(204) + "\n"
   info << "=" * 50 + "\n\n"
 
   # Summary information
@@ -7000,7 +7000,7 @@ def tagged_info # SHOW THE LIST OF TAGGED ITEMS IN @pR {{{2
   info << "\n" + "Currently selected:\n".fg(226)
   selected_name = File.basename(@selected)
   selected_color = File.directory?(@selected) ? 156 : 249
-  info << "  \u2192 " + selected_name.fg(selected_color).b + "\n"
+  info << "  \u2192 " + selected_name.fg(selected_color).bd + "\n"
   if @selected.length > 50
     info << "    " + @selected.fg(240) + "\n"
   end

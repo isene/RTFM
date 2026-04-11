@@ -13,13 +13,13 @@ PLUGIN_HELP['Dupes'] = <<~HELP
   Press F7 to scan the current directory for files
   that share identical content.
 
-  #{"Scanning:".b}
+  #{"Scanning:".bd}
     Files are first grouped by size, then only
     same-size files are hashed (SHA256) to confirm
     duplicates. Press 'r' at the start prompt to
     scan recursively.
 
-  #{"Navigation:".b}
+  #{"Navigation:".bd}
     j/k         Move between duplicate groups
     PgDn/PgUp   Jump 10 groups
     LEFT/RIGHT  Move between files in a group
@@ -27,12 +27,12 @@ PLUGIN_HELP['Dupes'] = <<~HELP
     d           Delete all untagged files in group
     q/ESC       Close
 
-  #{"Deletion:".b}
+  #{"Deletion:".bd}
     If trash mode is enabled, deleted files are
     moved to the trash and can be undone. Otherwise
     files are permanently removed.
 
-  #{"Display:".b}
+  #{"Display:".bd}
     Groups are sorted by wasted space (largest
     first). Each group shows a partial hash, file
     size, and the list of duplicate paths.
@@ -184,18 +184,18 @@ def find_dupes
 
     lines = []
     lines << "j/k:group  LEFT/RIGHT:file  t:keep  d:delete untagged  q:close".fg(240)
-    lines << "Duplicate Files".b.fg(254) + "  (#{group_idx + 1}/#{dupes.size} groups, #{format_bytes(wasted_total)} wasted)".fg(240)
+    lines << "Duplicate Files".bd.fg(254) + "  (#{group_idx + 1}/#{dupes.size} groups, #{format_bytes(wasted_total)} wasted)".fg(240)
     lines << ""
 
     header = "#{format_bytes(meta[:size])} x#{group.size} (#{format_bytes(meta[:waste])} wasted)"
-    lines << header.b.fg(112)
+    lines << header.bd.fg(112)
 
     group.each_with_index do |f, fi|
       rel = f.start_with?(Dir.pwd + '/') ? f.sub(Dir.pwd + '/', '') : f
       is_kept = kept[group_idx].include?(fi)
       marker = is_kept ? " KEEP ".bg(22).fg(255) : "      "
       label = "#{marker} #{rel}"
-      label = fi == file_idx ? label.u.fg(254) : label.fg(250)
+      label = fi == file_idx ? label.ul.fg(254) : label.fg(250)
       lines << label
     end
 

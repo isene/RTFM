@@ -10,14 +10,14 @@ PLUGIN_HELP['Settings'] = <<~HELP
 
   Overrides the default 'C' (show config) key.
 
-  #{"Navigation:".b}
+  #{"Navigation:".bd}
     j/k or UP/DOWN  Navigate settings
     LEFT/RIGHT      Toggle booleans, adjust colors +-1
     H/L             Adjust colors +-10
     ENTER           Edit text fields or type color number
     q/ESC           Save and close
 
-  #{"Settings included:".b}
+  #{"Settings included:".bd}
     Trash mode, run-mailcap, interactive programs,
     custom ls flags, OpenAI key/model, and all
     pane colors (top, bottom, search, command,
@@ -54,7 +54,7 @@ def show_settings
   loop do
     # Build display
     lines = []
-    lines << "Settings".b.fg(254)
+    lines << "Settings".bd.fg(254)
     lines << ""
 
     settings.each_with_index do |(label, var, type, _opts), i|
@@ -73,7 +73,7 @@ def show_settings
 
       pad = label_w - label.length
       line = "#{label}#{' ' * pad}#{display}"
-      line = i == sel ? line.u : line
+      line = i == sel ? line.ul : line
       lines << line
     end
 

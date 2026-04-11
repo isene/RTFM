@@ -9,7 +9,7 @@ PLUGIN_HELP['Git'] = <<~HELP
 
   Press Ctrl-G to open the git menu.
 
-  #{"Commands:".b}
+  #{"Commands:".bd}
     s   Show git status
     d   Show git diff
     c   Stage all, commit (prompts for message), push
@@ -26,12 +26,12 @@ def git_menu
 
   loop do
     lines = []
-    lines << "Git".b.fg(254)
+    lines << "Git".bd.fg(254)
     lines << ""
-    lines << "s".b.fg(112) + "  git status"
-    lines << "d".b.fg(112) + "  git diff"
-    lines << "c".b.fg(112) + "  git add + commit + push"
-    lines << "l".b.fg(112) + "  git log (last 20)"
+    lines << "s".bd.fg(112) + "  git status"
+    lines << "d".bd.fg(112) + "  git diff"
+    lines << "c".bd.fg(112) + "  git add + commit + push"
+    lines << "l".bd.fg(112) + "  git log (last 20)"
     lines << ""
     lines << "q/ESC: close".fg(240)
 
@@ -43,12 +43,12 @@ def git_menu
     when 's'
       output = command("git status 2>&1")
       @pR.update = true
-      @pR.say("git status".b.fg(254) + "\n\n" + output)
+      @pR.say("git status".bd.fg(254) + "\n\n" + output)
     when 'd'
       output = command("git diff 2>&1")
       output = "No changes." if output.strip.empty?
       @pR.update = true
-      @pR.say("git diff".b.fg(254) + "\n\n" + output)
+      @pR.say("git diff".bd.fg(254) + "\n\n" + output)
     when 'c'
       message = @pCmd.ask('Commit message: ', '')
       if message.strip.empty?
@@ -61,7 +61,7 @@ def git_menu
     when 'l'
       output = command("git log --oneline -20 2>&1")
       @pR.update = true
-      @pR.say("git log".b.fg(254) + "\n\n" + output)
+      @pR.say("git log".bd.fg(254) + "\n\n" + output)
     when 'q', 'ESC'
       break
     end
