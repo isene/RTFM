@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '8.2.5' # rcurses 7.0: rename .b/.i/.u/.r to .bd/.it/.ul/.rv
+@version    = '8.2.6' # Open .hl files in `hyper` when available
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -6495,6 +6495,29 @@ def open_selected(html = nil) # OPEN SELECTED FILE {{{2
       Process.detach(pid)
     end
     Rcurses.clear_screen; refresh; render
+    return
+  end
+  # HyperList files: open in `hyper` if it's on PATH. Falls through to the
+  # regular editor path when hyper is missing.
+  if @selected&.match?(/\.hl$/i) && system('which hyper > /dev/null 2>&1')
+    @external_program_running = true
+    system("stty -g < /dev/tty > /tmp/rtfm_stty_$$")
+    system('stty sane < /dev/tty')
+    system('clear < /dev/tty > /dev/tty')
+    Cursor.show
+    system("hyper #{Shellwords.escape(@selected)}")
+    @external_program_running = false
+    system("stty $(cat /tmp/rtfm_stty_$$) < /dev/tty")
+    system("rm -f /tmp/rtfm_stty_$$")
+    $stdin.iflush if $stdin.respond_to?(:iflush)
+    system('stty raw -echo isig < /dev/tty')
+    $stdin.raw!
+    $stdin.echo = false
+    Rcurses.init!
+    Cursor.hide
+    Rcurses.clear_screen
+    refresh
+    render
     return
   end
   # Check if file is text (UTF-8, UTF-16, or other text encodings)
