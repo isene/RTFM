@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [8.2.6] - 2026-04-21
 
 ### Added
-- `.hl` files open in [`hyper`](https://github.com/isene/hyper) (the HyperList viewer) when it's on `$PATH`, using the same terminal-state dance as `$EDITOR`. Falls through to the regular editor path when hyper is not installed.
+- `hyper` added to the default `@interactive` full-TUI program list. Combined with an xdg-mime / mailcap entry that maps `application/x-hyperlist` → `hyper.desktop`, RTFM will now give `hyper` full terminal control when opening `.hl` files. No hardcoded extension check — the opener itself stays user-configurable via mailcap or xdg-mime, and the `@interactive` list itself is editable (`+` key or `~/.rtfm/conf`).
 
 ## [8.2.1] - 2026-03-16
 

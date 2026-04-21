@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '8.2.6' # Open .hl files in `hyper` when available
+@version    = '8.2.6' # Add `hyper` to the default @interactive TUI-app list
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -370,7 +370,7 @@ def setup_config # {{{2
     @topmatch = [["", 249]]
 
     # INTERACTIVE
-    @interactive = "fzf,navi,top,htop,less,vi,vim,ncdu,sh,zsh,bash,fish,git"
+    @interactive = "fzf,navi,top,htop,less,vi,vim,ncdu,sh,zsh,bash,fish,git,hyper"
 
     # AI
     @ai      = "Replace_This_With_Your_OpenAI_Key"
@@ -559,7 +559,7 @@ $stdin.set_encoding(Encoding::UTF_8)
 @border      = 1       # Set initial border config; 0 = none, 1 = Right pane, 2 = both panes, 3 = Left pane
 @preview     = true    # Preview in the Right pane
 @trash       = false   # Delete files permanently rather than moving them to ~/.rtfm/trash
-@interactive = 'fzf,navi,top,htop,less,vi,vim,nvim,ncdu,sh,zsh,bash,fish,git,mplayer'
+@interactive = 'fzf,navi,top,htop,less,vi,vim,nvim,ncdu,sh,zsh,bash,fish,git,mplayer,hyper'
 ### Not saved (but can be set in ~/.rtfm/conf)
 @topcolor    = 249     # Default Top pane bg color
 @topmatch    = [['', 249]] # Default Top pane bg color for matching directories
@@ -6495,29 +6495,6 @@ def open_selected(html = nil) # OPEN SELECTED FILE {{{2
       Process.detach(pid)
     end
     Rcurses.clear_screen; refresh; render
-    return
-  end
-  # HyperList files: open in `hyper` if it's on PATH. Falls through to the
-  # regular editor path when hyper is missing.
-  if @selected&.match?(/\.hl$/i) && system('which hyper > /dev/null 2>&1')
-    @external_program_running = true
-    system("stty -g < /dev/tty > /tmp/rtfm_stty_$$")
-    system('stty sane < /dev/tty')
-    system('clear < /dev/tty > /dev/tty')
-    Cursor.show
-    system("hyper #{Shellwords.escape(@selected)}")
-    @external_program_running = false
-    system("stty $(cat /tmp/rtfm_stty_$$) < /dev/tty")
-    system("rm -f /tmp/rtfm_stty_$$")
-    $stdin.iflush if $stdin.respond_to?(:iflush)
-    system('stty raw -echo isig < /dev/tty')
-    $stdin.raw!
-    $stdin.echo = false
-    Rcurses.init!
-    Cursor.hide
-    Rcurses.clear_screen
-    refresh
-    render
     return
   end
   # Check if file is text (UTF-8, UTF-16, or other text encodings)
