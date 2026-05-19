@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '8.5.0' # Crash log, persistent per-dir cursor, Claude AI, non-blocking `:` commands
+@version    = '8.6.0' # LS_COLORS fallback (dircolors -b) + Terminal=true in .desktop honored
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -57,6 +57,18 @@ begin
   require 'bootsnap/setup'
 rescue LoadError
   # bootsnap not installed — proceed without compile cache
+end
+
+# LS_COLORS FALLBACK {{{1
+# RTFM relies on `ls --color` ANSI output for left/right pane colors, and
+# `ls` itself reads $LS_COLORS. If the user's shell never exports it (cron
+# launches, minimal login environments, some macOS setups) the listing
+# comes back colorless. Seed it from `dircolors -b` when available.
+if (ENV['LS_COLORS'].nil? || ENV['LS_COLORS'].empty?) && !`which dircolors 2>/dev/null`.strip.empty?
+  dc = `dircolors -b 2>/dev/null`
+  if (m = dc.match(/LS_COLORS='([^']*)'/))
+    ENV['LS_COLORS'] = m[1]
+  end
 end
 
 # ENCODING {{{1
@@ -6508,11 +6520,18 @@ def get_interactive_program(file_path) # HELPER FOR OPEN_SELECTED TO USE @intera
         if desktop_path
           content = File.read(desktop_path)
           exec_line = content[/^Exec=(.*)$/m, 1]
+          # Honor Terminal=true in the .desktop file: any app declaring
+          # itself a terminal program is treated as interactive even if
+          # the user hasn't manually added it to @interactive. Lets newly
+          # installed TUI tools "just work" without editing config.
+          terminal_true = content =~ /^Terminal\s*=\s*true\b/i
           if exec_line
-            # Extract the program name (first word, remove path)
             prog = exec_line.split.first
             prog = File.basename(prog) if prog
-            return prog if prog && inter_list.include?(prog)
+            if prog
+              return prog if inter_list.include?(prog)
+              return prog if terminal_true
+            end
           end
         end
       end
