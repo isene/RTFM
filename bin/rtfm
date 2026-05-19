@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '8.7.1' # $ script output now sticks in right pane + directive trace footer
+@version    = '8.7.2' # $ script-eval clears right pane before writing output
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -5674,6 +5674,7 @@ def script_eval # {{{3
   end
 
   clear_image
+  @pR.clear  # wipe leftover preview lines so short output doesn't sit atop them
   text = body.empty? ? ' (no output)'.fg(244) : body
   @pR.text = text
   @pR.ix = 0
