@@ -18,21 +18,46 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '8.2.6' # Add `hyper` to the default @interactive TUI-app list
+@version    = '8.5.0' # Crash log, persistent per-dir cursor, Claude AI, non-blocking `:` commands
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
 
 at_exit do
+  # Log unhandled exceptions to ~/.rtfm/crash.log so users can file bug reports
+  # without losing the backtrace to terminal scrollback.
+  if $! && !$!.is_a?(SystemExit) && !$!.is_a?(Interrupt)
+    begin
+      log = File.join(Dir.home, '.rtfm', 'crash.log')
+      require 'fileutils'
+      FileUtils.mkdir_p(File.dirname(log))
+      File.open(log, 'a') do |f|
+        f.puts '=' * 60
+        f.puts "RTFM v#{@version} crash at #{Time.now}"
+        f.puts "Ruby #{RUBY_VERSION} on #{RUBY_PLATFORM}"
+        f.puts "PWD: #{Dir.pwd rescue 'unknown'}"
+        f.puts "#{$!.class}: #{$!.message}"
+        f.puts($!.backtrace.join("\n")) if $!.backtrace
+      end
+    rescue StandardError
+      # never crash inside the crash handler
+    end
+  end
   system("stty #{ORIG_STTY} < /dev/tty") rescue nil
 end
 
 # BOOTSNAP {{{1
+# Optional startup speedup. If the gem isn't installed, RTFM just starts
+# a bit slower instead of refusing to run.
 cache_dir = ENV.fetch('BOOTSNAP_CACHE_DIR', File.join(Dir.home, '.rtfm', 'bootsnap-cache'))
 ENV['BOOTSNAP_CACHE_DIR'] = cache_dir
 require 'fileutils'
 FileUtils.mkdir_p(cache_dir)
-require 'bootsnap/setup' # Speed up subsequent requires
+begin
+  require 'bootsnap/setup'
+rescue LoadError
+  # bootsnap not installed — proceed without compile cache
+end
 
 # ENCODING {{{1
 # encoding: utf-8
@@ -616,6 +641,13 @@ $stdin.set_encoding(Encoding::UTF_8)
 @file_op_complete = false        # Flag when operation finishes
 @file_op_result = nil            # Result message when operation finishes
 
+## Async shell command (`:` mode, non-interactive branch)
+@shell_cmd_thread   = nil        # Current background shell-command thread
+@shell_cmd_running  = false      # True while a background `:` cmd is running
+@shell_cmd_label    = nil        # Command string for status display
+@shell_cmd_complete = false      # Set by worker when output is ready
+@shell_cmd_output   = nil        # Captured stdout+stderr
+
 ## Recently accessed files/directories
 @recent_files = []      # Last 50 accessed files
 @recent_dirs = []       # Last 20 accessed directories  
@@ -860,11 +892,33 @@ if (pick_arg = ARGV.find { |a| a.start_with?('--pick=') })
   ARGV.delete(pick_arg)
 end
 
+# --fresh: ignore any saved per-directory cursor positions for this session.
+# @directory is still tracked in-memory, but startup restoration is skipped.
+@fresh = false
+if ARGV.delete('--fresh')
+  @fresh = true
+  @directory = {}
+end
+
 # Handle start dir {{{2
-Dir.chdir(ARGV.shift) if ARGV[0] && File.directory?(ARGV[0])
+# Accept either a directory or a file path. With a file path, cd into its
+# parent and queue the basename for cursor restoration after load_dir runs.
+@startup_select = nil
+if (arg = ARGV[0]) && !arg.start_with?('-')
+  if File.directory?(arg)
+    Dir.chdir(ARGV.shift)
+  elsif File.exist?(arg)
+    @startup_select = File.basename(arg)
+    Dir.chdir(File.dirname(File.expand_path(arg)))
+    ARGV.shift
+  end
+end
 
 # Initialize first tab {{{2
 create_tab(Dir.pwd, "Main")
+# Seed the first tab's per-tab directory_memory with the persisted @directory
+# so switching tabs and back doesn't lose the saved cursor map.
+@tabs[0][:directory_memory] = @directory.dup if @tabs[0]
 
 # OPENAI SETUP {{{1
 def chat_history # {{{2
@@ -878,6 +932,33 @@ end
 def openai_client # {{{2
   require 'ruby/openai' unless defined?(OpenAI)
   @openai_client ||= OpenAI::Client.new(access_token: @ai)
+end
+
+# AI dispatch: routes to Anthropic when @aimodel starts with 'claude-',
+# otherwise OpenAI. Returns the assistant message text, or nil on failure.
+# Anthropic uses curl (no extra gem dependency); OpenAI uses ruby-openai.
+def ai_request(messages, max_tokens = 600) # {{{2
+  if @aimodel.to_s.start_with?('claude-')
+    require 'json'
+    # Anthropic expects "system" as a top-level field, not a message role.
+    sys = messages.find { |m| (m[:role] || m['role']).to_s == 'system' }
+    msgs = messages.reject { |m| (m[:role] || m['role']).to_s == 'system' }
+    body = { model: @aimodel, max_tokens: max_tokens, messages: msgs }
+    body[:system] = sys[:content] || sys['content'] if sys
+    out = `curl -sS -X POST https://api.anthropic.com/v1/messages \
+      -H 'content-type: application/json' \
+      -H 'anthropic-version: 2023-06-01' \
+      -H #{Shellwords.escape("x-api-key: #{@ai}")} \
+      -d #{Shellwords.escape(body.to_json)} 2>/dev/null`
+    return nil if out.empty?
+    json = JSON.parse(out) rescue nil
+    json && json.dig('content', 0, 'text')
+  else
+    resp = openai_client.chat(
+      parameters: { model: @aimodel, messages: messages, max_tokens: max_tokens }
+    ) rescue nil
+    resp&.dig('choices', 0, 'message', 'content')
+  end
 end
 
 # SET UP VIEWER SYSTEM {{{1
@@ -4804,15 +4885,18 @@ end
 
 def openai_description # {{{3
   clear_image
-  begin
-    require 'ruby/openai'
-  rescue LoadError
-    @pB.say('To enable AI-descriptions: `gem install ruby-openai` and set @ai in ~/.rtfm/conf')
+  unless @ai && !@ai.empty?
+    @pB.say("Set your API key in ~/.rtfm/conf: @ai = 'your-api-key'")
     return
   end
-  unless @ai && !@ai.empty?
-    @pB.say("Set your API key in ~/.rtfm/conf: @ai = 'your-secret-openai-key'")
-    return
+  # ruby-openai is only needed for OpenAI models; Anthropic uses curl.
+  unless @aimodel.to_s.start_with?('claude-')
+    begin
+      require 'ruby/openai'
+    rescue LoadError
+      @pB.say('For OpenAI models: `gem install ruby-openai`. For Claude, set @aimodel to a claude-* model.')
+      return
+    end
   end
   # Context
   path    = File.join(Dir.pwd, @selected.to_s)
@@ -4827,26 +4911,25 @@ def openai_description # {{{3
   parts << "Git-Aware Diff Explanation: summarize the most recent `git diff` touching #{path}, explaining what changed." if Dir.exist?(File.join(Dir.pwd, '.git'))
   parts << "Existing preview text: #{preview}" unless preview.empty?
   prompt = parts.join(' ')
-  # Send to OpenAI
-  client = OpenAI::Client.new(access_token: @ai)
   @pR.say('Thinking...'.fg(244))
-  response = client.chat(
-    parameters: {
-      model:      @aimodel,
-      messages:   [{ role: 'user', content: prompt }],
-      max_tokens: 600
-    }
-  ) rescue nil
-  answer = response&.dig('choices', 0, 'message', 'content') ||
-           '⚠️ Error or empty response from OpenAI.'
+  answer = ai_request([{ role: 'user', content: prompt }], 600) ||
+           '⚠️ Error or empty response from AI provider.'
   @pR.say(answer.fg(230))
 end
 
 def chat_mode # {{{3
   clear_image
-  unless defined?(OpenAI) && @ai && !@ai.empty?
-    @pB.say("To make OpenAI work in RTFM, run `gem install ruby-openai` and add to ~/.rtfm/conf:\n  @ai = 'your-secret-openai-key'")
+  unless @ai && !@ai.empty?
+    @pB.say("Set your API key in ~/.rtfm/conf: @ai = 'your-api-key'")
     return
+  end
+  unless @aimodel.to_s.start_with?('claude-')
+    begin
+      require 'ruby/openai'
+    rescue LoadError
+      @pB.say('For OpenAI models: `gem install ruby-openai`. For Claude, set @aimodel to a claude-* model.')
+      return
+    end
   end
 
   @pB.clear; @pB.update = true
@@ -4855,15 +4938,7 @@ def chat_mode # {{{3
 
   chat_history << { role: 'user', content: question }
   @pR.say('Thinking...'.fg(230))
-  reply = openai_client.chat(
-    parameters: {
-      model:    @aimodel,
-      messages: chat_history,
-      max_tokens: 400
-    }
-  ) rescue nil
-  answer = reply&.dig('choices', 0, 'message', 'content') ||
-           '⚠️ API error or empty response'
+  answer = ai_request(chat_history, 400) || '⚠️ API error or empty response'
   chat_history << { role: 'assistant', content: answer }
   @pR.say(answer.fg(230))
   @pB.clear; @pB.update = true
@@ -5385,15 +5460,33 @@ def command_mode # {{{3
     refresh
     render
   else
-    # Check if it's a GUI application that should run without timeout
-    gui_apps = ['evince', 'xdg-open', 'firefox', 'chrome', 'chromium', 'eog', 'nautilus', 'thunar', 'gedit', 'code', 'subl']
-    prog_base = File.basename(prog.to_s)
-    is_gui = gui_apps.include?(prog_base)
-    
-    # Use nil timeout (wait forever) for GUI apps, 10 seconds for others
-    shellexec(cmd, timeout: is_gui ? nil : 10)
-    @pR.refresh
-    @pR.update = false
+    # Run non-interactive commands in a background thread so GUI apps
+    # (xdg-open, firefox, evince, …) and long-running tools don't freeze
+    # the TUI. The main loop polls @shell_cmd_complete and drops output
+    # into the right pane when ready.
+    if @shell_cmd_running
+      @pB.say("A background command is still running: #{@shell_cmd_label}".fg(214))
+      return
+    end
+    @shell_cmd_running  = true
+    @shell_cmd_complete = false
+    @shell_cmd_output   = nil
+    @shell_cmd_label    = cmd
+    cmd_str = cmd.dup
+    @shell_cmd_thread = Thread.new do
+      begin
+        out, err, _status = Open3.capture3('sh', '-c', cmd_str)
+        combined = out.dup
+        combined << "\n" << err.fg(196) unless err.empty?
+        @shell_cmd_output = combined
+      rescue StandardError => e
+        @shell_cmd_output = "Error: #{e.class}: #{e.message}".fg(196)
+      ensure
+        @shell_cmd_complete = true
+      end
+    end
+    @pB.say(" Running: #{cmd}".fg(244))
+    @pB.update = true
   end
 end
 
@@ -6574,7 +6667,8 @@ def conf_write(all: false) # WRITE TO ~/.rtfm/conf {{{2
     'history'     => "@history     = #{@pCmd.history.reverse.uniq.reverse.last(40)}",
     'rubyhistory' => "@rubyhistory = #{@pRuby.history.reverse.uniq.reverse.last(40)}",
     'aihistory'   => "@aihistory   = #{@pAI.history.reverse.uniq.reverse.last(40)}",
-    'sshhistory'  => "@sshhistory  = #{@pSsh.history.reverse.uniq.reverse.last(40)}"
+    'sshhistory'  => "@sshhistory  = #{@pSsh.history.reverse.uniq.reverse.last(40)}",
+    'directory'   => "@directory   = #{@directory.select { |d, _| Dir.exist?(d) }.to_a.last(200).to_h}"
   }
   if all
     assignments.merge!(
@@ -7063,6 +7157,13 @@ end
 @pSsh.record    = true
 @pSsh.history   = @sshhistory
 
+# Restore startup cursor from saved per-directory positions (unless --fresh).
+# A file-path argument is applied after the first render in the main loop,
+# since @files isn't populated until render() runs.
+if !@fresh && @directory[Dir.pwd]
+  @index = @directory[Dir.pwd]
+end
+
 # Report plugin errors {{{2
 @pR.say("Plugin load errors:\n" + @plugin_errors.join("\n").fg(196)) if @plugin_errors.any? 
 
@@ -7096,6 +7197,23 @@ loop do
     @pB.update = false
   end
 
+  # Check async `:` shell command (non-interactive branch in command_mode)
+  if @shell_cmd_complete
+    @shell_cmd_complete = false
+    @shell_cmd_running  = false
+    @shell_cmd_thread = nil
+    if @shell_cmd_output && !@shell_cmd_output.empty?
+      clear_image
+      @pR.say(@shell_cmd_output)
+    end
+    @pB.say(" Done: #{@shell_cmd_label}".fg(156))
+    @shell_cmd_label = nil
+    @shell_cmd_output = nil
+    # Directory may have changed (file created/removed); invalidate cache
+    @dir_cache.delete_if { |key, _| key.start_with?("#{Dir.pwd}:") }
+    @pL.update = @pR.update = @pB.update = true
+  end
+
   # Handle pending terminal resize (debounced from SIGWINCH)
   if @winch_pending && !@external_program_running
     @winch_pending = false
@@ -7114,6 +7232,15 @@ loop do
     render
   rescue Errno::EIO
     # Note: rcurses 4.9.0+ has enhanced error handling, reducing need for this
+  end
+  # Apply file-argument cursor selection on first render (when @files is populated)
+  if @startup_select && @files && !@files.empty?
+    ix = @files.index(@startup_select)
+    if ix
+      @index = ix
+      @pL.update = @pR.update = true
+    end
+    @startup_select = nil
   end
   # read key, but ignore TTY-focus errors
   begin
