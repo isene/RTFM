@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '8.7.0' # Script evaluator on $ key with RTFM_* env vars + stderr directives
+@version    = '8.7.1' # $ script output now sticks in right pane + directive trace footer
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -5634,6 +5634,7 @@ def script_eval # {{{3
 
   # Process stderr line-by-line: directives consumed, other lines kept.
   leftover_err = []
+  directive_msgs = []
   err.each_line do |line|
     l = line.chomp
     case l
@@ -5643,15 +5644,20 @@ def script_eval # {{{3
         @directory[Dir.pwd] = @index
         mark_latest
         Dir.chdir(target)
+        directive_msgs << "cd: #{target}"
       else
         leftover_err << "cd: no such directory: #{target}"
       end
     when /\Aselect:(.+)\z/
       name = $1.strip
-      # Apply after the upcoming render populates @files for the (new) cwd
+      # Applied after the upcoming render populates @files (handles both
+      # same-dir selection and post-cd selection in the new dir).
       @startup_select = name
+      directive_msgs << "select: #{name}"
     when /\Astatus:(.+)\z/
-      @pB.say($1.strip.fg(156))
+      msg = $1.strip
+      @pB.say(msg.fg(156))
+      directive_msgs << "status: #{msg}"
     else
       leftover_err << l unless l.empty?
     end
@@ -5659,8 +5665,20 @@ def script_eval # {{{3
 
   body = out.dup
   body << "\n" << leftover_err.join("\n").fg(196) unless leftover_err.empty?
+
+  # Show directive trace as a subtle footer so the user can see what fired
+  unless directive_msgs.empty?
+    body << "\n\n" unless body.empty?
+    body << '── directives applied ──'.fg(238) << "\n"
+    body << directive_msgs.map { |m| "  #{m}" }.join("\n").fg(244)
+  end
+
   clear_image
-  @pR.say(body.empty? ? ' (no output)'.fg(244) : body)
+  text = body.empty? ? ' (no output)'.fg(244) : body
+  @pR.text = text
+  @pR.ix = 0
+  @pR.full_refresh
+  @pR.update = false
   @pB.update = true
 end
 
