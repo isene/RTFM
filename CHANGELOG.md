@@ -5,6 +5,19 @@ All notable changes to RTFM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.5.0] - 2026-05-19
+
+### Added
+- **Crash log** - Unhandled exceptions now append to `~/.rtfm/crash.log` with timestamp, version, Ruby/platform info, cwd, exception class/message, and full backtrace. The `at_exit` handler skips `SystemExit`/`Interrupt` so normal quits stay silent. Makes bug reports actionable instead of guesswork from terminal scrollback
+- **Persistent per-directory cursor** - The in-memory `@directory` hash that tracks selected index per directory is now saved to `~/.rtfm/conf` on quit (capped at 200 entries, prunes deleted dirs). Re-enter a directory in a later session and the cursor lands where you left it
+- **`--fresh` CLI flag** - Launch with `rtfm --fresh` to ignore the saved cursor map for one session (useful when the saved positions are stale or you want a clean slate)
+- **File-path argument** - `rtfm /etc/hosts` now cd's into `/etc` and places the cursor on `hosts`. Previously only directory arguments worked
+- **Claude (Anthropic) support for AI features** - Set `@aimodel = "claude-sonnet-4-6"` (or any `claude-*` model) in `~/.rtfm/conf` and both `I` (file description) and `Ctrl-a` (chat) route to the Anthropic API via curl. OpenAI continues to work for non-`claude-*` model names. Same `@ai` config field holds either key
+- **Non-blocking `:` commands** - Non-interactive shell commands now run in a background thread. Launching GUI apps (`xdg-open`, `firefox`, `evince`, etc.) no longer freezes RTFM until they exit. Output drops into the right pane when the command completes. The bottom pane shows running/done status
+
+### Fixed
+- **Bootsnap optional** - Missing `bootsnap` gem no longer crashes RTFM on startup. It was always intended as a startup-speed optimization; now `require 'bootsnap/setup'` is wrapped in a `LoadError` rescue and RTFM continues without it
+
 ## [8.2.6] - 2026-04-21
 
 ### Added
