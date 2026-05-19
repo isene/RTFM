@@ -5,6 +5,12 @@ All notable changes to RTFM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.7.1] - 2026-05-19
+
+### Fixed
+- **`$` script-evaluator output now sticks** - The right pane was getting overwritten by the directory preview after the script returned. Mirrors `command_mode`'s pattern: explicit `@pR.full_refresh` + `@pR.update = false` so the script's output remains visible until the user navigates
+- **Directive trace footer** - Stderr directives (`cd:`, `select:`, `status:`) now produce a small `── directives applied ──` footer at the bottom of the output so it's clear *something* happened even when stdout is empty. Previously a pure-directive script just showed `(no output)`
+
 ## [8.7.0] - 2026-05-19
 
 ### Added
