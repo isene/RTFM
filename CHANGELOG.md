@@ -5,6 +5,11 @@ All notable changes to RTFM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.7.0] - 2026-05-19
+
+### Added
+- **Script evaluator (`$` key)** - Run any shell command (any language) with RTFM context exposed as environment variables. Output shows in the right pane. Variables: `RTFM_SELECTED` (full path), `RTFM_DIR` (cwd), `RTFM_TAGGED` (newline-separated tagged paths), `RTFM_INDEX` (0-based selection), `RTFM_COUNT` (file count), `RTFM_CONTEXT` (JSON object with all of the above). Scripts can control RTFM by emitting stderr directives one per line: `cd:/path` changes directory, `select:NAME` moves cursor onto NAME, `status:MSG` shows MSG in the bottom pane. The Ruby debug mode (`@`) is unchanged. Makes RTFM scriptable from Python, Bash, Perl, jq, anything — without writing Ruby plugins
+
 ## [8.6.0] - 2026-05-19
 
 ### Added

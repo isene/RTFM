@@ -18,7 +18,7 @@
 #             get a great understanding of the code itself by simply sending
 #             or pasting this whole file into you favorite AI for coding with
 #             a prompt like this: "Help me understand every part of this code".
-@version    = '8.6.0' # LS_COLORS fallback (dircolors -b) + Terminal=true in .desktop honored
+@version    = '8.7.0' # Script evaluator on $ key with RTFM_* env vars + stderr directives
 
 # SAVE & STORE TERMINAL {{{1
 ORIG_STTY = `stty -g`.chomp
@@ -352,6 +352,20 @@ CONFIG_FILE   = File.join(RTFM_HOME, 'conf')
 
   RUBY DEBUG MODE
     @       = Enter Ruby mode to execute any Ruby command (ENTER to execute, ESC to escape)
+
+  SCRIPT EVALUATOR
+    $       = Run any shell command (any language) with RTFM context as env vars.
+              Output is shown in the right pane.
+                RTFM_SELECTED  Full path of selected item
+                RTFM_DIR       Current working directory
+                RTFM_TAGGED    Newline-separated tagged paths
+                RTFM_INDEX     Selected index (0-based)
+                RTFM_COUNT     Number of files in listing
+                RTFM_CONTEXT   JSON object with all of the above
+              Scripts can control RTFM via stderr directives, one per line:
+                cd:/path       Change to /path
+                select:NAME    Place cursor on NAME in current directory
+                status:MSG     Show MSG in the bottom pane
 
   COPYRIGHT: Geir Isene, 2025+. No rights reserved. See http://isene.com for more.
 HELPTEXT
@@ -1178,7 +1192,10 @@ KEYMAP = { # {{{2
   'e'       => :show_file_properties,
 
   # RUBY MODE {{{3
-  '@'       => :ruby_debug
+  '@'       => :ruby_debug,
+
+  # SCRIPT EVALUATOR {{{3
+  '$'       => :script_eval
 }
 
 # USER KEYS (override or extend KEYMAP) {{{2
@@ -5572,6 +5589,79 @@ def ruby_debug # {{{3
   @pR.refresh
   @pR.update = false
   @pB.full_refresh
+end
+
+# SCRIPT EVALUATOR {{{2
+# Run a shell command (any language) with RTFM context exposed as env vars.
+# stdout shows in the right pane. stderr is scanned for control directives:
+#   cd:/path        change current directory
+#   select:NAME     move cursor onto NAME in the (new) cwd
+#   status:MSG      show MSG in the bottom pane
+# Any other stderr line is appended to the right-pane output in red.
+def script_eval # {{{3
+  cmd = @pCmd.ask('$ ', '').to_s.strip
+  if cmd.empty?
+    @pB.clear; @pB.update = true
+    return
+  end
+
+  require 'json'
+  selected = @selected.to_s
+  tagged_paths = @tagged.dup
+  context = {
+    selected:  selected,
+    directory: Dir.pwd,
+    tagged:    tagged_paths,
+    index:     @index,
+    count:     (@files || []).size
+  }
+
+  env = {
+    'RTFM_SELECTED' => selected,
+    'RTFM_DIR'      => Dir.pwd,
+    'RTFM_TAGGED'   => tagged_paths.join("\n"),
+    'RTFM_INDEX'    => @index.to_s,
+    'RTFM_COUNT'    => (@files || []).size.to_s,
+    'RTFM_CONTEXT'  => context.to_json
+  }
+
+  begin
+    out, err, _status = Open3.capture3(env, 'sh', '-c', cmd)
+  rescue StandardError => e
+    @pB.say("script: #{e.class}: #{e.message}".fg(196))
+    return
+  end
+
+  # Process stderr line-by-line: directives consumed, other lines kept.
+  leftover_err = []
+  err.each_line do |line|
+    l = line.chomp
+    case l
+    when /\Acd:(.+)\z/
+      target = File.expand_path($1.strip)
+      if File.directory?(target)
+        @directory[Dir.pwd] = @index
+        mark_latest
+        Dir.chdir(target)
+      else
+        leftover_err << "cd: no such directory: #{target}"
+      end
+    when /\Aselect:(.+)\z/
+      name = $1.strip
+      # Apply after the upcoming render populates @files for the (new) cwd
+      @startup_select = name
+    when /\Astatus:(.+)\z/
+      @pB.say($1.strip.fg(156))
+    else
+      leftover_err << l unless l.empty?
+    end
+  end
+
+  body = out.dup
+  body << "\n" << leftover_err.join("\n").fg(196) unless leftover_err.empty?
+  clear_image
+  @pR.say(body.empty? ? ' (no output)'.fg(244) : body)
+  @pB.update = true
 end
 
 # GENERIC FUNCTIONS {{{1
